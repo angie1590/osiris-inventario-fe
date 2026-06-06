@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DateRangeFilter, type DateRange, currentMonthRange } from '@/features/reports/DateRangeFilter'
-import { useAuditLogs, type AuditFilters } from '@/features/audit/hooks'
+import { useAuditLogs, useAuditUsers, type AuditFilters } from '@/features/audit/hooks'
 import { downloadBlob } from '@/lib/download'
 import { differenceInDays, parseISO } from 'date-fns'
 import api from '@/lib/api'
@@ -33,13 +33,17 @@ export default function AuditPage() {
   const { toast } = useToast()
   const [range, setRange] = useState<DateRange>(currentMonthRange())
   const [action, setAction] = useState<AuditAction | undefined>()
+  const [userQuery, setUserQuery] = useState('')
+  const [userId, setUserId] = useState<number | undefined>()
   const [entityType, setEntityType] = useState('')
   const [entityId, setEntityId] = useState('')
   const [cursor, setCursor] = useState<number | undefined>()
+  const { data: users, isLoading: usersLoading } = useAuditUsers(userQuery || undefined)
 
   const filters: AuditFilters = {
     date_from: range.date_from,
     date_to: range.date_to,
+    user_id: userId,
     action,
     entity_type: entityType || undefined,
     entity_id: entityId || undefined,
@@ -87,6 +91,34 @@ export default function AuditPage() {
               {ACTIONS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Usuario</Label>
+          <div className="space-y-1">
+            <Input
+              className="h-8 w-56"
+              placeholder="Buscar usuario..."
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+            />
+            <Select
+              value={userId ? String(userId) : '__all__'}
+              onValueChange={(v) => setUserId(v === '__all__' ? undefined : Number(v))}
+            >
+              <SelectTrigger className="h-8 w-56"><SelectValue placeholder="Todos los usuarios" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos los usuarios</SelectItem>
+                {(users ?? []).map((u) => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    {u.full_name} ({u.username})
+                  </SelectItem>
+                ))}
+                {!usersLoading && (users ?? []).length === 0 && (
+                  <SelectItem value="__none__" disabled>Sin resultados</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Tipo entidad</Label>

@@ -2,6 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/api'
 import type { AuditLog, AuditAction } from '@/types/api'
 
+export interface AuditUserOption {
+  id: number
+  username: string
+  full_name: string
+}
+
 export interface AuditFilters {
   date_from?: string
   date_to?: string
@@ -22,5 +28,18 @@ export function useAuditLogs(filters: AuditFilters) {
       return res.data
     },
     enabled: !!(filters.date_from && filters.date_to),
+  })
+}
+
+export function useAuditUsers(search?: string) {
+  return useQuery({
+    queryKey: ['audit-users', search],
+    queryFn: async () => {
+      const params: Record<string, unknown> = { limit: 50 }
+      if (search) params.search = search
+      const res = await api.get<AuditUserOption[]>('/audit/users', { params })
+      return res.data
+    },
+    staleTime: 30_000,
   })
 }
