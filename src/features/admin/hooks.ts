@@ -61,8 +61,8 @@ export function useSystemParams() {
 export function useUpdateParam() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, value }: { id: number; value: string }) => {
-      const res = await api.patch<SystemParam>(`/admin/params/${id}`, { value })
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      const res = await api.patch<SystemParam>(`/admin/params/${encodeURIComponent(key)}`, { value })
       return res.data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['system-params'] }),
