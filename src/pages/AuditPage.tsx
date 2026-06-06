@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { Check, ChevronsUpDown, Download, Search } from 'lucide-react'
+import { Check, ChevronDown, ChevronsUpDown, Download, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +18,7 @@ import { differenceInDays, parseISO } from 'date-fns'
 import api from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import type { AuditAction } from '@/types/api'
+import type { AuditAction, AuditLog } from '@/types/api'
 
 const ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'CANCEL', 'LOGIN', 'LOGOUT', 'PASSWORD_CHANGED']
 
@@ -58,6 +58,91 @@ function highlightMatch(text: string, query: string) {
   return parts
 }
 
+function localizeDescription(description: string | null): string {
+  if (!description) return '—'
+
+  if (description === 'Successful login') return 'Inicio de sesión exitoso'
+  if (description === 'User logged out') return 'Cierre de sesión'
+  if (description === 'Password changed') return 'Contraseña actualizada'
+
+  const failed = description.match(/^Failed login attempt for '(.+)'$/)
+  if (failed) return `Intento fallido de inicio de sesión para '${failed[1]}'`
+
+  const updated = description.match(/^User '(.+)' updated$/)
+  if (updated) return `Usuario '${updated[1]}' actualizado`
+
+  const created = description.match(/^User '(.+)' created$/)
+  if (created) return `Usuario '${created[1]}' creado`
+
+  const deactivated = description.match(/^User '(.+)' deactivated$/)
+  if (deactivated) return `Usuario '${deactivated[1]}' desactivado`
+
+  return description
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  full_name: 'Nombre completo',
+  role: 'Rol',
+  is_active: 'Estado activo',
+  must_change_password: 'Debe cambiar contraseña',
+  username: 'Usuario',
+  username_attempt: 'Usuario intentado',
+  reason: 'Motivo',
+}
+
+const FIELD_VALUE_LABELS: Record<string, Record<string, string>> = {
+  reason: {
+    invalid_credentials: 'Credenciales inválidas',
+    account_inactive: 'Cuenta inactiva',
+  },
+}
+
+function toDisplayValue(key: string, value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No'
+  if (typeof value === 'string') {
+    return FIELD_VALUE_LABELS[key]?.[value] ?? value
+  }
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function renderAuditDetails(log: AuditLog) {
+  const before = log.previous_values ?? {}
+  const after = log.new_values ?? {}
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+
+  if (keys.length === 0) {
+    return <p className="text-xs text-muted-foreground">Sin metadatos adicionales para este registro.</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalle de cambios</p>
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full min-w-[520px] text-xs">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="px-2 py-1.5 text-left font-semibold">Atributo</th>
+              <th className="px-2 py-1.5 text-left font-semibold">Anterior</th>
+              <th className="px-2 py-1.5 text-left font-semibold">Nuevo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {keys.map((key) => (
+              <tr key={`${log.id}-${key}`} className="border-t">
+                <td className="px-2 py-1.5 font-medium">{FIELD_LABELS[key] ?? key}</td>
+                <td className="px-2 py-1.5 text-muted-foreground">{toDisplayValue(key, before[key])}</td>
+                <td className="px-2 py-1.5">{toDisplayValue(key, after[key])}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function AuditPage() {
   const { toast } = useToast()
   const [range, setRange] = useState<DateRange>(currentMonthRange())
@@ -69,6 +154,7 @@ export default function AuditPage() {
   const [entityType, setEntityType] = useState('')
   const [entityId, setEntityId] = useState('')
   const [cursor, setCursor] = useState<number | undefined>()
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   const { data: users, isLoading: usersLoading } = useAuditUsers(userQuery || undefined)
   const currentUserLabel = userId
     ? (users?.find((u) => u.id === userId)
@@ -87,6 +173,15 @@ export default function AuditPage() {
   }
 
   const { data: logs, isLoading, isError, refetch } = useAuditLogs(filters)
+
+  const toggleExpanded = (id: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const handleExport = async () => {
     const days = differenceInDays(parseISO(range.date_to), parseISO(range.date_from))
@@ -248,13 +343,14 @@ export default function AuditPage() {
                   <TableHead>ID</TableHead>
                   <TableHead>IP</TableHead>
                   <TableHead>Descripción</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(logs ?? []).length === 0
                   ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="p-0">
+                      <TableCell colSpan={8} className="p-0">
                         <EmptyState
                           className="py-10"
                           heading="Sin resultados"
@@ -264,21 +360,42 @@ export default function AuditPage() {
                     </TableRow>
                     )
                   : (logs ?? []).map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-                        {new Date(l.timestamp).toLocaleString('es-EC')}
-                      </TableCell>
-                      <TableCell className="text-sm">{l.username ?? '—'}</TableCell>
-                      <TableCell>
-                        <Badge variant={ACTION_VARIANTS[l.action] ?? 'secondary'} className="text-xs">
-                          {l.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{l.entity_type ?? '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{l.entity_id ?? '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{l.ip_address ?? '—'}</TableCell>
-                      <TableCell className="text-xs max-w-48 truncate" title={l.description ?? undefined}>{l.description ?? '—'}</TableCell>
-                    </TableRow>
+                    <Fragment key={l.id}>
+                      <TableRow>
+                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                          {new Date(l.timestamp).toLocaleString('es-EC')}
+                        </TableCell>
+                        <TableCell className="text-sm">{l.username ?? '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant={ACTION_VARIANTS[l.action] ?? 'secondary'} className="text-xs">
+                            {l.action}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">{l.entity_type ?? '—'}</TableCell>
+                        <TableCell className="font-mono text-xs">{l.entity_id ?? '—'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{l.ip_address ?? '—'}</TableCell>
+                        <TableCell className="text-xs max-w-48 truncate" title={localizeDescription(l.description)}>{localizeDescription(l.description)}</TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => toggleExpanded(l.id)}
+                            aria-label={expandedRows.has(l.id) ? 'Ocultar detalle' : 'Mostrar detalle'}
+                          >
+                            <ChevronDown className={cn('h-4 w-4 transition-transform', expandedRows.has(l.id) && 'rotate-180')} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {expandedRows.has(l.id) && (
+                        <TableRow className="bg-muted/20">
+                          <TableCell colSpan={8}>
+                            {renderAuditDetails(l)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
                   ))}
               </TableBody>
             </Table>
