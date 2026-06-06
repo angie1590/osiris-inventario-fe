@@ -31,6 +31,33 @@ const ACTION_VARIANTS: Partial<Record<AuditAction, 'default' | 'secondary' | 'de
   LOGOUT: 'secondary',
 }
 
+function highlightMatch(text: string, query: string) {
+  const q = query.trim()
+  if (!q) return text
+
+  const lower = text.toLowerCase()
+  const needle = q.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const idx = lower.indexOf(needle, cursor)
+    if (idx === -1) {
+      parts.push(text.slice(cursor))
+      break
+    }
+    if (idx > cursor) parts.push(text.slice(cursor, idx))
+    parts.push(
+      <span key={`${idx}-${needle}`} className="rounded bg-cyan-100 px-0.5 text-cyan-900">
+        {text.slice(idx, idx + needle.length)}
+      </span>
+    )
+    cursor = idx + needle.length
+  }
+
+  return parts
+}
+
 export default function AuditPage() {
   const { toast } = useToast()
   const [range, setRange] = useState<DateRange>(currentMonthRange())
@@ -175,7 +202,7 @@ export default function AuditPage() {
                             setUserOpen(false)
                           }}
                         >
-                          <span className="flex-1 truncate text-left">{label}</span>
+                          <span className="flex-1 truncate text-left">{highlightMatch(label, userQuery)}</span>
                           {userId === u.id && <Check className="h-3.5 w-3.5 text-primary" />}
                         </button>
                       )
