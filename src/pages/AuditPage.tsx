@@ -1,6 +1,8 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import {
+  ArrowDown,
+  ArrowUp,
   Check,
   ChevronDown,
   ChevronsUpDown,
@@ -47,6 +49,14 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { AuditAction, AuditLog } from "@/types/api";
 
+type SortKey =
+  | "username"
+  | "action"
+  | "entity_type"
+  | "ip_address"
+  | "description";
+type SortDirection = "asc" | "desc";
+
 const ACTIONS: AuditAction[] = [
   "CREATE",
   "UPDATE",
@@ -68,6 +78,20 @@ const ACTION_VARIANTS: Partial<
   LOGIN: "secondary",
   LOGOUT: "secondary",
 };
+
+const ENTITY_TYPE_OPTIONS = [
+  { value: "user", label: "Usuarios (user)" },
+  { value: "product", label: "Productos (product)" },
+  { value: "category", label: "Categorías (category)" },
+  { value: "inventory", label: "Inventario (inventory)" },
+  { value: "kardex", label: "Kardex (kardex)" },
+  {
+    value: "company_config",
+    label: "Configuración de empresa (company_config)",
+  },
+  { value: "system_param", label: "Parámetros de sistema (system_param)" },
+  { value: "audit_log", label: "Auditoría (audit_log)" },
+];
 
 function highlightMatch(text: string, query: string) {
   const q = query.trim();
@@ -119,6 +143,14 @@ function localizeDescription(description: string | null): string {
   if (deactivated) return `Usuario '${deactivated[1]}' desactivado`;
 
   return description;
+}
+
+function localizeEntityType(entityType: string | null): string {
+  if (!entityType) return "—";
+  return (
+    ENTITY_TYPE_OPTIONS.find((option) => option.value === entityType)?.label ??
+    entityType
+  );
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -207,8 +239,11 @@ export default function AuditPage() {
   const [userId, setUserId] = useState<number | undefined>();
   const [selectedUserLabel, setSelectedUserLabel] =
     useState<string>("Todos los usuarios");
+  const [entityTypeOpen, setEntityTypeOpen] = useState(false);
+  const [entityTypeQuery, setEntityTypeQuery] = useState("");
   const [entityType, setEntityType] = useState("");
-  const [entityId, setEntityId] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey | undefined>();
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [cursor, setCursor] = useState<number | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const { data: users, isLoading: usersLoading } = useAuditUsers(
@@ -226,11 +261,81 @@ export default function AuditPage() {
     user_id: userId,
     action,
     entity_type: entityType || undefined,
-    entity_id: entityId || undefined,
     cursor,
   };
 
+  const selectedEntityTypeLabel = entityType
+    ? (ENTITY_TYPE_OPTIONS.find((option) => option.value === entityType)
+        ?.label ?? `Otro (${entityType})`)
+    : "Todas las entidades";
+  const filteredEntityTypes = ENTITY_TYPE_OPTIONS.filter((option) => {
+    const q = entityTypeQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      option.label.toLowerCase().includes(q) ||
+      option.value.toLowerCase().includes(q)
+    );
+  });
+
   const { data: logs, isLoading, isError, refetch } = useAuditLogs(filters);
+
+  useEffect(() => {
+    // Nueva consulta: limpia ordenamiento manual por header.
+    setSortBy(undefined);
+    setSortDirection("asc");
+  }, [range.date_from, range.date_to, action, userId, entityType, cursor]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(key);
+    setSortDirection("asc");
+  };
+
+  const sortedLogs = [...(logs ?? [])].sort((a, b) => {
+    const dateCmp =
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+
+    // Sin orden por header: fecha descendente (más reciente primero).
+    if (!sortBy) return dateCmp;
+
+    // Con orden por header: el header es primario y la fecha queda de desempate.
+    const av = String(a[sortBy] ?? "").toLocaleLowerCase("es-EC");
+    const bv = String(b[sortBy] ?? "").toLocaleLowerCase("es-EC");
+    const cmp = av.localeCompare(bv, "es-EC");
+    if (cmp !== 0) return sortDirection === "asc" ? cmp : -cmp;
+    return dateCmp;
+  });
+
+  const SortableHeader = ({
+    label,
+    keyName,
+  }: {
+    label: string;
+    keyName: SortKey;
+  }) => {
+    const active = sortBy === keyName;
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-left font-medium hover:text-foreground"
+        onClick={() => handleSort(keyName)}
+      >
+        <span>{label}</span>
+        {active ? (
+          sortDirection === "asc" ? (
+            <ArrowUp className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowDown className="h-3.5 w-3.5" />
+          )
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 opacity-40" />
+        )}
+      </button>
+    );
+  };
 
   const toggleExpanded = (id: number) => {
     setExpandedRows((prev) => {
@@ -409,21 +514,97 @@ export default function AuditPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Tipo entidad</Label>
-          <Input
-            className="h-8 w-36"
-            placeholder="product, user..."
-            value={entityType}
-            onChange={(e) => setEntityType(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">ID entidad</Label>
-          <Input
-            className="h-8 w-24"
-            placeholder="ID..."
-            value={entityId}
-            onChange={(e) => setEntityId(e.target.value)}
-          />
+          <PopoverPrimitive.Root
+            open={entityTypeOpen}
+            onOpenChange={setEntityTypeOpen}
+          >
+            <PopoverPrimitive.Trigger asChild>
+              <button
+                type="button"
+                role="combobox"
+                aria-expanded={entityTypeOpen}
+                className={cn(
+                  "flex h-8 w-64 items-center justify-between whitespace-nowrap rounded-lg border border-input bg-white px-3 text-sm shadow-token-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                )}
+              >
+                <span className="truncate">{selectedEntityTypeLabel}</span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </button>
+            </PopoverPrimitive.Trigger>
+            <PopoverPrimitive.Portal>
+              <PopoverPrimitive.Content
+                className={cn(
+                  "w-(--radix-popover-trigger-width) rounded-md border bg-popover p-0 shadow-md",
+                  "data-[state=open]:animate-in data-[state=closed]:animate-out",
+                  "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+                )}
+                style={{ zIndex: 350 }}
+                align="start"
+                sideOffset={4}
+              >
+                <div className="flex items-center gap-2 border-b px-3 py-2">
+                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <Input
+                    value={entityTypeQuery}
+                    onChange={(e) => setEntityTypeQuery(e.target.value)}
+                    placeholder="Buscar tipo de entidad..."
+                    className="h-7 border-none p-0 text-sm shadow-none focus-visible:ring-0"
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto p-1" role="listbox">
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm",
+                      "cursor-pointer hover:bg-accent",
+                      !entityType && "bg-primary/10 font-medium",
+                    )}
+                    onClick={() => {
+                      setEntityType("");
+                      setEntityTypeOpen(false);
+                    }}
+                  >
+                    <span className="flex-1 truncate text-left">
+                      Todas las entidades
+                    </span>
+                    {!entityType && (
+                      <Check className="h-3.5 w-3.5 text-primary" />
+                    )}
+                  </button>
+                  {filteredEntityTypes.length === 0 ? (
+                    <p className="px-2 py-3 text-sm text-muted-foreground">
+                      Sin resultados
+                    </p>
+                  ) : (
+                    filteredEntityTypes.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm",
+                          "cursor-pointer hover:bg-accent",
+                          entityType === option.value &&
+                            "bg-primary/10 font-medium",
+                        )}
+                        onClick={() => {
+                          setEntityType(option.value);
+                          setEntityTypeOpen(false);
+                        }}
+                      >
+                        <span className="flex-1 truncate text-left">
+                          {highlightMatch(option.label, entityTypeQuery)}
+                        </span>
+                        {entityType === option.value && (
+                          <Check className="h-3.5 w-3.5 text-primary" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </PopoverPrimitive.Content>
+            </PopoverPrimitive.Portal>
+          </PopoverPrimitive.Root>
         </div>
       </div>
 
@@ -441,19 +622,28 @@ export default function AuditPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha/hora</TableHead>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Acción</TableHead>
-                <TableHead>Entidad</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>IP</TableHead>
-                <TableHead>Descripción</TableHead>
+                <TableHead>
+                  <SortableHeader label="Usuario" keyName="username" />
+                </TableHead>
+                <TableHead>
+                  <SortableHeader label="Acción" keyName="action" />
+                </TableHead>
+                <TableHead>
+                  <SortableHeader label="Entidad" keyName="entity_type" />
+                </TableHead>
+                <TableHead>
+                  <SortableHeader label="IP" keyName="ip_address" />
+                </TableHead>
+                <TableHead>
+                  <SortableHeader label="Descripción" keyName="description" />
+                </TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(logs ?? []).length === 0 ? (
+              {sortedLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="p-0">
+                  <TableCell colSpan={7} className="p-0">
                     <EmptyState
                       className="py-10"
                       heading="Sin resultados"
@@ -462,7 +652,7 @@ export default function AuditPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                (logs ?? []).map((l) => (
+                sortedLogs.map((l) => (
                   <Fragment key={l.id}>
                     <TableRow>
                       <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
@@ -480,10 +670,7 @@ export default function AuditPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {l.entity_type ?? "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {l.entity_id ?? "—"}
+                        {localizeEntityType(l.entity_type)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {l.ip_address ?? "—"}
@@ -518,7 +705,7 @@ export default function AuditPage() {
                     </TableRow>
                     {expandedRows.has(l.id) && (
                       <TableRow className="bg-muted/20">
-                        <TableCell colSpan={8}>
+                        <TableCell colSpan={7}>
                           {renderAuditDetails(l)}
                         </TableCell>
                       </TableRow>
