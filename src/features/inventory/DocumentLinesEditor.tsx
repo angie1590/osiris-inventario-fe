@@ -40,7 +40,7 @@ function ProductCombobox({ onChange }: { value: number | null; onChange: (p: Pro
         />
       </div>
       {open && (products ?? []).length > 0 && (
-        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+        <div className="absolute mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover shadow-md" style={{ zIndex: 350 }}>
           {(products ?? []).map((p) => (
             <button
               key={p.id}

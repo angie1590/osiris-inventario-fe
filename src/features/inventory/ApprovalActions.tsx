@@ -26,7 +26,7 @@ export function ApprovalActions({ doc }: Props) {
   const [showOtpModal, setShowOtpModal] = useState(false)
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [generatedCode, setGeneratedCode] = useState<string | null>(null)
-  const generateCode = useGenerateAuthCode(doc.id)
+  const generateCode = useGenerateAuthCode()
   const approve = useApproveDocument()
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm({
@@ -36,10 +36,12 @@ export function ApprovalActions({ doc }: Props) {
   if (doc.status !== 'pending') return null
 
   const isAdmin = user?.role === 'admin'
+  const approvableType = doc.doc_type === 'BI' || doc.doc_type === 'AI' ? doc.doc_type : null
 
   const handleGenerateCode = async () => {
+    if (!approvableType) return
     try {
-      const res = await generateCode.mutateAsync()
+      const res = await generateCode.mutateAsync({ id: doc.id, docType: approvableType })
       setGeneratedCode(res.authorization_code)
       setShowOtpModal(true)
     } catch {
@@ -48,8 +50,9 @@ export function ApprovalActions({ doc }: Props) {
   }
 
   const handleApprove = async (data: { authorization_code: string }) => {
+    if (!approvableType) return
     try {
-      await approve.mutateAsync({ id: doc.id, payload: { authorization_code: data.authorization_code } })
+      await approve.mutateAsync({ id: doc.id, docType: approvableType, payload: { authorization_code: data.authorization_code } })
       toast({ title: 'Documento aprobado' })
       setShowApproveModal(false)
       reset()

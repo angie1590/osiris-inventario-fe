@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DateRangeFilter, type DateRange } from '@/features/reports/DateRangeFilter'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { DateRangeFilter, type DateRange, currentMonthRange } from '@/features/reports/DateRangeFilter'
 import { useAuditLogs, type AuditFilters } from '@/features/audit/hooks'
 import { downloadBlob } from '@/lib/download'
 import { differenceInDays, parseISO } from 'date-fns'
@@ -28,25 +31,24 @@ const ACTION_VARIANTS: Partial<Record<AuditAction, 'default' | 'secondary' | 'de
 
 export default function AuditPage() {
   const { toast } = useToast()
-  const [range, setRange] = useState<DateRange | null>(null)
+  const [range, setRange] = useState<DateRange>(currentMonthRange())
   const [action, setAction] = useState<AuditAction | undefined>()
   const [entityType, setEntityType] = useState('')
   const [entityId, setEntityId] = useState('')
   const [cursor, setCursor] = useState<number | undefined>()
 
   const filters: AuditFilters = {
-    date_from: range?.date_from,
-    date_to: range?.date_to,
+    date_from: range.date_from,
+    date_to: range.date_to,
     action,
     entity_type: entityType || undefined,
     entity_id: entityId || undefined,
     cursor,
   }
 
-  const { data: logs, isLoading } = useAuditLogs(filters)
+  const { data: logs, isLoading, isError, refetch } = useAuditLogs(filters)
 
   const handleExport = async () => {
-    if (!range) return
     const days = differenceInDays(parseISO(range.date_to), parseISO(range.date_from))
     if (days > 90) {
       toast({ variant: 'destructive', description: 'El rango de exportación no puede superar 90 días' })
@@ -65,17 +67,17 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Auditoría</h1>
-        {range && (
+      <PageHeader
+        title="Auditoría"
+        actions={
           <Button variant="outline" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />Exportar Excel (máx. 90 días)
           </Button>
-        )}
-      </div>
+        }
+      />
 
       <div className="flex flex-wrap gap-3 rounded-lg border bg-card p-3">
-        <DateRangeFilter onApply={(r) => { setRange(r); setCursor(undefined) }} />
+        <DateRangeFilter onApply={(r) => { setRange(r); setCursor(undefined) }} defaultValues={range} />
         <div className="space-y-1">
           <Label className="text-xs">Acción</Label>
           <Select value={action ?? '__all__'} onValueChange={(v) => setAction(v === '__all__' ? undefined : v as AuditAction)}>
@@ -96,11 +98,14 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {!range && <p className="text-center text-muted-foreground py-4">Selecciona un rango de fechas para ver los logs</p>}
-
-      {range && (
-        <div className="rounded-lg border bg-card overflow-x-auto">
-          {isLoading ? <Skeleton className="m-3 h-48" /> : (
+      <div className="rounded-lg border bg-card overflow-x-auto">
+          {isLoading ? <Skeleton className="m-3 h-48" /> : isError ? (
+            <ErrorState
+              className="py-10"
+              message="No se pudo cargar el historial de auditoria."
+              onRetry={() => void refetch()}
+            />
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -115,7 +120,17 @@ export default function AuditPage() {
               </TableHeader>
               <TableBody>
                 {(logs ?? []).length === 0
-                  ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Sin resultados</TableCell></TableRow>
+                  ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="p-0">
+                        <EmptyState
+                          className="py-10"
+                          heading="Sin resultados"
+                          description="Ajusta los filtros para encontrar registros de auditoria."
+                        />
+                      </TableCell>
+                    </TableRow>
+                    )
                   : (logs ?? []).map((l) => (
                     <TableRow key={l.id}>
                       <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
@@ -137,18 +152,15 @@ export default function AuditPage() {
             </Table>
           )}
         </div>
-      )}
 
-      {range && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={!cursor} onClick={() => setCursor(undefined)}>Primera página</Button>
-          <Button variant="outline" size="sm"
-            disabled={!logs || logs.length < 50}
-            onClick={() => setCursor(logs?.[logs.length - 1]?.id)}>
-            Siguiente →
-          </Button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" disabled={!cursor} onClick={() => setCursor(undefined)}>Primera página</Button>
+        <Button variant="outline" size="sm"
+          disabled={!logs || logs.length < 50}
+          onClick={() => setCursor(logs?.[logs.length - 1]?.id)}>
+          Siguiente →
+        </Button>
+      </div>
     </div>
   )
 }

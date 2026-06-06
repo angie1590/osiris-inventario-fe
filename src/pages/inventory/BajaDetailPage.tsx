@@ -5,11 +5,12 @@ import { ApprovalActions } from '@/features/inventory/ApprovalActions'
 
 export default function BajaDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { data: doc } = useDocument(Number(id))
+  const { data: doc } = useDocument(Number(id), 'BI')
 
   return (
     <DocumentDetail
       id={Number(id)}
+      docType="BI"
       extraActions={doc ? <ApprovalActions doc={doc} /> : undefined}
     />
   )

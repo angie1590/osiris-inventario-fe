@@ -3,6 +3,7 @@ import { Plus, ChevronRight, ChevronDown, Pencil, Trash2, Tags } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { useCategories, useDeleteCategory } from '@/features/catalog/hooks'
 import { CategoryFormModal } from '@/features/catalog/CategoryFormModal'
 import { AttributesPanel } from '@/features/catalog/AttributesPanel'
@@ -93,10 +94,10 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Categorías</h1>
-        <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Nueva categoría</Button>
-      </div>
+      <PageHeader
+        title="Categorías"
+        actions={<Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Nueva categoría</Button>}
+      />
 
       <div className="rounded-lg border bg-card">
         {isLoading

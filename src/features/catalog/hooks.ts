@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/api'
 import type {
   Category, CategoryAttribute, Product,
-  CreateCategoryPayload, CreateAttributePayload,
+  CreateCategoryPayload, CreateAttributePayload, UpdateAttributePayload,
   CreateProductPayload, UpdateProductPayload, ProductStatus,
 } from '@/types/api'
 
@@ -70,6 +70,33 @@ export function useDeleteAttribute() {
   return useMutation({
     mutationFn: ({ categoryId, attrId }: { categoryId: number; attrId: number }) =>
       api.delete(`/categories/${categoryId}/attributes/${attrId}`),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['category-attributes', v.categoryId] }),
+  })
+}
+
+export function useUpdateAttribute() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ categoryId, attrId, payload }: { categoryId: number; attrId: number; payload: UpdateAttributePayload }) =>
+      api.patch<CategoryAttribute>(`/categories/${categoryId}/attributes/${attrId}`, payload).then((r) => r.data),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['category-attributes', v.categoryId] }),
+  })
+}
+
+export function useDeactivateAttribute() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ categoryId, attrId }: { categoryId: number; attrId: number }) =>
+      api.post<CategoryAttribute>(`/categories/${categoryId}/attributes/${attrId}/deactivate`).then((r) => r.data),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['category-attributes', v.categoryId] }),
+  })
+}
+
+export function useReactivateAttribute() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ categoryId, attrId }: { categoryId: number; attrId: number }) =>
+      api.post<CategoryAttribute>(`/categories/${categoryId}/attributes/${attrId}/reactivate`).then((r) => r.data),
     onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['category-attributes', v.categoryId] }),
   })
 }

@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FormField } from '@/components/shared/FormField'
 import { DocumentLinesEditor, type DocumentLine } from '@/features/inventory/DocumentLinesEditor'
 import { useCreateBaja } from '@/features/inventory/hooks'
 import { useToast } from '@/hooks/use-toast'
@@ -19,19 +20,21 @@ export default function BajaNewPage() {
   const { toast } = useToast()
   const create = useCreateBaja()
   const [lines, setLines] = useState<DocumentLine[]>([])
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   const onSubmit = async (data: FormData) => {
+    setFormError(null)
     if (lines.length === 0) {
-      toast({ variant: 'destructive', description: 'Agrega al menos una línea' })
+      setFormError('Agrega al menos una línea al documento')
       return
     }
     const invalid = lines.find((l) => !l.product_id || !l.quantity || Number(l.quantity) <= 0)
     if (invalid) {
-      toast({ variant: 'destructive', description: 'Completa todos los campos de las líneas' })
+      setFormError('Completa todos los campos de las líneas')
       return
     }
     try {
@@ -41,30 +44,34 @@ export default function BajaNewPage() {
       })
       toast({ title: `Baja ${doc.number} creada (pendiente de aprobación)` })
       navigate(`/inventory/bajas/${doc.id}`)
-    } catch {
-      toast({ variant: 'destructive', description: 'Error al crear la baja' })
+    } catch (err: unknown) {
+      const apiErr = err as { response?: { data?: { code?: string; message?: string } } }
+      const msg = apiErr?.response?.data?.message
+      setFormError(msg ?? 'Error al crear la baja')
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold">Nueva Baja de Inventario</h1>
       </div>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {formError && (
+          <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>
+        )}
         <div className="rounded-lg border bg-card p-4">
-          <div className="space-y-1">
-            <Label>Notas</Label>
+          <FormField label="Notas">
             <Input {...register('notes')} placeholder="Motivo de la baja" />
-          </div>
+          </FormField>
         </div>
         <div className="space-y-2">
           <h2 className="font-medium">Líneas del documento</h2>
           <DocumentLinesEditor lines={lines} onChange={setLines} />
         </div>
         <div className="flex gap-2">
-          <Button type="submit" disabled={isSubmitting}>Crear baja</Button>
+          <Button type="submit" isLoading={isSubmitting}>Crear baja</Button>
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancelar</Button>
         </div>
       </form>

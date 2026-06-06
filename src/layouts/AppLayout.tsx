@@ -1,22 +1,18 @@
 import { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, User } from 'lucide-react'
+import { Outlet, useNavigate, Link } from 'react-router-dom'
+import { AlertTriangle } from 'lucide-react'
 import { Sidebar } from '@/components/shared/Sidebar'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Topbar } from '@/components/shared/Topbar'
 import { useAuth } from '@/contexts/AuthContext'
 import { Toaster } from '@/components/ui/toaster'
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Administrador',
-  operator: 'Operador',
-  supervisor: 'Supervisor',
-}
+import { useCompanyConfig } from '@/features/admin/hooks'
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { data: company } = useCompanyConfig()
+  const showBanner = !company || !company.is_complete
 
   const handleLogout = async () => {
     await logout()
@@ -24,26 +20,37 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+    <div className="flex h-screen overflow-hidden bg-[hsl(var(--content-bg))]">
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} style={{ zIndex: 'var(--z-sticky)' }} />
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-          <div />
-          <div className="flex items-center gap-3">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{user?.full_name || user?.username}</span>
-            <Badge variant="secondary" className="text-xs">
-              {ROLE_LABELS[user?.role ?? ''] ?? user?.role}
-            </Badge>
-            <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </header>
+        <Topbar
+          fullName={user?.full_name}
+          username={user?.username}
+          role={user?.role}
+          onLogout={handleLogout}
+        />
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+        {showBanner && (
+          <div className="mx-5 mt-4 flex shrink-0 items-center gap-2 rounded-lg border border-amber-400/80 bg-amber-100/95 px-4 py-2.5 text-sm text-amber-900 shadow-token-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {user?.role === 'admin' ? (
+              <>
+                <span>Configuración de empresa incompleta.</span>
+                <Link to="/admin/company" className="font-semibold underline underline-offset-2 hover:no-underline">
+                  Configurar ahora
+                </Link>
+              </>
+            ) : (
+              <span>El administrador debe completar la configuración de empresa antes de operar.</span>
+            )}
+          </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto px-5 pb-5 pt-4">
+          <div className="mx-auto w-full max-w-345">
+            <Outlet />
+          </div>
         </main>
       </div>
 

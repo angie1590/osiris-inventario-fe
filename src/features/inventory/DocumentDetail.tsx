@@ -29,27 +29,32 @@ const TYPE_LABELS: Record<DocumentType, string> = {
 
 interface Props {
   id: number
+  docType: DocumentType
   showCost?: boolean
   showPrice?: boolean
   extraActions?: React.ReactNode
 }
 
-export function DocumentDetail({ id, showCost, showPrice, extraActions }: Props) {
+export function DocumentDetail({ id, docType, showCost, showPrice, extraActions }: Props) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { toast } = useToast()
-  const { data: doc, isLoading } = useDocument(id)
+  const { data: doc, isLoading } = useDocument(id, docType)
   const cancel = useCancelDocument()
 
   if (isLoading) return <Skeleton className="h-64 w-full" />
   if (!doc) return <p>Documento no encontrado</p>
 
-  const canCancel = doc.status === 'pending' && (user?.role === 'admin' || user?.role === 'operator')
+  const canCancel =
+    (doc.doc_type === 'BI' || doc.doc_type === 'AI')
+    && doc.status === 'pending'
+    && (user?.role === 'admin' || user?.role === 'operator')
 
   const handleCancel = async () => {
     if (!confirm('¿Cancelar este documento?')) return
+    if (doc.doc_type !== 'BI' && doc.doc_type !== 'AI') return
     try {
-      await cancel.mutateAsync(id)
+      await cancel.mutateAsync({ id, docType: doc.doc_type })
       toast({ title: 'Documento cancelado' })
     } catch {
       toast({ variant: 'destructive', description: 'Error al cancelar' })

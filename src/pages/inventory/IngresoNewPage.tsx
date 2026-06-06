@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FormField } from '@/components/shared/FormField'
 import { DocumentLinesEditor, type DocumentLine } from '@/features/inventory/DocumentLinesEditor'
 import { useCreateIngreso } from '@/features/inventory/hooks'
 import { useToast } from '@/hooks/use-toast'
@@ -22,19 +23,21 @@ export default function IngresoNewPage() {
   const { toast } = useToast()
   const create = useCreateIngreso()
   const [lines, setLines] = useState<DocumentLine[]>([])
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   const onSubmit = async (data: FormData) => {
+    setFormError(null)
     if (lines.length === 0) {
-      toast({ variant: 'destructive', description: 'Agrega al menos una línea' })
+      setFormError('Agrega al menos una línea al documento')
       return
     }
     const invalidLine = lines.find((l) => !l.product_id || !l.quantity || Number(l.quantity) <= 0)
     if (invalidLine) {
-      toast({ variant: 'destructive', description: 'Completa todos los campos de las líneas' })
+      setFormError('Completa todos los campos de las líneas')
       return
     }
     try {
@@ -50,29 +53,32 @@ export default function IngresoNewPage() {
       toast({ title: `Ingreso ${doc.number} creado` })
       navigate(`/inventory/ingresos/${doc.id}`)
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
-      if (code === 'PRODUCT_NOT_FOUND') toast({ variant: 'destructive', description: 'Uno de los productos no fue encontrado' })
-      else toast({ variant: 'destructive', description: 'Error al crear el ingreso' })
+      const apiErr = err as { response?: { data?: { code?: string; message?: string } } }
+      const code = apiErr?.response?.data?.code
+      const msg = apiErr?.response?.data?.message
+      if (code === 'PRODUCT_NOT_FOUND') setFormError('Uno de los productos no fue encontrado')
+      else setFormError(msg ?? 'Error al crear el ingreso')
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold">Nuevo Ingreso</h1>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {formError && (
+          <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>
+        )}
         <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>Referencia</Label>
+          <FormField label="Referencia">
             <Input {...register('reference')} placeholder="Ej: Factura 001" />
-          </div>
-          <div className="space-y-1">
-            <Label>Notas</Label>
+          </FormField>
+          <FormField label="Notas">
             <Input {...register('notes')} placeholder="Observaciones (opcional)" />
-          </div>
+          </FormField>
         </div>
 
         <div className="space-y-2">
@@ -81,7 +87,7 @@ export default function IngresoNewPage() {
         </div>
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={isSubmitting}>Guardar ingreso</Button>
+          <Button type="submit" isLoading={isSubmitting}>Guardar ingreso</Button>
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancelar</Button>
         </div>
       </form>

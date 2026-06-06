@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/api'
 import type {
   InventoryDocument,
+  DocumentType,
   CreateIngresoPayload,
   CreateEgresoPayload,
   CreateBajaPayload,
@@ -18,49 +19,78 @@ export interface DocumentFilters {
   cursor?: number
 }
 
-async function fetchDocuments(docType: string, filters: DocumentFilters): Promise<InventoryDocument[]> {
-  const params: Record<string, unknown> = { doc_type: docType, limit: 50, ...filters }
+interface QueryOptions {
+  enabled?: boolean
+}
+
+const DOC_ENDPOINTS: Record<DocumentType, string> = {
+  IN: 'ingresos',
+  EG: 'egresos',
+  BI: 'bajas',
+  AI: 'ajustes',
+}
+
+async function fetchDocuments(docType: DocumentType, filters: DocumentFilters): Promise<InventoryDocument[]> {
+  const params: Record<string, unknown> = {
+    limit: 50,
+    date_from: filters.date_from,
+    date_to: filters.date_to,
+    cursor: filters.cursor,
+  }
+
+  if (docType === 'IN' || docType === 'EG') {
+    params.product_id = filters.product_id
+  }
+
+  if (docType === 'BI' || docType === 'AI') {
+    params.status = filters.status
+  }
+
   Object.keys(params).forEach((k) => params[k] === undefined && delete params[k])
-  const res = await api.get<InventoryDocument[]>('/inventory/', { params })
+  const res = await api.get<InventoryDocument[]>(`/inventory/${DOC_ENDPOINTS[docType]}`, { params })
   return res.data
 }
 
-export function useIngresos(filters: DocumentFilters = {}) {
+export function useIngresos(filters: DocumentFilters = {}, options: QueryOptions = {}) {
   return useQuery({
     queryKey: ['inventory', 'IN', filters],
     queryFn: () => fetchDocuments('IN', filters),
+    enabled: options.enabled ?? true,
   })
 }
 
-export function useEgresos(filters: DocumentFilters = {}) {
+export function useEgresos(filters: DocumentFilters = {}, options: QueryOptions = {}) {
   return useQuery({
     queryKey: ['inventory', 'EG', filters],
     queryFn: () => fetchDocuments('EG', filters),
+    enabled: options.enabled ?? true,
   })
 }
 
-export function useBajas(filters: DocumentFilters = {}) {
+export function useBajas(filters: DocumentFilters = {}, options: QueryOptions = {}) {
   return useQuery({
     queryKey: ['inventory', 'BI', filters],
     queryFn: () => fetchDocuments('BI', filters),
+    enabled: options.enabled ?? true,
   })
 }
 
-export function useAjustes(filters: DocumentFilters = {}) {
+export function useAjustes(filters: DocumentFilters = {}, options: QueryOptions = {}) {
   return useQuery({
     queryKey: ['inventory', 'AI', filters],
     queryFn: () => fetchDocuments('AI', filters),
+    enabled: options.enabled ?? true,
   })
 }
 
-export function useDocument(id: number) {
+export function useDocument(id: number, docType: DocumentType) {
   return useQuery({
-    queryKey: ['inventory', 'document', id],
+    queryKey: ['inventory', 'document', docType, id],
     queryFn: async () => {
-      const res = await api.get<InventoryDocument>(`/inventory/${id}`)
+      const res = await api.get<InventoryDocument>(`/inventory/${DOC_ENDPOINTS[docType]}/${id}`)
       return res.data
     },
-    enabled: !!id,
+    enabled: !!id && !!docType,
   })
 }
 
@@ -108,10 +138,10 @@ export function useCreateAjuste() {
   })
 }
 
-export function useGenerateAuthCode(documentId: number) {
+export function useGenerateAuthCode() {
   return useMutation({
-    mutationFn: async () => {
-      const res = await api.post<AuthCodeResponse>(`/inventory/${documentId}/authorization-code`)
+    mutationFn: async ({ id, docType }: { id: number; docType: Extract<DocumentType, 'BI' | 'AI'> }) => {
+      const res = await api.post<AuthCodeResponse>(`/inventory/${DOC_ENDPOINTS[docType]}/${id}/authorization-code`)
       return res.data
     },
   })
@@ -120,11 +150,12 @@ export function useGenerateAuthCode(documentId: number) {
 export function useApproveDocument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: number; payload: ApprovePayload }) => {
-      const res = await api.post<InventoryDocument>(`/inventory/${id}/approve`, payload)
+    mutationFn: async ({ id, docType, payload }: { id: number; docType: Extract<DocumentType, 'BI' | 'AI'>; payload: ApprovePayload }) => {
+      const res = await api.post<InventoryDocument>(`/inventory/${DOC_ENDPOINTS[docType]}/${id}/approve`, payload)
       return res.data
     },
-    onSuccess: (_data, { id }) => {
+    onSuccess: (_data, { id, docType }) => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'document', docType, id] })
       qc.invalidateQueries({ queryKey: ['inventory', 'document', id] })
       qc.invalidateQueries({ queryKey: ['inventory', 'BI'] })
       qc.invalidateQueries({ queryKey: ['inventory', 'AI'] })
@@ -135,11 +166,12 @@ export function useApproveDocument() {
 export function useCancelDocument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: number) => {
-      const res = await api.post<InventoryDocument>(`/inventory/${id}/cancel`)
+    mutationFn: async ({ id, docType }: { id: number; docType: Extract<DocumentType, 'BI' | 'AI'> }) => {
+      const res = await api.post<InventoryDocument>(`/inventory/${DOC_ENDPOINTS[docType]}/${id}/cancel`)
       return res.data
     },
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, { id, docType }) => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'document', docType, id] })
       qc.invalidateQueries({ queryKey: ['inventory', 'document', id] })
       qc.invalidateQueries({ queryKey: ['inventory', 'BI'] })
       qc.invalidateQueries({ queryKey: ['inventory', 'AI'] })

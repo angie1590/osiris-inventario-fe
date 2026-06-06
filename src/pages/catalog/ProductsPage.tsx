@@ -1,52 +1,58 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
+import { TreeSelector } from '@/components/shared/TreeSelector'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { useProducts, useCategories } from '@/features/catalog/hooks'
-import { ProductFormModal } from '@/features/catalog/ProductFormModal'
 import { useAuth } from '@/contexts/AuthContext'
 import type { ProductStatus } from '@/types/api'
 
 export default function ProductsPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const canEdit = user?.role === 'admin' || user?.role === 'operator'
 
   const [name, setName] = useState('')
-  const [categoryId, setCategoryId] = useState<number | undefined>()
+  const [categoryId, setCategoryId] = useState<number | null>(null)
   const [status, setStatus] = useState<ProductStatus | undefined>()
   const [bajoStock, setBajoStock] = useState(false)
   const [cursor, setCursor] = useState<number | undefined>()
-  const [showCreate, setShowCreate] = useState(false)
 
-  const { data: products, isLoading } = useProducts({ name: name || undefined, category_id: categoryId, status, bajo_stock: bajoStock || undefined, cursor })
+  const { data: products, isLoading } = useProducts({ name: name || undefined, category_id: categoryId ?? undefined, status, bajo_stock: bajoStock || undefined, cursor })
   const { data: categories } = useCategories()
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Productos</h1>
-        {canEdit && <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Nuevo producto</Button>}
-      </div>
+      <PageHeader
+        title="Productos"
+        actions={canEdit && (
+          <Button onClick={() => navigate('/products/new')}>
+            <Plus className="mr-2 h-4 w-4" />Nuevo producto
+          </Button>
+        )}
+      />
 
       <div className="flex flex-wrap gap-3 rounded-lg border bg-card p-3">
         <div className="relative flex-1 min-w-40">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8" placeholder="Buscar por nombre..." value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <Select value={categoryId ? String(categoryId) : '__all__'} onValueChange={(v) => setCategoryId(v === '__all__' ? undefined : Number(v))}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Categoría" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todas las categorías</SelectItem>
-            {(categories ?? []).map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="w-56">
+          <TreeSelector
+            categories={categories ?? []}
+            value={categoryId}
+            onChange={setCategoryId}
+            placeholder="Todas las categorías"
+          />
+        </div>
         <Select value={status ?? '__all__'} onValueChange={(v) => setStatus(v === '__all__' ? undefined : v as ProductStatus)}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Estado" /></SelectTrigger>
           <SelectContent>
@@ -107,8 +113,6 @@ export default function ProductsPage() {
           Siguiente →
         </Button>
       </div>
-
-      {showCreate && <ProductFormModal categories={categories ?? []} onClose={() => setShowCreate(false)} />}
     </div>
   )
 }

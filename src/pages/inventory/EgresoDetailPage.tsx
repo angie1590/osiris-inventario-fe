@@ -3,5 +3,5 @@ import { DocumentDetail } from '@/features/inventory/DocumentDetail'
 
 export default function EgresoDetailPage() {
   const { id } = useParams<{ id: string }>()
-  return <DocumentDetail id={Number(id)} showPrice />
+  return <DocumentDetail id={Number(id)} docType="EG" showPrice />
 }

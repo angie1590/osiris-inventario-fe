@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,30 +16,91 @@ const schema = z.object({
 
 export type DateRange = { date_from: string; date_to: string }
 
+function toISODate(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
+
+export function currentMonthRange(): DateRange {
+  const now = new Date()
+  const from = new Date(now.getFullYear(), now.getMonth(), 1)
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return { date_from: toISODate(from), date_to: toISODate(to) }
+}
+
+function todayRange(): DateRange {
+  const t = toISODate(new Date())
+  return { date_from: t, date_to: t }
+}
+function thisWeekRange(): DateRange {
+  const now = new Date()
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return { date_from: toISODate(monday), date_to: toISODate(sunday) }
+}
+function last30DaysRange(): DateRange {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(to.getDate() - 29)
+  return { date_from: toISODate(from), date_to: toISODate(to) }
+}
+
+const PRESETS: Array<{ label: string; range: () => DateRange }> = [
+  { label: 'Hoy', range: todayRange },
+  { label: 'Esta semana', range: thisWeekRange },
+  { label: 'Este mes', range: currentMonthRange },
+  { label: 'Últimos 30 días', range: last30DaysRange },
+]
+
 interface Props {
   onApply: (range: DateRange) => void
   defaultValues?: DateRange
+  autoApply?: boolean
 }
 
-export function DateRangeFilter({ onApply, defaultValues }: Props) {
-  const { register, handleSubmit, formState: { errors } } = useForm<DateRange>({
+export function DateRangeFilter({ onApply, defaultValues, autoApply }: Props) {
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<DateRange>({
     resolver: zodResolver(schema),
-    defaultValues,
+    defaultValues: defaultValues ?? currentMonthRange(),
   })
 
+  useEffect(() => {
+    if (autoApply !== false) {
+      const range = defaultValues ?? currentMonthRange()
+      onApply(range)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const applyPreset = (range: DateRange) => {
+    reset(range)
+    onApply(range)
+  }
+
   return (
-    <form onSubmit={handleSubmit(onApply)} className="flex flex-wrap items-end gap-3">
-      <div className="space-y-1">
-        <Label className="text-xs">Fecha desde</Label>
-        <Input type="date" className="h-8 w-40" {...register('date_from')} />
-        {errors.date_from && <p className="text-xs text-destructive">{errors.date_from.message}</p>}
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {PRESETS.map((p) => (
+          <Button key={p.label} type="button" variant="outline" size="sm" className="h-7 text-xs"
+            onClick={() => applyPreset(p.range())}>
+            {p.label}
+          </Button>
+        ))}
       </div>
-      <div className="space-y-1">
-        <Label className="text-xs">Fecha hasta</Label>
-        <Input type="date" className="h-8 w-40" {...register('date_to')} />
-        {errors.date_to && <p className="text-xs text-destructive">{errors.date_to.message}</p>}
-      </div>
-      <Button type="submit" size="sm">Aplicar</Button>
-    </form>
+      <form onSubmit={handleSubmit(onApply)} className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Fecha desde</Label>
+          <Input type="date" className="h-8 w-40" {...register('date_from')} />
+          {errors.date_from && <p className="text-xs text-destructive">{errors.date_from.message}</p>}
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Fecha hasta</Label>
+          <Input type="date" className="h-8 w-40" {...register('date_to')} />
+          {errors.date_to && <p className="text-xs text-destructive">{errors.date_to.message}</p>}
+        </div>
+        <Button type="submit" size="sm">Aplicar</Button>
+      </form>
+    </div>
   )
 }

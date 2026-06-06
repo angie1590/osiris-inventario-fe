@@ -8,7 +8,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DateRangeFilter, type DateRange } from '@/features/reports/DateRangeFilter'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { DateRangeFilter, type DateRange, currentMonthRange } from '@/features/reports/DateRangeFilter'
 import { useConsolidado, useStockReport, useStockValorizado } from '@/features/reports/hooks'
 import { useProducts } from '@/features/catalog/hooks'
 import { downloadBlob } from '@/lib/download'
@@ -29,7 +32,7 @@ const DOC_REPORT_TYPES: Array<{ value: string; label: string; endpoint: string; 
 
 function MovementReport({ endpoint, prefix }: { endpoint: string; prefix: string }) {
   const { toast } = useToast()
-  const [range, setRange] = useState<DateRange | null>(null)
+  const [range, setRange] = useState<DateRange>(currentMonthRange())
   const [productId, setProductId] = useState<number | undefined>()
   const { data: products } = useProducts({ status: 'active' })
 
@@ -61,17 +64,14 @@ function MovementReport({ endpoint, prefix }: { endpoint: string; prefix: string
           </Select>
         </div>
       </div>
-      {range && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />PDF
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />Excel
-          </Button>
-        </div>
-      )}
-      {!range && <p className="text-center text-muted-foreground py-4">Selecciona un rango de fechas para ver el reporte</p>}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}>
+          <Download className="mr-1.5 h-3.5 w-3.5" />PDF
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
+          <Download className="mr-1.5 h-3.5 w-3.5" />Excel
+        </Button>
+      </div>
     </div>
   )
 }
@@ -80,7 +80,7 @@ function MovementReport({ endpoint, prefix }: { endpoint: string; prefix: string
 function StockReport() {
   const { toast } = useToast()
   const [bajoStock, setBajoStock] = useState(false)
-  const { data: products, isLoading } = useStockReport({ bajo_stock: bajoStock || undefined })
+  const { data: products, isLoading, isError, refetch } = useStockReport({ bajo_stock: bajoStock || undefined })
 
   const handleExport = async (fmt: 'pdf' | 'excel') => {
     try {
@@ -101,7 +101,13 @@ function StockReport() {
         <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}><Download className="mr-1.5 h-3.5 w-3.5" />PDF</Button>
         <Button variant="outline" size="sm" onClick={() => handleExport('excel')}><Download className="mr-1.5 h-3.5 w-3.5" />Excel</Button>
       </div>
-      {isLoading ? <Skeleton className="h-48" /> : (
+      {isLoading ? <Skeleton className="h-48" /> : isError ? (
+        <ErrorState
+          className="py-10"
+          message="No se pudo cargar el reporte de stock."
+          onRetry={() => void refetch()}
+        />
+      ) : (
         <div className="rounded-lg border bg-card">
           <Table>
             <TableHeader>
@@ -114,7 +120,17 @@ function StockReport() {
             </TableHeader>
             <TableBody>
               {(products ?? []).length === 0
-                ? <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Sin resultados</TableCell></TableRow>
+                ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="p-0">
+                      <EmptyState
+                        className="py-10"
+                        heading="Sin resultados"
+                        description="No hay productos para los filtros aplicados."
+                      />
+                    </TableCell>
+                  </TableRow>
+                  )
                 : (products ?? []).map((p) => (
                   <TableRow key={p.id}>
                     <TableCell>{p.name}</TableCell>
@@ -134,7 +150,7 @@ function StockReport() {
 // ─── Stock valorizado ─────────────────────────────────────────────────────────
 function StockValorizadoReport() {
   const { toast } = useToast()
-  const { data, isLoading } = useStockValorizado({})
+  const { data, isLoading, isError, refetch } = useStockValorizado({})
 
   const handleExport = async (fmt: 'pdf' | 'excel') => {
     try {
@@ -146,45 +162,70 @@ function StockValorizadoReport() {
   }
 
   if (isLoading) return <Skeleton className="h-48" />
+  if (isError) {
+    return (
+      <ErrorState
+        className="py-10"
+        message="No se pudo cargar el reporte de stock valorizado."
+        onRetry={() => void refetch()}
+      />
+    )
+  }
+  if (!data) {
+    return (
+      <EmptyState
+        className="py-10"
+        heading="Sin datos disponibles"
+        description="No hay informacion de valorizacion para mostrar."
+      />
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}><Download className="mr-1.5 h-3.5 w-3.5" />PDF</Button>
         <Button variant="outline" size="sm" onClick={() => handleExport('excel')}><Download className="mr-1.5 h-3.5 w-3.5" />Excel</Button>
       </div>
-      {data && (
-        <>
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground">Valor total del inventario</p>
-              <p className="text-3xl font-bold">{fmtCurrency(data.total_value)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Método: {data.method}</p>
-            </CardContent>
-          </Card>
-          <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead className="text-right">Costo unit.</TableHead>
-                  <TableHead className="text-right">Valor total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.name}</TableCell>
-                    <TableCell className="text-right">{item.stock}</TableCell>
-                    <TableCell className="text-right">{fmtCurrency(item.cost)}</TableCell>
-                    <TableCell className="text-right font-medium">{fmtCurrency(item.value)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </>
-      )}
+      <Card>
+        <CardContent className="pt-4">
+          <p className="text-sm text-muted-foreground">Valor total del inventario</p>
+          <p className="text-3xl font-bold">{fmtCurrency(data.total_value)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Método: {data.method}</p>
+        </CardContent>
+      </Card>
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Producto</TableHead>
+              <TableHead className="text-right">Stock</TableHead>
+              <TableHead className="text-right">Costo unit.</TableHead>
+              <TableHead className="text-right">Valor total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="p-0">
+                  <EmptyState
+                    className="py-10"
+                    heading="Sin productos valorizados"
+                    description="No hay productos con costo para el calculo valorizado."
+                  />
+                </TableCell>
+              </TableRow>
+            ) : data.items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell>{item.name}</TableCell>
+                <TableCell className="text-right">{item.stock}</TableCell>
+                <TableCell className="text-right">{fmtCurrency(item.cost)}</TableCell>
+                <TableCell className="text-right font-medium">{fmtCurrency(item.value)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }
@@ -193,14 +234,14 @@ function StockValorizadoReport() {
 function KardexReport() {
   const { toast } = useToast()
   const [productId, setProductId] = useState<number | undefined>()
-  const [range, setRange] = useState<DateRange | null>(null)
+  const [range, setRange] = useState<DateRange>(currentMonthRange())
   const { data: products } = useProducts({ status: 'active' })
 
   const handleExport = async (fmt: 'pdf' | 'excel') => {
     if (!productId) { toast({ variant: 'destructive', description: 'Selecciona un producto' }); return }
     try {
       const res = await api.get(`/reports/kardex/export/${fmt}`, {
-        params: { product_id: productId, date_from: range?.date_from, date_to: range?.date_to },
+        params: { product_id: productId, date_from: range.date_from, date_to: range.date_to },
         responseType: 'blob',
       })
       downloadBlob(res, `kardex_${productId}.${fmt === 'pdf' ? 'pdf' : 'xlsx'}`)
@@ -221,7 +262,7 @@ function KardexReport() {
             </SelectContent>
           </Select>
         </div>
-        <DateRangeFilter onApply={setRange} />
+        <DateRangeFilter onApply={setRange} defaultValues={range} />
       </div>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}><Download className="mr-1.5 h-3.5 w-3.5" />PDF</Button>
@@ -234,10 +275,9 @@ function KardexReport() {
 // ─── Movimientos por usuario ──────────────────────────────────────────────────
 function MovimientosPorUsuarioReport() {
   const { toast } = useToast()
-  const [range, setRange] = useState<DateRange | null>(null)
+  const [range, setRange] = useState<DateRange>(currentMonthRange())
 
   const handleExport = async (fmt: 'pdf' | 'excel') => {
-    if (!range) { toast({ variant: 'destructive', description: 'Selecciona un rango de fechas' }); return }
     try {
       const res = await api.get(`/reports/movimientos-por-usuario/export/${fmt}`, {
         params: { date_from: range.date_from, date_to: range.date_to },
@@ -252,22 +292,20 @@ function MovimientosPorUsuarioReport() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card p-3">
-        <DateRangeFilter onApply={setRange} />
+        <DateRangeFilter onApply={setRange} defaultValues={range} />
       </div>
-      {range && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}><Download className="mr-1.5 h-3.5 w-3.5" />PDF</Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport('excel')}><Download className="mr-1.5 h-3.5 w-3.5" />Excel</Button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}><Download className="mr-1.5 h-3.5 w-3.5" />PDF</Button>
+        <Button variant="outline" size="sm" onClick={() => handleExport('excel')}><Download className="mr-1.5 h-3.5 w-3.5" />Excel</Button>
+      </div>
     </div>
   )
 }
 
 // ─── Consolidado ──────────────────────────────────────────────────────────────
 function ConsolidadoReport() {
-  const [range, setRange] = useState<DateRange | null>(null)
-  const { data, isLoading } = useConsolidado(range ?? {})
+  const [range, setRange] = useState<DateRange>(currentMonthRange())
+  const { data, isLoading, isError, refetch } = useConsolidado(range)
 
   const chartData = data
     ? Object.entries(data.movements).map(([name, value]) => ({ name, value }))
@@ -276,10 +314,16 @@ function ConsolidadoReport() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card p-3">
-        <DateRangeFilter onApply={setRange} />
+        <DateRangeFilter onApply={setRange} defaultValues={range} />
       </div>
-      {!range && <p className="text-center text-muted-foreground py-4">Selecciona un rango de fechas</p>}
       {isLoading && <Skeleton className="h-48" />}
+      {isError && (
+        <ErrorState
+          className="py-10"
+          message="No se pudo cargar el reporte consolidado."
+          onRetry={() => void refetch()}
+        />
+      )}
       {data && (
         <>
           <div className="grid gap-3 sm:grid-cols-4">
@@ -336,7 +380,7 @@ const TABS = [
 export default function ReportsPage() {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Reportes</h1>
+      <PageHeader title="Reportes" />
       <Tabs defaultValue="consolidado">
         <TabsList className="flex-wrap h-auto gap-1">
           {TABS.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}

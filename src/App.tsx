@@ -17,6 +17,7 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const CategoriesPage = lazy(() => import('@/pages/catalog/CategoriesPage'))
 const ProductsPage = lazy(() => import('@/pages/catalog/ProductsPage'))
 const ProductDetailPage = lazy(() => import('@/pages/catalog/ProductDetailPage'))
+const ProductFormPage = lazy(() => import('@/pages/catalog/ProductFormPage'))
 const IngresosPage = lazy(() => import('@/pages/inventory/IngresosPage'))
 const IngresoNewPage = lazy(() => import('@/pages/inventory/IngresoNewPage'))
 const IngresoDetailPage = lazy(() => import('@/pages/inventory/IngresoDetailPage'))
@@ -34,6 +35,7 @@ const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
 const AuditPage = lazy(() => import('@/pages/AuditPage'))
 const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage'))
 const AdminParamsPage = lazy(() => import('@/pages/admin/AdminParamsPage'))
+const AdminCompanyPage = lazy(() => import('@/pages/admin/AdminCompanyPage'))
 
 function PageLoader() {
   return <div className="flex h-64 items-center justify-center text-muted-foreground">Cargando...</div>
@@ -61,7 +63,9 @@ export default function App() {
                   <Route path="/categories" element={<CategoriesPage />} />
                 </Route>
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/products/new" element={<ProductFormPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
+                <Route path="/products/:id/edit" element={<ProductFormPage />} />
 
                 {/* Inventory movements - admin + operator */}
                 <Route element={<RoleGuard roles={['admin', 'operator']} />}>
@@ -92,6 +96,7 @@ export default function App() {
                 <Route element={<RoleGuard roles={['admin']} />}>
                   <Route path="/admin/users" element={<AdminUsersPage />} />
                   <Route path="/admin/params" element={<AdminParamsPage />} />
+                  <Route path="/admin/company" element={<AdminCompanyPage />} />
                 </Route>
               </Route>
             </Route>

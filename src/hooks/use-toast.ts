@@ -13,6 +13,18 @@ type ToasterToast = ToastProps & {
 let count = 0
 function genId() { return `toast-${++count}` }
 
+const DEDUP_WINDOW_MS = 3000
+const recentKeys = new Map<string, number>()
+
+function isDuplicate(props: Omit<ToasterToast, 'id'>): boolean {
+  const key = `${props.title ?? ''}::${props.description ?? ''}::${props.variant ?? ''}`
+  const now = Date.now()
+  const last = recentKeys.get(key)
+  if (last !== undefined && now - last < DEDUP_WINDOW_MS) return true
+  recentKeys.set(key, now)
+  return false
+}
+
 type Action =
   | { type: 'ADD_TOAST'; toast: ToasterToast }
   | { type: 'DISMISS_TOAST'; toastId?: string }
@@ -53,6 +65,7 @@ function reducer(state: State, action: Action): State {
 }
 
 function toast(props: Omit<ToasterToast, 'id'>) {
+  if (isDuplicate(props)) return { id: '', dismiss: () => {} }
   const id = genId()
   dispatch({ type: 'ADD_TOAST', toast: { ...props, id, open: true, onOpenChange: (open) => { if (!open) dispatch({ type: 'DISMISS_TOAST', toastId: id }) } } })
   return { id, dismiss: () => dispatch({ type: 'DISMISS_TOAST', toastId: id }) }

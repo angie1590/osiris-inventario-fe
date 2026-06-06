@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { currentMonthRange } from '@/features/reports/DateRangeFilter'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +10,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { useKardex } from '@/features/kardex/hooks'
 import { useProducts } from '@/features/catalog/hooks'
 import type { KardexEntryType } from '@/types/api'
@@ -34,12 +37,13 @@ function fmtCurrency(n: number) {
 export default function KardexPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const defaultRange = currentMonthRange()
+  const [dateFrom, setDateFrom] = useState(defaultRange.date_from)
+  const [dateTo, setDateTo] = useState(defaultRange.date_to)
   const [selectedProductId, setSelectedProductId] = useState(productId ? Number(productId) : 0)
 
   const { data: products } = useProducts({ status: 'active' })
-  const { data: kardex, isLoading } = useKardex(
+  const { data: kardex, isLoading, isError, refetch } = useKardex(
     selectedProductId,
     dateFrom || undefined,
     dateTo || undefined,
@@ -81,12 +85,24 @@ export default function KardexPage() {
       </div>
 
       {!selectedProductId && (
-        <p className="text-center text-muted-foreground py-8">Selecciona un producto para ver su Kardex</p>
+        <EmptyState
+          heading="Selecciona un producto"
+          description="Elige un producto para consultar su historial de movimientos en kardex."
+          className="py-10"
+        />
       )}
 
       {selectedProductId && isLoading && <Skeleton className="h-64 w-full" />}
 
-      {kardex && (
+      {selectedProductId && isError && (
+        <ErrorState
+          className="py-10"
+          message="No se pudo cargar el kardex del producto seleccionado."
+          onRetry={() => void refetch()}
+        />
+      )}
+
+      {kardex && !isError && (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <Card>
@@ -138,7 +154,13 @@ export default function KardexPage() {
                 )}
                 {kardex.entries.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">Sin movimientos en el período</TableCell>
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        className="py-10"
+                        heading="Sin movimientos en el periodo"
+                        description="Modifica el rango de fechas para consultar otro periodo."
+                      />
+                    </TableCell>
                   </TableRow>
                 )}
                 {kardex.entries.map((e) => (

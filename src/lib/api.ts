@@ -29,7 +29,7 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config as AxiosRequestConfig & { _retry?: boolean }
     const status = error.response?.status
-    const code = error.response?.data?.detail?.code
+    const code = error.response?.data?.code ?? error.response?.data?.detail?.code
 
     if (status === 401 && !original._retry) {
       if (code === 'SESSION_EXPIRED') {

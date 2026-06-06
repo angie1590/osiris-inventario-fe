@@ -1,12 +1,13 @@
 import { useForm, Controller, type FieldError } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { FormField } from '@/components/shared/FormField'
 import { useCreateUser, useUpdateUser } from './hooks'
 import { useToast } from '@/hooks/use-toast'
 import type { User, UserRole } from '@/types/api'
@@ -72,55 +73,50 @@ export function UserFormModal({ user, onClose }: Props) {
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {!isEdit && (
-            <div className="space-y-1">
-              <Label>Usuario</Label>
-              <Input {...register('username')} />
-              {errors.username && <p className="text-xs text-destructive">{String(errors.username.message)}</p>}
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label>Nombre completo</Label>
-            <Input {...register('full_name')} />
-            {errors.full_name && <p className="text-xs text-destructive">{String(errors.full_name.message)}</p>}
-          </div>
-          {!isEdit && (
-            <div className="space-y-1">
-              <Label>Contraseña</Label>
-              <Input type="password" {...register('password')} />
-              {errors.password && <p className="text-xs text-destructive">{String(errors.password.message)}</p>}
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label>Rol</Label>
-            <Controller control={control} name="role" render={({ field }) => (
-              <Select value={field.value as string} onValueChange={field.onChange}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Controller control={control} name="is_active" render={({ field }) => (
-              <Checkbox id="is_active" checked={!!field.value} onCheckedChange={field.onChange} />
-            )} />
-            <Label htmlFor="is_active">Activo</Label>
-          </div>
-          {isEdit && (
-            <div className="flex items-center gap-2">
-              <Controller control={control} name="require_password_change" render={({ field }) => (
-                <Checkbox id="require_password_change" checked={!!field.value} onCheckedChange={field.onChange} />
+        <form onSubmit={handleSubmit(onSubmit)} className="contents">
+          <DialogHeader><DialogTitle>{isEdit ? 'Editar usuario' : 'Nuevo usuario'}</DialogTitle></DialogHeader>
+          <DialogBody className="space-y-4">
+            {!isEdit && (
+              <FormField label="Usuario" required error={errors.username?.message}>
+                <Input {...register('username')} />
+              </FormField>
+            )}
+            <FormField label="Nombre completo" required error={errors.full_name?.message}>
+              <Input {...register('full_name')} />
+            </FormField>
+            {!isEdit && (
+              <FormField label="Contraseña" required error={errors.password?.message}>
+                <Input type="password" {...register('password')} />
+              </FormField>
+            )}
+            <FormField label="Rol" required error={errors.role?.message}>
+              <Controller control={control} name="role" render={({ field }) => (
+                <Select value={field.value as string} onValueChange={field.onChange}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               )} />
-              <Label htmlFor="require_password_change">Forzar cambio de contraseña</Label>
+            </FormField>
+            <div className="flex items-center gap-2">
+              <Controller control={control} name="is_active" render={({ field }) => (
+                <Checkbox id="is_active" checked={!!field.value} onCheckedChange={field.onChange} />
+              )} />
+              <Label htmlFor="is_active">Activo</Label>
             </div>
-          )}
+            {isEdit && (
+              <div className="flex items-center gap-2">
+                <Controller control={control} name="require_password_change" render={({ field }) => (
+                  <Checkbox id="require_password_change" checked={!!field.value} onCheckedChange={field.onChange} />
+                )} />
+                <Label htmlFor="require_password_change">Forzar cambio de contraseña</Label>
+              </div>
+            )}
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isEdit ? 'Guardar' : 'Crear'}</Button>
+            <Button type="submit" isLoading={isSubmitting}>{isEdit ? 'Guardar' : 'Crear'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

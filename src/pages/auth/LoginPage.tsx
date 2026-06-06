@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useToast } from '@/hooks/use-toast'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const schema = z.object({
   username: z.string().min(1, 'Requerido'),
@@ -18,27 +19,26 @@ type FormData = z.infer<typeof schema>
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const { toast } = useToast()
+  const [loginError, setLoginError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   const onSubmit = async (data: FormData) => {
+    setLoginError(null)
     try {
       const resp = await login(data.username, data.password)
-      // After login, AuthContext fetches /me and sets user
-      // require_password_change redirect is handled by ProtectedRoute
-      void resp
-      navigate('/')
+      navigate(resp.require_password_change ? '/change-password' : '/')
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number; data?: { detail?: { code?: string } } } })?.response?.status
-      const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
+      const apiErr = err as { response?: { status?: number; data?: { code?: string } } }
+      const status = apiErr?.response?.status
+      const code = apiErr?.response?.data?.code
 
       if (status === 403 || code === 'USER_INACTIVE') {
-        toast({ variant: 'destructive', title: 'Cuenta desactivada', description: 'Tu cuenta está desactivada. Contactá al administrador.' })
+        setLoginError('Tu cuenta está desactivada. Contactá al administrador.')
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'Usuario o contraseña incorrectos' })
+        setLoginError('Usuario o contraseña incorrectos')
       }
     }
   }
@@ -49,7 +49,12 @@ export default function LoginPage() {
         <CardTitle className="text-center text-2xl">Osiris Inventario</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" onChange={() => setLoginError(null)}>
+          {loginError && (
+            <Alert variant="destructive">
+              <AlertDescription>{loginError}</AlertDescription>
+            </Alert>
+          )}
           <div className="space-y-1">
             <Label htmlFor="username">Usuario</Label>
             <Input id="username" {...register('username')} autoComplete="username" />

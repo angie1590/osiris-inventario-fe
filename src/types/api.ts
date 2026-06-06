@@ -15,6 +15,7 @@ export interface LoginResponse {
   access_token: string
   refresh_token: string
   token_type: string
+  require_password_change: boolean
 }
 
 export interface CurrentUser {
@@ -61,9 +62,17 @@ export interface CategoryAttribute {
   name: string
   data_type: AttributeDataType
   is_required: boolean
+  is_active: boolean
   select_options: string[] | null
   inherited?: boolean
   created_at: string
+}
+
+export interface UpdateAttributePayload {
+  name?: string
+  data_type?: AttributeDataType
+  is_required?: boolean
+  select_options?: string[]
 }
 
 export interface Category {
@@ -255,6 +264,42 @@ export interface StockValorizadoReport {
   method: string
   items: StockValorizadoItem[]
   total_value: number
+}
+
+// Company config
+export interface CompanyConfig {
+  id: number
+  razon_social: string
+  nombre_comercial: string | null
+  ruc: string
+  direccion: string | null
+  telefono: string | null
+  email: string
+  logo: string | null
+  is_complete: boolean
+  created_at: string
+  updated_at: string
+  updated_by: number | null
+}
+
+export interface CreateCompanyPayload {
+  razon_social: string
+  ruc: string
+  email: string
+  nombre_comercial?: string
+  direccion?: string
+  telefono?: string
+  logo?: string
+}
+
+export interface UpdateCompanyPayload {
+  razon_social?: string
+  ruc?: string
+  email?: string
+  nombre_comercial?: string
+  direccion?: string
+  telefono?: string
+  logo?: string
 }
 
 // Pagination helpers

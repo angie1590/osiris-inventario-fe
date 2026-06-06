@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/api'
-import type { User, CreateUserPayload, UpdateUserPayload, SystemParam } from '@/types/api'
+import type { User, CreateUserPayload, UpdateUserPayload, SystemParam, CompanyConfig, CreateCompanyPayload, UpdateCompanyPayload } from '@/types/api'
 
 export function useUsers(search?: string, role?: string) {
   return useQuery({
@@ -9,7 +9,7 @@ export function useUsers(search?: string, role?: string) {
       const params: Record<string, unknown> = {}
       if (search) params.search = search
       if (role) params.role = role
-      const res = await api.get<User[]>('/users/', { params })
+      const res = await api.get<User[]>('/admin/users', { params })
       return res.data
     },
   })
@@ -19,7 +19,7 @@ export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (payload: CreateUserPayload) => {
-      const res = await api.post<User>('/users/', payload)
+      const res = await api.post<User>('/admin/users', payload)
       return res.data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
@@ -30,7 +30,7 @@ export function useUpdateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: UpdateUserPayload }) => {
-      const res = await api.patch<User>(`/users/${id}`, payload)
+      const res = await api.patch<User>(`/admin/users/${id}`, payload)
       return res.data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
@@ -41,7 +41,7 @@ export function useDeleteUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      await api.delete(`/users/${id}`)
+      await api.delete(`/admin/users/${id}`)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
@@ -65,5 +65,45 @@ export function useUpdateParam() {
       return res.data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['system-params'] }),
+  })
+}
+
+export function useCompanyConfig() {
+  return useQuery({
+    queryKey: ['company-config'],
+    queryFn: async () => {
+      const res = await api.get<CompanyConfig | null>('/company')
+      return res.data
+    },
+    staleTime: 30_000,
+    retry: 1,
+  })
+}
+
+export function useCreateCompany() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CreateCompanyPayload) => {
+      const res = await api.post<CompanyConfig>('/company', payload)
+      return res.data
+    },
+    onSuccess: (saved) => {
+      qc.setQueryData(['company-config'], saved)
+      qc.invalidateQueries({ queryKey: ['company-config'] })
+    },
+  })
+}
+
+export function useUpdateCompany() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: UpdateCompanyPayload) => {
+      const res = await api.patch<CompanyConfig>('/company', payload)
+      return res.data
+    },
+    onSuccess: (saved) => {
+      qc.setQueryData(['company-config'], saved)
+      qc.invalidateQueries({ queryKey: ['company-config'] })
+    },
   })
 }
