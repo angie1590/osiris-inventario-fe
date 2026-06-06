@@ -120,7 +120,7 @@ function renderAuditDetails(log: AuditLog) {
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalle de cambios</p>
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[520px] text-xs">
+        <table className="w-full min-w-130 text-xs">
           <thead className="bg-muted/50">
             <tr>
               <th className="px-2 py-1.5 text-left font-semibold">Atributo</th>
@@ -374,7 +374,7 @@ export default function AuditPage() {
                         <TableCell className="text-sm">{l.entity_type ?? '—'}</TableCell>
                         <TableCell className="font-mono text-xs">{l.entity_id ?? '—'}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{l.ip_address ?? '—'}</TableCell>
-                        <TableCell className="text-xs max-w-48 truncate" title={localizeDescription(l.description)}>{localizeDescription(l.description)}</TableCell>
+                        <TableCell className="text-xs max-w-80 whitespace-normal wrap-break-word" title={localizeDescription(l.description)}>{localizeDescription(l.description)}</TableCell>
                         <TableCell>
                           <Button
                             type="button"
