@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Download } from 'lucide-react'
+import * as PopoverPrimitive from '@radix-ui/react-popover'
+import { Check, ChevronsUpDown, Download, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,6 +17,7 @@ import { downloadBlob } from '@/lib/download'
 import { differenceInDays, parseISO } from 'date-fns'
 import api from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
+import { cn } from '@/lib/utils'
 import type { AuditAction } from '@/types/api'
 
 const ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'CANCEL', 'LOGIN', 'LOGOUT', 'PASSWORD_CHANGED']
@@ -33,12 +35,19 @@ export default function AuditPage() {
   const { toast } = useToast()
   const [range, setRange] = useState<DateRange>(currentMonthRange())
   const [action, setAction] = useState<AuditAction | undefined>()
+  const [userOpen, setUserOpen] = useState(false)
   const [userQuery, setUserQuery] = useState('')
   const [userId, setUserId] = useState<number | undefined>()
+  const [selectedUserLabel, setSelectedUserLabel] = useState<string>('Todos los usuarios')
   const [entityType, setEntityType] = useState('')
   const [entityId, setEntityId] = useState('')
   const [cursor, setCursor] = useState<number | undefined>()
   const { data: users, isLoading: usersLoading } = useAuditUsers(userQuery || undefined)
+  const currentUserLabel = userId
+    ? (users?.find((u) => u.id === userId)
+      ? `${users.find((u) => u.id === userId)!.full_name} (${users.find((u) => u.id === userId)!.username})`
+      : selectedUserLabel)
+    : 'Todos los usuarios'
 
   const filters: AuditFilters = {
     date_from: range.date_from,
@@ -94,31 +103,88 @@ export default function AuditPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Usuario</Label>
-          <div className="space-y-1">
-            <Input
-              className="h-8 w-56"
-              placeholder="Buscar usuario..."
-              value={userQuery}
-              onChange={(e) => setUserQuery(e.target.value)}
-            />
-            <Select
-              value={userId ? String(userId) : '__all__'}
-              onValueChange={(v) => setUserId(v === '__all__' ? undefined : Number(v))}
-            >
-              <SelectTrigger className="h-8 w-56"><SelectValue placeholder="Todos los usuarios" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todos los usuarios</SelectItem>
-                {(users ?? []).map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {u.full_name} ({u.username})
-                  </SelectItem>
-                ))}
-                {!usersLoading && (users ?? []).length === 0 && (
-                  <SelectItem value="__none__" disabled>Sin resultados</SelectItem>
+          <PopoverPrimitive.Root open={userOpen} onOpenChange={setUserOpen}>
+            <PopoverPrimitive.Trigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={userOpen}
+                className="h-8 w-56 justify-between font-normal"
+              >
+                <span className="truncate">{currentUserLabel}</span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverPrimitive.Trigger>
+            <PopoverPrimitive.Portal>
+              <PopoverPrimitive.Content
+                className={cn(
+                  'w-(--radix-popover-trigger-width) rounded-md border bg-popover p-0 shadow-md',
+                  'data-[state=open]:animate-in data-[state=closed]:animate-out',
+                  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
                 )}
-              </SelectContent>
-            </Select>
-          </div>
+                style={{ zIndex: 350 }}
+                align="start"
+                sideOffset={4}
+              >
+                <div className="flex items-center gap-2 border-b px-3 py-2">
+                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <Input
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    placeholder="Buscar usuario..."
+                    className="h-7 border-none p-0 text-sm shadow-none focus-visible:ring-0"
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto p-1" role="listbox">
+                  <button
+                    type="button"
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm',
+                      'cursor-pointer hover:bg-accent',
+                      !userId && 'bg-primary/10 font-medium',
+                    )}
+                    onClick={() => {
+                      setUserId(undefined)
+                      setSelectedUserLabel('Todos los usuarios')
+                      setUserOpen(false)
+                    }}
+                  >
+                    <span className="flex-1 truncate text-left">Todos los usuarios</span>
+                    {!userId && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </button>
+                  {usersLoading ? (
+                    <p className="px-2 py-3 text-sm text-muted-foreground">Cargando...</p>
+                  ) : (users ?? []).length === 0 ? (
+                    <p className="px-2 py-3 text-sm text-muted-foreground">Sin resultados</p>
+                  ) : (
+                    (users ?? []).map((u) => {
+                      const label = `${u.full_name} (${u.username})`
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm',
+                            'cursor-pointer hover:bg-accent',
+                            userId === u.id && 'bg-primary/10 font-medium',
+                          )}
+                          onClick={() => {
+                            setUserId(u.id)
+                            setSelectedUserLabel(label)
+                            setUserOpen(false)
+                          }}
+                        >
+                          <span className="flex-1 truncate text-left">{label}</span>
+                          {userId === u.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              </PopoverPrimitive.Content>
+            </PopoverPrimitive.Portal>
+          </PopoverPrimitive.Root>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Tipo entidad</Label>
