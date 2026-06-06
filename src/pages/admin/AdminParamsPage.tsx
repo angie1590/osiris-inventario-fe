@@ -65,18 +65,26 @@ export default function AdminParamsPage() {
   const saveEdit = async (key: string) => {
     try {
       await updateParam.mutateAsync({ key, value: editValue });
-      toast({ title: "Parámetro actualizado" });
+      toast({
+        variant: "success",
+        title: "Actualización exitosa",
+        description: `Parámetro ${key} actualizado.`,
+      });
       setEditKey(null);
     } catch (err: unknown) {
       const code = (
         err as { response?: { data?: { detail?: { code?: string } } } }
       )?.response?.data?.detail?.code;
       toast({
-        variant: "destructive",
+        variant: code === "KARDEX_METHOD_LOCKED" ? "warning" : "destructive",
+        title:
+          code === "KARDEX_METHOD_LOCKED"
+            ? "Acción restringida"
+            : "Error al actualizar parámetro",
         description:
           code === "KARDEX_METHOD_LOCKED"
             ? "No se puede cambiar el método Kardex mientras haya movimientos registrados"
-            : "Error al actualizar",
+            : `No se pudo actualizar el parámetro ${key}. Intenta nuevamente.`,
       });
     }
   };
