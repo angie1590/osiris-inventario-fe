@@ -132,16 +132,18 @@ export default function AuditPage() {
           <Label className="text-xs">Usuario</Label>
           <PopoverPrimitive.Root open={userOpen} onOpenChange={setUserOpen}>
             <PopoverPrimitive.Trigger asChild>
-              <Button
+              <button
                 type="button"
-                variant="outline"
                 role="combobox"
                 aria-expanded={userOpen}
-                className="h-8 w-56 justify-between font-normal"
+                className={cn(
+                  'flex h-8 w-56 items-center justify-between whitespace-nowrap rounded-lg border border-input bg-white px-3 text-sm shadow-token-sm',
+                  'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                )}
               >
                 <span className="truncate">{currentUserLabel}</span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
+              </button>
             </PopoverPrimitive.Trigger>
             <PopoverPrimitive.Portal>
               <PopoverPrimitive.Content
