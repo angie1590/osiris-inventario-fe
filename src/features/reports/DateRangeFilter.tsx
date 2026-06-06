@@ -17,7 +17,10 @@ const schema = z.object({
 export type DateRange = { date_from: string; date_to: string }
 
 function toISODate(d: Date) {
-  return d.toISOString().slice(0, 10)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function currentMonthRange(): DateRange {
