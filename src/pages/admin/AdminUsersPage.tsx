@@ -31,10 +31,20 @@ export default function AdminUsersPage() {
     if (!confirm(`¿Eliminar al usuario "${u.username}"? Esta acción no se puede deshacer.`)) return
     try {
       await deleteUser.mutateAsync(u.id)
-      toast({ title: 'Usuario eliminado' })
+      toast({
+        variant: 'success',
+        title: 'Eliminación exitosa',
+        description: `Usuario ${u.username} eliminado.`,
+      })
     } catch (err: unknown) {
       const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
-      toast({ variant: 'destructive', description: code === 'USER_HAS_ACTIVE_SESSION' ? 'El usuario tiene una sesión activa' : 'Error al eliminar' })
+      toast({
+        variant: code === 'USER_HAS_ACTIVE_SESSION' ? 'warning' : 'destructive',
+        title: code === 'USER_HAS_ACTIVE_SESSION' ? 'Acción restringida' : 'Error al eliminar usuario',
+        description: code === 'USER_HAS_ACTIVE_SESSION'
+          ? 'El usuario tiene una sesión activa.'
+          : `No se pudo eliminar al usuario ${u.username}.`,
+      })
     }
   }
 

@@ -39,6 +39,13 @@ const FIXED_PARAM_OPTIONS: Record<
   ],
 };
 
+const NUMERIC_PARAM_KEYS = new Set([
+  "session_timeout_minutes",
+  "max_export_date_range_days",
+  "auth_code_expire_minutes",
+  "doc_number_padding",
+]);
+
 function getDisplayParamValue(key: string, value: string): string {
   const options = FIXED_PARAM_OPTIONS[key];
   if (!options) return value;
@@ -63,6 +70,15 @@ export default function AdminParamsPage() {
   };
 
   const saveEdit = async (key: string) => {
+    if (NUMERIC_PARAM_KEYS.has(key) && !/^\d+$/.test(editValue.trim())) {
+      toast({
+        variant: "destructive",
+        title: "Valor inválido",
+        description: `El parámetro ${key} solo permite números enteros.`,
+      });
+      return;
+    }
+
     try {
       await updateParam.mutateAsync({ key, value: editValue });
       toast({
@@ -146,7 +162,19 @@ export default function AdminParamsPage() {
                           <Input
                             className="h-7 w-36"
                             value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
+                            inputMode={
+                              NUMERIC_PARAM_KEYS.has(p.key)
+                                ? "numeric"
+                                : undefined
+                            }
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (NUMERIC_PARAM_KEYS.has(p.key)) {
+                                setEditValue(next.replace(/\D+/g, ""));
+                                return;
+                              }
+                              setEditValue(next);
+                            }}
                             autoFocus
                           />
                         )

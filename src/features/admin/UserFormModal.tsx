@@ -58,15 +58,30 @@ export function UserFormModal({ user, onClose }: Props) {
     try {
       if (isEdit) {
         await update.mutateAsync({ id: user!.id, payload: data as { full_name?: string; role?: UserRole; is_active?: boolean; require_password_change?: boolean } })
-        toast({ title: 'Usuario actualizado' })
+        toast({
+          variant: 'success',
+          title: 'Actualización exitosa',
+          description: `Usuario ${user!.username} actualizado.`,
+        })
       } else {
         await create.mutateAsync(data as { username: string; full_name: string; password: string; role: UserRole; is_active?: boolean })
-        toast({ title: 'Usuario creado' })
+        const payload = data as { username: string }
+        toast({
+          variant: 'success',
+          title: 'Creación exitosa',
+          description: `Usuario ${payload.username} creado.`,
+        })
       }
       onClose()
     } catch (err: unknown) {
       const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
-      toast({ variant: 'destructive', description: code === 'USERNAME_EXISTS' ? 'El nombre de usuario ya existe' : 'Error al guardar' })
+      toast({
+        variant: code === 'USERNAME_EXISTS' ? 'warning' : 'destructive',
+        title: code === 'USERNAME_EXISTS' ? 'Nombre en uso' : 'Error al guardar usuario',
+        description: code === 'USERNAME_EXISTS'
+          ? 'El nombre de usuario ya existe. Usa uno distinto.'
+          : 'No se pudo guardar el usuario. Intenta nuevamente.',
+      })
     }
   }
 
