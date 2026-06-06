@@ -14,7 +14,11 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const { data: company } = useCompanyConfig()
   const companyReady = !!company?.is_complete
-  const { data: lowStock, isLoading: stockLoading } = useStockReport({ bajo_stock: true }, { enabled: companyReady })
+  const canViewStockReports = user?.role === 'admin' || user?.role === 'supervisor'
+  const { data: lowStock, isLoading: stockLoading } = useStockReport(
+    { bajo_stock: true },
+    { enabled: companyReady && canViewStockReports },
+  )
   const { data: recentIn } = useIngresos({ cursor: undefined }, { enabled: companyReady })
   const { data: recentOut } = useEgresos({ cursor: undefined }, { enabled: companyReady })
 
@@ -26,12 +30,16 @@ export default function DashboardPage() {
   const summaryCards = [
     {
       title: 'Productos bajo mínimo',
-      value: (lowStock ?? []).length,
-      hint: (lowStock ?? []).length > 0 ? 'Requiere atención inmediata' : 'Sin alertas críticas',
+      value: canViewStockReports ? (lowStock ?? []).length : 'N/D',
+      hint: canViewStockReports
+        ? ((lowStock ?? []).length > 0 ? 'Requiere atención inmediata' : 'Sin alertas críticas')
+        : 'Disponible solo para administradores y supervisores',
       icon: AlertTriangle,
       accent: 'from-rose-500 to-red-600',
       iconBg: 'bg-rose-100 text-rose-600',
-      valueClass: (lowStock ?? []).length > 0 ? 'text-destructive' : 'text-[hsl(var(--foreground))]',
+      valueClass: canViewStockReports && (lowStock ?? []).length > 0
+        ? 'text-destructive'
+        : 'text-[hsl(var(--foreground))]',
     },
     {
       title: 'Ingresos recientes',
@@ -105,9 +113,11 @@ export default function DashboardPage() {
           <Card className="border-cyan-100">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold text-slate-800">Productos bajo stock</CardTitle>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/products?bajo_stock=true">Ver todos <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
-              </Button>
+              {canViewStockReports && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/products?bajo_stock=true">Ver todos <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <Table>

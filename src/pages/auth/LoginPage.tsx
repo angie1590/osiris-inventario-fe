@@ -31,12 +31,11 @@ export default function LoginPage() {
       const resp = await login(data.username, data.password)
       navigate(resp.require_password_change ? '/change-password' : '/')
     } catch (err: unknown) {
-      const apiErr = err as { response?: { status?: number; data?: { code?: string } } }
-      const status = apiErr?.response?.status
+      const apiErr = err as { response?: { data?: { code?: string } } }
       const code = apiErr?.response?.data?.code
 
-      if (status === 403 || code === 'USER_INACTIVE') {
-        setLoginError('Tu cuenta está desactivada. Contactá al administrador.')
+      if (code === 'ACCOUNT_INACTIVE') {
+        setLoginError('Usuario inactivo. Contacta al administrador.')
       } else {
         setLoginError('Usuario o contraseña incorrectos')
       }

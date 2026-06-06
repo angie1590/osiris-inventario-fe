@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import api from '@/lib/api'
 import type { User, CreateUserPayload, UpdateUserPayload, SystemParam, CompanyConfig, CreateCompanyPayload, UpdateCompanyPayload } from '@/types/api'
 
@@ -72,8 +73,15 @@ export function useCompanyConfig() {
   return useQuery({
     queryKey: ['company-config'],
     queryFn: async () => {
-      const res = await api.get<CompanyConfig | null>('/company')
-      return res.data
+      try {
+        const res = await api.get<CompanyConfig>('/company')
+        return res.data
+      } catch (err) {
+        // The backend returns 404 when the company is not configured yet —
+        // that is a valid "no company" state, not an error.
+        if (isAxiosError(err) && err.response?.status === 404) return null
+        throw err
+      }
     },
     staleTime: 30_000,
     retry: 1,

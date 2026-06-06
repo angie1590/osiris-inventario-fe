@@ -14,6 +14,7 @@ import { ErrorState } from '@/components/shared/ErrorState'
 import { DateRangeFilter, type DateRange, currentMonthRange } from '@/features/reports/DateRangeFilter'
 import { useConsolidado, useStockReport, useStockValorizado } from '@/features/reports/hooks'
 import { useProducts } from '@/features/catalog/hooks'
+import { useAuth } from '@/contexts/AuthContext'
 import { downloadBlob } from '@/lib/download'
 import api from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
@@ -79,8 +80,23 @@ function MovementReport({ endpoint, prefix }: { endpoint: string; prefix: string
 // ─── Stock report ─────────────────────────────────────────────────────────────
 function StockReport() {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const canViewStockReports = user?.role === 'admin' || user?.role === 'supervisor'
   const [bajoStock, setBajoStock] = useState(false)
-  const { data: products, isLoading, isError, refetch } = useStockReport({ bajo_stock: bajoStock || undefined })
+  const { data: products, isLoading, isError, refetch } = useStockReport(
+    { bajo_stock: bajoStock || undefined },
+    { enabled: canViewStockReports },
+  )
+
+  if (!canViewStockReports) {
+    return (
+      <EmptyState
+        className="py-10"
+        heading="Sin acceso"
+        description="Este reporte está disponible solo para administradores y supervisores."
+      />
+    )
+  }
 
   const handleExport = async (fmt: 'pdf' | 'excel') => {
     try {
@@ -150,7 +166,19 @@ function StockReport() {
 // ─── Stock valorizado ─────────────────────────────────────────────────────────
 function StockValorizadoReport() {
   const { toast } = useToast()
-  const { data, isLoading, isError, refetch } = useStockValorizado({})
+  const { user } = useAuth()
+  const canViewStockReports = user?.role === 'admin' || user?.role === 'supervisor'
+  const { data, isLoading, isError, refetch } = useStockValorizado({}, { enabled: canViewStockReports })
+
+  if (!canViewStockReports) {
+    return (
+      <EmptyState
+        className="py-10"
+        heading="Sin acceso"
+        description="Este reporte está disponible solo para administradores y supervisores."
+      />
+    )
+  }
 
   const handleExport = async (fmt: 'pdf' | 'excel') => {
     try {

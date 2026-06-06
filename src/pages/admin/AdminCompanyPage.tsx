@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Upload, Link } from 'lucide-react'
+import { Upload, Link, Pencil, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -37,12 +37,22 @@ type ApiError = {
   }
 }
 
+function ViewField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-sm">{value || '—'}</p>
+    </div>
+  )
+}
+
 export default function AdminCompanyPage() {
   const { toast } = useToast()
   const { data: company, isLoading } = useCompanyConfig()
   const create = useCreateCompany()
   const update = useUpdateCompany()
 
+  const [editing, setEditing] = useState(false)
   const [logo, setLogo] = useState<string | undefined>(undefined)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState('')
@@ -51,6 +61,8 @@ export default function AdminCompanyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isEdit = !!company
+  // Show the form for first-time setup (no company yet) or when explicitly editing.
+  const showForm = !company || editing
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -68,11 +80,38 @@ export default function AdminCompanyPage() {
 
   const currentLogoSrc = logoPreview ?? company?.logo ?? null
 
+  function startEditing() {
+    setFormError(null)
+    setLogo(undefined)
+    setLogoPreview(null)
+    setLogoUrl('')
+    setLogoTab('file')
+    setEditing(true)
+  }
+
+  function cancelEditing() {
+    setFormError(null)
+    setLogo(undefined)
+    setLogoPreview(null)
+    setLogoUrl('')
+    if (company) {
+      reset({
+        razon_social: company.razon_social,
+        ruc: company.ruc,
+        email: company.email,
+        nombre_comercial: company.nombre_comercial ?? '',
+        direccion: company.direccion ?? '',
+        telefono: company.telefono ?? '',
+      })
+    }
+    setEditing(false)
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > LOGO_MAX_BYTES) {
-      setFormError('El logo debe pesar maximo 2 MB.')
+      setFormError('El logo debe pesar máximo 2 MB.')
       e.target.value = ''
       return
     }
@@ -100,33 +139,16 @@ export default function AdminCompanyPage() {
 
     try {
       if (isEdit) {
-        const saved = await update.mutateAsync(payload)
-        reset({
-          razon_social: saved.razon_social,
-          ruc: saved.ruc,
-          email: saved.email,
-          nombre_comercial: saved.nombre_comercial ?? '',
-          direccion: saved.direccion ?? '',
-          telefono: saved.telefono ?? '',
-        })
-        setLogoPreview(saved.logo ?? null)
-        setLogo(undefined)
+        await update.mutateAsync(payload)
         toast({ title: 'Configuración actualizada' })
       } else {
-        const saved = await create.mutateAsync(payload)
-        reset({
-          razon_social: saved.razon_social,
-          ruc: saved.ruc,
-          email: saved.email,
-          nombre_comercial: saved.nombre_comercial ?? '',
-          direccion: saved.direccion ?? '',
-          telefono: saved.telefono ?? '',
-        })
-        setLogoPreview(saved.logo ?? null)
-        setLogo(undefined)
-        setLogoUrl('')
+        await create.mutateAsync(payload)
         toast({ title: 'Configuración guardada' })
       }
+      setLogo(undefined)
+      setLogoPreview(null)
+      setLogoUrl('')
+      setEditing(false)
     } catch (err: unknown) {
       const apiErr = err as ApiError
       const fieldErrors = apiErr?.response?.data?.errors
@@ -147,15 +169,58 @@ export default function AdminCompanyPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 max-w-2xl">
+      <div className="mx-auto max-w-3xl space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96" />
       </div>
     )
   }
 
+  // ── View mode: company configured and not editing ─────────────────────────
+  if (!showForm && company) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <PageHeader
+          title="Configuración de Empresa"
+          actions={
+            <Button onClick={startEditing}>
+              <Pencil className="mr-2 h-4 w-4" />Editar
+            </Button>
+          }
+        />
+
+        <Section title="Datos de la empresa">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <ViewField label="Razón Social" value={company.razon_social} />
+            </div>
+            <ViewField label="Nombre Comercial" value={company.nombre_comercial} />
+            <ViewField label="RUC" value={company.ruc} />
+            <ViewField label="Email" value={company.email} />
+            <ViewField label="Teléfono" value={company.telefono} />
+            <div className="sm:col-span-2">
+              <ViewField label="Dirección" value={company.direccion} />
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Logo">
+          {company.logo ? (
+            <img src={company.logo} alt="Logo de la empresa" className="h-20 max-w-64 rounded border object-contain" />
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Building2 className="h-4 w-4" />
+              Sin logo configurado
+            </div>
+          )}
+        </Section>
+      </div>
+    )
+  }
+
+  // ── Form mode: first-time setup or editing ────────────────────────────────
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader title="Configuración de Empresa" />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -194,18 +259,17 @@ export default function AdminCompanyPage() {
         </Section>
 
         <Section title="Logo">
-
           {currentLogoSrc && (
             <div className="flex items-center gap-3">
-              <img src={currentLogoSrc} alt="Logo actual" className="h-16 max-w-48 object-contain rounded border" />
+              <img src={currentLogoSrc} alt="Logo actual" className="h-16 max-w-48 rounded border object-contain" />
               <span className="text-xs text-muted-foreground">Logo actual</span>
             </div>
           )}
 
           <Tabs value={logoTab} onValueChange={(v) => setLogoTab(v as 'file' | 'url')}>
             <TabsList>
-              <TabsTrigger value="file"><Upload className="h-3.5 w-3.5 mr-1.5" />Subir archivo</TabsTrigger>
-              <TabsTrigger value="url"><Link className="h-3.5 w-3.5 mr-1.5" />URL directa</TabsTrigger>
+              <TabsTrigger value="file"><Upload className="mr-1.5 h-3.5 w-3.5" />Subir archivo</TabsTrigger>
+              <TabsTrigger value="url"><Link className="mr-1.5 h-3.5 w-3.5" />URL directa</TabsTrigger>
             </TabsList>
 
             <TabsContent value="file" className="space-y-2 pt-2">
@@ -214,7 +278,7 @@ export default function AdminCompanyPage() {
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
-                className="text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
+                className="cursor-pointer text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted/80"
               />
               <p className="text-xs text-muted-foreground">Máximo 2 MB. Se convertirá a base64.</p>
             </TabsContent>
@@ -229,7 +293,12 @@ export default function AdminCompanyPage() {
           </Tabs>
         </Section>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {isEdit && (
+            <Button type="button" variant="outline" onClick={cancelEditing} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+          )}
           <Button type="submit" isLoading={isSubmitting}>
             {isEdit ? 'Actualizar' : 'Guardar'}
           </Button>
