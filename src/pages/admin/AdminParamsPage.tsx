@@ -70,7 +70,18 @@ export default function AdminParamsPage() {
   };
 
   const saveEdit = async (key: string) => {
-    if (NUMERIC_PARAM_KEYS.has(key) && !/^\d+$/.test(editValue.trim())) {
+    const normalizedValue = editValue.trim();
+
+    if (!normalizedValue) {
+      toast({
+        variant: "destructive",
+        title: "Valor requerido",
+        description: `El parámetro ${key} no puede quedar en blanco.`,
+      });
+      return;
+    }
+
+    if (NUMERIC_PARAM_KEYS.has(key) && !/^\d+$/.test(normalizedValue)) {
       toast({
         variant: "destructive",
         title: "Valor inválido",
@@ -80,7 +91,7 @@ export default function AdminParamsPage() {
     }
 
     try {
-      await updateParam.mutateAsync({ key, value: editValue });
+      await updateParam.mutateAsync({ key, value: normalizedValue });
       toast({
         variant: "success",
         title: "Actualización exitosa",
