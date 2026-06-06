@@ -31,6 +31,19 @@ const ACTION_VARIANTS: Partial<Record<AuditAction, 'default' | 'secondary' | 'de
   LOGOUT: 'secondary',
 }
 
+function toLocalDayRangeISO(dateFrom: string, dateTo: string) {
+  const [fromY, fromM, fromD] = dateFrom.split('-').map(Number)
+  const [toY, toM, toD] = dateTo.split('-').map(Number)
+
+  const from = new Date(fromY, fromM - 1, fromD, 0, 0, 0, 0)
+  const to = new Date(toY, toM - 1, toD, 23, 59, 59, 999)
+
+  return {
+    date_from: from.toISOString(),
+    date_to: to.toISOString(),
+  }
+}
+
 function highlightMatch(text: string, query: string) {
   const q = query.trim()
   if (!q) return text
@@ -70,6 +83,7 @@ export default function AuditPage() {
   const [entityId, setEntityId] = useState('')
   const [cursor, setCursor] = useState<number | undefined>()
   const { data: users, isLoading: usersLoading } = useAuditUsers(userQuery || undefined)
+  const auditDateRange = toLocalDayRangeISO(range.date_from, range.date_to)
   const currentUserLabel = userId
     ? (users?.find((u) => u.id === userId)
       ? `${users.find((u) => u.id === userId)!.full_name} (${users.find((u) => u.id === userId)!.username})`
@@ -77,8 +91,8 @@ export default function AuditPage() {
     : 'Todos los usuarios'
 
   const filters: AuditFilters = {
-    date_from: range.date_from,
-    date_to: range.date_to,
+    date_from: auditDateRange.date_from,
+    date_to: auditDateRange.date_to,
     user_id: userId,
     action,
     entity_type: entityType || undefined,
@@ -96,7 +110,12 @@ export default function AuditPage() {
     }
     try {
       const res = await api.get('/audit/export', {
-        params: { date_from: range.date_from, date_to: range.date_to, action, entity_type: entityType || undefined },
+        params: {
+          date_from: auditDateRange.date_from,
+          date_to: auditDateRange.date_to,
+          action,
+          entity_type: entityType || undefined,
+        },
         responseType: 'blob',
       })
       downloadBlob(res, `auditoria_${range.date_from}_${range.date_to}.xlsx`)
