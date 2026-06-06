@@ -17,7 +17,7 @@ export default function AppLayout() {
   const showBanner = !company || !company.is_complete
   const timeoutMinutes = getSessionTimeoutMinutes()
 
-  useSessionTimer(() => {
+  const { showWarning } = useSessionTimer(() => {
     void handleLogout()
   }, timeoutMinutes)
 
@@ -51,6 +51,13 @@ export default function AppLayout() {
             ) : (
               <span>El administrador debe completar la configuración de empresa antes de operar.</span>
             )}
+          </div>
+        )}
+
+        {showWarning && (
+          <div className="mx-5 mt-3 flex shrink-0 items-center gap-2 rounded-lg border border-rose-400/80 bg-rose-100/95 px-4 py-2.5 text-sm text-rose-900 shadow-token-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Tu sesión está por expirar por inactividad. Realiza una acción para mantenerla activa.</span>
           </div>
         )}
 
