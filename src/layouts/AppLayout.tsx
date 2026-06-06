@@ -6,6 +6,8 @@ import { Topbar } from '@/components/shared/Topbar'
 import { useAuth } from '@/contexts/AuthContext'
 import { Toaster } from '@/components/ui/toaster'
 import { useCompanyConfig } from '@/features/admin/hooks'
+import { useSessionTimer } from '@/hooks/use-session-timer'
+import { getSessionTimeoutMinutes } from '@/lib/api'
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -13,6 +15,11 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const { data: company } = useCompanyConfig()
   const showBanner = !company || !company.is_complete
+  const timeoutMinutes = getSessionTimeoutMinutes()
+
+  useSessionTimer(() => {
+    void handleLogout()
+  }, timeoutMinutes)
 
   const handleLogout = async () => {
     await logout()

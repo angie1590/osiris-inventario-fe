@@ -1,6 +1,7 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 
 let accessToken: string | null = null
+let sessionTimeoutMinutes = 30
 let isRefreshing = false
 let refreshQueue: Array<(token: string | null) => void> = []
 
@@ -10,6 +11,18 @@ export function setAccessToken(token: string | null) {
 
 export function getAccessToken() {
   return accessToken
+}
+
+export function setSessionTimeoutMinutes(minutes: number | null | undefined) {
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0) {
+    sessionTimeoutMinutes = 30
+    return
+  }
+  sessionTimeoutMinutes = minutes
+}
+
+export function getSessionTimeoutMinutes() {
+  return sessionTimeoutMinutes
 }
 
 const api = axios.create({
@@ -60,7 +73,9 @@ api.interceptors.response.use(
         const resp = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken })
         const newToken: string = resp.data.access_token
         const newRefresh: string = resp.data.refresh_token
+        const timeoutMinutes: number | undefined = resp.data.session_timeout_minutes
         accessToken = newToken
+        setSessionTimeoutMinutes(timeoutMinutes)
         localStorage.setItem('refresh_token', newRefresh)
         refreshQueue.forEach((cb) => cb(newToken))
         refreshQueue = []

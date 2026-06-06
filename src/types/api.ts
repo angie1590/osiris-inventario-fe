@@ -16,6 +16,7 @@ export interface LoginResponse {
   refresh_token: string
   token_type: string
   require_password_change: boolean
+  session_timeout_minutes: number
 }
 
 export interface CurrentUser {
