@@ -55,7 +55,7 @@ export default function AuditPage() {
       return
     }
     try {
-      const res = await api.get('/audit/export/excel', {
+      const res = await api.get('/audit/export', {
         params: { date_from: range.date_from, date_to: range.date_to, action, entity_type: entityType || undefined },
         responseType: 'blob',
       })

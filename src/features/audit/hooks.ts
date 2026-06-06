@@ -18,7 +18,7 @@ export function useAuditLogs(filters: AuditFilters) {
     queryFn: async () => {
       const params: Record<string, unknown> = { limit: 50, ...filters }
       Object.keys(params).forEach((k) => params[k] === undefined && delete params[k])
-      const res = await api.get<AuditLog[]>('/audit/', { params })
+      const res = await api.get<AuditLog[]>('/audit', { params })
       return res.data
     },
     enabled: !!(filters.date_from && filters.date_to),
