@@ -17,7 +17,7 @@ export function Toaster() {
       {toasts.map(({ id, title, description, variant, ...props }) => {
         const Icon = VARIANT_ICON[(variant ?? 'default') as keyof typeof VARIANT_ICON]
         return (
-        <Toast key={id} {...props}>
+        <Toast key={id} variant={variant} {...props}>
           <div className="flex items-start gap-3">
             <Icon className="mt-0.5 h-5 w-5 shrink-0" />
             <div className="grid gap-1">
