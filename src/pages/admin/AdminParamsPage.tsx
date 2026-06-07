@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -46,10 +47,31 @@ const NUMERIC_PARAM_KEYS = new Set([
   "doc_number_padding",
 ]);
 
+const PARAM_HINTS: Record<string, string> = {
+  kardex_method:
+    "Se bloquea automáticamente cuando existen movimientos en el año fiscal vigente.",
+};
+
+const PARAM_BADGES: Record<string, string> = {
+  kardex_method: "Bloqueable por movimientos",
+};
+
 function getDisplayParamValue(key: string, value: string): string {
   const options = FIXED_PARAM_OPTIONS[key];
   if (!options) return value;
   return options.find((option) => option.value === value)?.label ?? value;
+}
+
+function getApiErrorCode(err: unknown): string | undefined {
+  const responseData = (err as { response?: { data?: unknown } })?.response
+    ?.data as { code?: string; detail?: { code?: string } } | undefined;
+  return responseData?.code ?? responseData?.detail?.code;
+}
+
+function getApiErrorMessage(err: unknown): string | undefined {
+  const responseData = (err as { response?: { data?: unknown } })?.response
+    ?.data as { message?: string; detail?: { message?: string } } | undefined;
+  return responseData?.message ?? responseData?.detail?.message;
 }
 
 export default function AdminParamsPage() {
@@ -58,6 +80,7 @@ export default function AdminParamsPage() {
   const updateParam = useUpdateParam();
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [isKardexMethodLocked, setIsKardexMethodLocked] = useState(false);
 
   const startEdit = (key: string, currentValue: string) => {
     setEditKey(key);
@@ -99,9 +122,12 @@ export default function AdminParamsPage() {
       });
       setEditKey(null);
     } catch (err: unknown) {
-      const code = (
-        err as { response?: { data?: { detail?: { code?: string } } } }
-      )?.response?.data?.detail?.code;
+      const code = getApiErrorCode(err);
+      const apiMessage = getApiErrorMessage(err);
+      if (code === "KARDEX_METHOD_LOCKED") {
+        setIsKardexMethodLocked(true);
+        setEditKey(null);
+      }
       toast({
         variant: code === "KARDEX_METHOD_LOCKED" ? "warning" : "destructive",
         title:
@@ -110,8 +136,9 @@ export default function AdminParamsPage() {
             : "Error al actualizar parámetro",
         description:
           code === "KARDEX_METHOD_LOCKED"
-            ? "No se puede cambiar el método Kardex mientras haya movimientos registrados"
-            : `No se pudo actualizar el parámetro ${key}. Intenta nuevamente.`,
+            ? "No se puede cambiar el método Kardex mientras haya movimientos del año fiscal vigente."
+            : (apiMessage ??
+              `No se pudo actualizar el parámetro ${key}. Intenta nuevamente.`),
       });
     }
   };
@@ -150,47 +177,100 @@ export default function AdminParamsPage() {
                     <TableCell className="font-mono text-sm">{p.key}</TableCell>
                     <TableCell>
                       {editKey === p.key ? (
-                        FIXED_PARAM_OPTIONS[p.key] ? (
-                          <Select
-                            value={editValue}
-                            onValueChange={setEditValue}
-                          >
-                            <SelectTrigger className="h-7 w-44">
-                              <SelectValue placeholder="Selecciona un valor" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FIXED_PARAM_OPTIONS[p.key].map((option) => (
-                                <SelectItem
-                                  key={option.value}
-                                  value={option.value}
-                                >
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            className="h-7 w-36"
-                            value={editValue}
-                            inputMode={
-                              NUMERIC_PARAM_KEYS.has(p.key)
-                                ? "numeric"
-                                : undefined
-                            }
-                            onChange={(e) => {
-                              const next = e.target.value;
-                              if (NUMERIC_PARAM_KEYS.has(p.key)) {
-                                setEditValue(next.replace(/\D+/g, ""));
-                                return;
+                        <div className="space-y-1">
+                          {PARAM_BADGES[p.key] ? (
+                            <Badge
+                              variant="outline"
+                              className="h-5 border-amber-300 bg-amber-50 text-amber-700"
+                            >
+                              {PARAM_BADGES[p.key]}
+                            </Badge>
+                          ) : null}
+                          {p.key === "kardex_method" && isKardexMethodLocked ? (
+                            <Badge
+                              variant="outline"
+                              className="h-5 border-red-300 bg-red-50 text-red-700"
+                            >
+                              Bloqueado este año
+                            </Badge>
+                          ) : null}
+                          {FIXED_PARAM_OPTIONS[p.key] ? (
+                            <Select
+                              value={editValue}
+                              onValueChange={setEditValue}
+                              disabled={
+                                p.key === "kardex_method" &&
+                                isKardexMethodLocked
                               }
-                              setEditValue(next);
-                            }}
-                            autoFocus
-                          />
-                        )
+                            >
+                              <SelectTrigger className="h-7 w-44">
+                                <SelectValue placeholder="Selecciona un valor" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {FIXED_PARAM_OPTIONS[p.key].map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              className="h-7 w-36"
+                              value={editValue}
+                              inputMode={
+                                NUMERIC_PARAM_KEYS.has(p.key)
+                                  ? "numeric"
+                                  : undefined
+                              }
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                if (NUMERIC_PARAM_KEYS.has(p.key)) {
+                                  setEditValue(next.replace(/\D+/g, ""));
+                                  return;
+                                }
+                                setEditValue(next);
+                              }}
+                              autoFocus
+                            />
+                          )}
+                          {PARAM_HINTS[p.key] ? (
+                            <p className="text-xs text-amber-700">
+                              {PARAM_HINTS[p.key]}
+                            </p>
+                          ) : null}
+                        </div>
                       ) : (
-                        <span>{getDisplayParamValue(p.key, p.value)}</span>
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>{getDisplayParamValue(p.key, p.value)}</span>
+                            {PARAM_BADGES[p.key] ? (
+                              <Badge
+                                variant="outline"
+                                className="h-5 border-amber-300 bg-amber-50 text-amber-700"
+                              >
+                                {PARAM_BADGES[p.key]}
+                              </Badge>
+                            ) : null}
+                            {p.key === "kardex_method" &&
+                            isKardexMethodLocked ? (
+                              <Badge
+                                variant="outline"
+                                className="h-5 border-red-300 bg-red-50 text-red-700"
+                              >
+                                Bloqueado este año
+                              </Badge>
+                            ) : null}
+                          </div>
+                          {PARAM_HINTS[p.key] ? (
+                            <p className="text-xs text-amber-700">
+                              {PARAM_HINTS[p.key]}
+                            </p>
+                          ) : null}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-64">
@@ -207,7 +287,11 @@ export default function AdminParamsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => saveEdit(p.key)}
-                            disabled={updateParam.isPending}
+                            disabled={
+                              updateParam.isPending ||
+                              (p.key === "kardex_method" &&
+                                isKardexMethodLocked)
+                            }
                           >
                             <Check className="h-3.5 w-3.5 text-green-600" />
                           </Button>
@@ -226,6 +310,14 @@ export default function AdminParamsPage() {
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => startEdit(p.key, p.value)}
+                          disabled={
+                            p.key === "kardex_method" && isKardexMethodLocked
+                          }
+                          title={
+                            p.key === "kardex_method" && isKardexMethodLocked
+                              ? "Bloqueado: existen movimientos en el año fiscal vigente"
+                              : undefined
+                          }
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>

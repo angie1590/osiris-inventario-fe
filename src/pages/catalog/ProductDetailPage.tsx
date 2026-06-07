@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Pencil, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -5,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useProduct, useToggleProductStatus } from '@/features/catalog/hooks'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
@@ -15,6 +17,7 @@ export default function ProductDetailPage() {
   const { user } = useAuth()
   const { toast } = useToast()
   const canEdit = user?.role === 'admin' || user?.role === 'operator'
+  const [confirmToggle, setConfirmToggle] = useState(false)
 
   const { data: product, isLoading } = useProduct(Number(id))
   const toggleStatus = useToggleProductStatus()
@@ -24,12 +27,20 @@ export default function ProductDetailPage() {
 
   const handleToggle = async () => {
     const newStatus = product.status === 'active' ? 'inactive' : 'active'
-    if (!confirm(`¿${newStatus === 'inactive' ? 'Desactivar' : 'Activar'} "${product.name}"?`)) return
     try {
       await toggleStatus.mutateAsync({ id: product.id, status: newStatus })
-      toast({ title: `Producto ${newStatus === 'active' ? 'activado' : 'desactivado'}` })
+      toast({
+        variant: 'success',
+        title: newStatus === 'active' ? 'Producto activado' : 'Producto desactivado',
+        description: `"${product.name}" ${newStatus === 'active' ? 'activado' : 'desactivado'} correctamente.`,
+      })
     } catch {
-      toast({ variant: 'destructive', description: 'Error al cambiar estado' })
+      toast({
+        variant: 'destructive',
+        title: 'Error al cambiar estado',
+        description: `No se pudo actualizar "${product.name}". Intenta nuevamente.`,
+      })
+      throw new Error('toggle failed')
     }
   }
 
@@ -91,7 +102,7 @@ export default function ProductDetailPage() {
           </Button>
         )}
         {canEdit && (
-          <Button variant="outline" onClick={handleToggle}>
+          <Button variant="outline" onClick={() => setConfirmToggle(true)}>
             {product.status === 'active' ? 'Desactivar' : 'Activar'}
           </Button>
         )}
@@ -99,6 +110,18 @@ export default function ProductDetailPage() {
           <Link to={`/kardex/${product.id}`}><BookOpen className="mr-2 h-4 w-4" />Ver Kardex</Link>
         </Button>
       </div>
+
+      {confirmToggle && (
+        <ConfirmDialog
+          open
+          onClose={() => setConfirmToggle(false)}
+          title={product.status === 'active' ? 'Desactivar producto' : 'Activar producto'}
+          description={<>¿{product.status === 'active' ? 'Desactivar' : 'Activar'} el producto <strong>{product.name}</strong>?</>}
+          confirmLabel={product.status === 'active' ? 'Desactivar' : 'Activar'}
+          variant={product.status === 'active' ? 'danger' : 'default'}
+          onConfirm={handleToggle}
+        />
+      )}
     </div>
   )
 }

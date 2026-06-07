@@ -1,10 +1,7 @@
-import { Fragment, useEffect, useState } from "react";
+import { useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
-  ChevronDown,
   ChevronsUpDown,
   Download,
   Search,
@@ -13,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -21,17 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
+import { DataTable, type Column } from "@/components/shared/DataTable";
+import { DetailModal } from "@/components/shared/DetailModal";
 import {
   DateRangeFilter,
   type DateRange,
@@ -48,14 +36,6 @@ import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { AuditAction, AuditLog } from "@/types/api";
-
-type SortKey =
-  | "username"
-  | "action"
-  | "entity_type"
-  | "ip_address"
-  | "description";
-type SortDirection = "asc" | "desc";
 
 const ACTIONS: AuditAction[] = [
   "CREATE",
@@ -180,7 +160,7 @@ function toDisplayValue(key: string, value: unknown): string {
   return String(value);
 }
 
-function renderAuditDetails(log: AuditLog) {
+function AuditChanges({ log }: { log: AuditLog }) {
   const before = log.previous_values ?? {};
   const after = log.new_values ?? {};
   const keys = Array.from(
@@ -196,36 +176,29 @@ function renderAuditDetails(log: AuditLog) {
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Detalle de cambios
-      </p>
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-130 text-xs">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="px-2 py-1.5 text-left font-semibold">Atributo</th>
-              <th className="px-2 py-1.5 text-left font-semibold">Anterior</th>
-              <th className="px-2 py-1.5 text-left font-semibold">Nuevo</th>
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-130 text-xs">
+        <thead className="bg-muted/50">
+          <tr>
+            <th className="px-2 py-1.5 text-left font-semibold">Atributo</th>
+            <th className="px-2 py-1.5 text-left font-semibold">Anterior</th>
+            <th className="px-2 py-1.5 text-left font-semibold">Nuevo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {keys.map((key) => (
+            <tr key={`${log.id}-${key}`} className="border-t">
+              <td className="px-2 py-1.5 font-medium">
+                {FIELD_LABELS[key] ?? key}
+              </td>
+              <td className="px-2 py-1.5 text-muted-foreground">
+                {toDisplayValue(key, before[key])}
+              </td>
+              <td className="px-2 py-1.5">{toDisplayValue(key, after[key])}</td>
             </tr>
-          </thead>
-          <tbody>
-            {keys.map((key) => (
-              <tr key={`${log.id}-${key}`} className="border-t">
-                <td className="px-2 py-1.5 font-medium">
-                  {FIELD_LABELS[key] ?? key}
-                </td>
-                <td className="px-2 py-1.5 text-muted-foreground">
-                  {toDisplayValue(key, before[key])}
-                </td>
-                <td className="px-2 py-1.5">
-                  {toDisplayValue(key, after[key])}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -242,10 +215,8 @@ export default function AuditPage() {
   const [entityTypeOpen, setEntityTypeOpen] = useState(false);
   const [entityTypeQuery, setEntityTypeQuery] = useState("");
   const [entityType, setEntityType] = useState("");
-  const [sortBy, setSortBy] = useState<SortKey | undefined>();
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [cursor, setCursor] = useState<number | undefined>();
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [viewLog, setViewLog] = useState<AuditLog | undefined>();
   const { data: users, isLoading: usersLoading } = useAuditUsers(
     userQuery || undefined,
   );
@@ -279,72 +250,75 @@ export default function AuditPage() {
 
   const { data: logs, isLoading, isError, refetch } = useAuditLogs(filters);
 
-  useEffect(() => {
-    // Nueva consulta: limpia ordenamiento manual por header.
-    setSortBy(undefined);
-    setSortDirection("asc");
-  }, [range.date_from, range.date_to, action, userId, entityType, cursor]);
-
-  const handleSort = (key: SortKey) => {
-    if (sortBy === key) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortBy(key);
-    setSortDirection("asc");
-  };
-
-  const sortedLogs = [...(logs ?? [])].sort((a, b) => {
-    const dateCmp =
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-
-    // Sin orden por header: fecha descendente (más reciente primero).
-    if (!sortBy) return dateCmp;
-
-    // Con orden por header: el header es primario y la fecha queda de desempate.
-    const av = String(a[sortBy] ?? "").toLocaleLowerCase("es-EC");
-    const bv = String(b[sortBy] ?? "").toLocaleLowerCase("es-EC");
-    const cmp = av.localeCompare(bv, "es-EC");
-    if (cmp !== 0) return sortDirection === "asc" ? cmp : -cmp;
-    return dateCmp;
-  });
-
-  const SortableHeader = ({
-    label,
-    keyName,
-  }: {
-    label: string;
-    keyName: SortKey;
-  }) => {
-    const active = sortBy === keyName;
-    return (
-      <button
-        type="button"
-        className="inline-flex items-center gap-1 text-left font-medium hover:text-foreground"
-        onClick={() => handleSort(keyName)}
-      >
-        <span>{label}</span>
-        {active ? (
-          sortDirection === "asc" ? (
-            <ArrowUp className="h-3.5 w-3.5" />
-          ) : (
-            <ArrowDown className="h-3.5 w-3.5" />
-          )
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5 opacity-40" />
-        )}
-      </button>
-    );
-  };
-
-  const toggleExpanded = (id: number) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const columns: Column<AuditLog>[] = [
+    {
+      key: "timestamp",
+      header: "Fecha/hora",
+      sortable: true,
+      sortAccessor: (l) => new Date(l.timestamp),
+      cell: (l) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {new Date(l.timestamp).toLocaleString("es-EC")}
+        </span>
+      ),
+    },
+    {
+      key: "username",
+      header: "Usuario",
+      sortable: true,
+      sortAccessor: (l) => l.username ?? "",
+      cell: (l) => <span className="text-sm">{l.username ?? "—"}</span>,
+    },
+    {
+      key: "action",
+      header: "Acción",
+      sortable: true,
+      sortAccessor: (l) => l.action,
+      cell: (l) => (
+        <Badge variant={ACTION_VARIANTS[l.action] ?? "secondary"} className="text-xs">
+          {l.action}
+        </Badge>
+      ),
+    },
+    {
+      key: "entity_type",
+      header: "Entidad",
+      sortable: true,
+      sortAccessor: (l) => l.entity_type ?? "",
+      cell: (l) => <span className="text-sm">{localizeEntityType(l.entity_type)}</span>,
+    },
+    {
+      key: "ip_address",
+      header: "IP",
+      sortable: true,
+      sortAccessor: (l) => l.ip_address ?? "",
+      cell: (l) => <span className="text-xs text-muted-foreground">{l.ip_address ?? "—"}</span>,
+    },
+    {
+      key: "description",
+      header: "Descripción",
+      sortable: true,
+      sortAccessor: (l) => localizeDescription(l.description),
+      cell: (l) => (
+        <span
+          className="block max-w-80 text-xs wrap-break-word"
+          title={localizeDescription(l.description)}
+        >
+          {localizeDescription(l.description)}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right",
+      cell: (l) => (
+        <Button variant="ghost" size="sm" onClick={() => setViewLog(l)}>
+          Ver
+        </Button>
+      ),
+    },
+  ];
 
   const handleExport = async () => {
     const days = differenceInDays(
@@ -386,7 +360,7 @@ export default function AuditPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-3 rounded-lg border bg-card p-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card p-3">
         <DateRangeFilter
           onApply={(r) => {
             setRange(r);
@@ -608,115 +582,17 @@ export default function AuditPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        {isLoading ? (
-          <Skeleton className="m-3 h-48" />
-        ) : isError ? (
-          <ErrorState
-            className="py-10"
-            message="No se pudo cargar el historial de auditoria."
-            onRetry={() => void refetch()}
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha/hora</TableHead>
-                <TableHead>
-                  <SortableHeader label="Usuario" keyName="username" />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader label="Acción" keyName="action" />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader label="Entidad" keyName="entity_type" />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader label="IP" keyName="ip_address" />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader label="Descripción" keyName="description" />
-                </TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedLogs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="p-0">
-                    <EmptyState
-                      className="py-10"
-                      heading="Sin resultados"
-                      description="Ajusta los filtros para encontrar registros de auditoria."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedLogs.map((l) => (
-                  <Fragment key={l.id}>
-                    <TableRow>
-                      <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-                        {new Date(l.timestamp).toLocaleString("es-EC")}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {l.username ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={ACTION_VARIANTS[l.action] ?? "secondary"}
-                          className="text-xs"
-                        >
-                          {l.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {localizeEntityType(l.entity_type)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {l.ip_address ?? "—"}
-                      </TableCell>
-                      <TableCell
-                        className="text-xs max-w-80 whitespace-normal wrap-break-word"
-                        title={localizeDescription(l.description)}
-                      >
-                        {localizeDescription(l.description)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => toggleExpanded(l.id)}
-                          aria-label={
-                            expandedRows.has(l.id)
-                              ? "Ocultar detalle"
-                              : "Mostrar detalle"
-                          }
-                        >
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 transition-transform",
-                              expandedRows.has(l.id) && "rotate-180",
-                            )}
-                          />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {expandedRows.has(l.id) && (
-                      <TableRow className="bg-muted/20">
-                        <TableCell colSpan={7}>
-                          {renderAuditDetails(l)}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Fragment>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={logs ?? []}
+        rowKey={(l) => l.id}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        defaultSort={{ key: "timestamp", dir: "desc" }}
+        emptyHeading="Sin resultados"
+        emptyDescription="Ajusta los filtros para encontrar registros de auditoría."
+      />
 
       <div className="flex gap-2">
         <Button
@@ -736,6 +612,44 @@ export default function AuditPage() {
           Siguiente →
         </Button>
       </div>
+
+      {viewLog && (
+        <DetailModal
+          open
+          onClose={() => setViewLog(undefined)}
+          title="Detalle de auditoría"
+          subtitle={new Date(viewLog.timestamp).toLocaleString("es-EC")}
+          size="lg"
+          sections={[
+            {
+              fields: [
+                { label: "Usuario", value: viewLog.username ?? "—" },
+                {
+                  label: "Acción",
+                  value: (
+                    <Badge variant={ACTION_VARIANTS[viewLog.action] ?? "secondary"}>
+                      {viewLog.action}
+                    </Badge>
+                  ),
+                },
+                { label: "Entidad", value: localizeEntityType(viewLog.entity_type) },
+                { label: "ID entidad", value: viewLog.entity_id ?? "—" },
+                { label: "IP", value: viewLog.ip_address ?? "—" },
+                { label: "Fecha", value: new Date(viewLog.timestamp).toLocaleString("es-EC") },
+                {
+                  label: "Descripción",
+                  value: localizeDescription(viewLog.description),
+                  full: true,
+                },
+              ],
+            },
+            {
+              title: "Detalle de cambios",
+              content: <AuditChanges log={viewLog} />,
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

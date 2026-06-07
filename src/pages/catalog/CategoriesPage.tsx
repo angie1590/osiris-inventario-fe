@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useCategories, useDeleteCategory } from '@/features/catalog/hooks'
 import { CategoryFormModal } from '@/features/catalog/CategoryFormModal'
 import { AttributesPanel } from '@/features/catalog/AttributesPanel'
@@ -69,22 +70,27 @@ export default function CategoriesPage() {
   const [editTarget, setEditTarget] = useState<Category | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedForAttrs, setSelectedForAttrs] = useState<Category | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null)
 
   const roots = (cats ?? []).filter((c) => !c.parent_id && c.is_active)
 
-  const handleDelete = async (cat: Category) => {
-    if (!confirm(`¿Eliminar "${cat.name}"?`)) return
+  const performDelete = async (cat: Category) => {
     try {
       await deleteCategory.mutateAsync(cat.id)
-      toast({ title: 'Categoría eliminada' })
+      toast({ variant: 'success', title: 'Categoría eliminada', description: `"${cat.name}" eliminada.` })
     } catch (err: unknown) {
       const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
-      const msg = code === 'CATEGORY_HAS_CHILDREN'
-        ? 'No se puede eliminar una categoría con subcategorías activas'
-        : code === 'CATEGORY_HAS_PRODUCTS'
-          ? 'No se puede eliminar una categoría con productos asignados'
-          : 'Error al eliminar'
-      toast({ variant: 'destructive', description: msg })
+      const restricted = code === 'CATEGORY_HAS_CHILDREN' || code === 'CATEGORY_HAS_PRODUCTS'
+      toast({
+        variant: restricted ? 'warning' : 'destructive',
+        title: restricted ? 'Acción restringida' : 'Error al eliminar',
+        description: code === 'CATEGORY_HAS_CHILDREN'
+          ? 'No se puede eliminar una categoría con subcategorías activas.'
+          : code === 'CATEGORY_HAS_PRODUCTS'
+            ? 'No se puede eliminar una categoría con productos asignados.'
+            : `No se pudo eliminar "${cat.name}". Intenta nuevamente.`,
+      })
+      throw err
     }
   }
 
@@ -106,7 +112,7 @@ export default function CategoriesPage() {
             ? <p className="p-6 text-center text-muted-foreground">No hay categorías todavía.</p>
             : roots.map((cat) => (
               <CategoryNode key={cat.id} cat={cat} allCats={cats ?? []} depth={0}
-                onEdit={setEditTarget} onDelete={handleDelete} onSelectAttrs={setSelectedForAttrs} />
+                onEdit={setEditTarget} onDelete={setDeleteTarget} onSelectAttrs={setSelectedForAttrs} />
             ))
         }
       </div>
@@ -116,6 +122,18 @@ export default function CategoriesPage() {
           category={editTarget ?? undefined}
           allCategories={cats ?? []}
           onClose={() => { setShowCreate(false); setEditTarget(null) }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          open
+          onClose={() => setDeleteTarget(null)}
+          title="Eliminar categoría"
+          description={<>¿Eliminar la categoría <strong>{deleteTarget.name}</strong>?</>}
+          confirmLabel="Eliminar"
+          variant="danger"
+          onConfirm={() => performDelete(deleteTarget)}
         />
       )}
     </div>
