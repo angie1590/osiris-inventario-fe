@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { VoidDialog } from "./VoidDialog";
 import { useDocument, useCancelDocument } from "./hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +24,7 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   cancelled: "Cancelado",
+  voided: "Anulado",
 };
 const STATUS_VARIANTS: Record<
   DocumentStatus,
@@ -30,7 +32,8 @@ const STATUS_VARIANTS: Record<
 > = {
   pending: "secondary",
   approved: "default",
-  cancelled: "destructive",
+  cancelled: "secondary",
+  voided: "destructive",
 };
 const TYPE_LABELS: Record<DocumentType, string> = {
   IN: "Ingreso",
@@ -60,6 +63,7 @@ export function DocumentDetail({
   const { data: doc, isLoading } = useDocument(id, docType);
   const cancel = useCancelDocument();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!doc) return <p>Documento no encontrado</p>;
@@ -68,6 +72,12 @@ export function DocumentDetail({
     (doc.doc_type === "BI" || doc.doc_type === "AI") &&
     doc.status === "pending" &&
     (user?.role === "admin" || user?.role === "operator");
+
+  const canVoid =
+    doc.status === "approved" &&
+    (user?.role === "admin" ||
+      user?.role === "operator" ||
+      user?.role === "supervisor");
 
   const handleCancel = async () => {
     if (doc.doc_type !== "BI" && doc.doc_type !== "AI") return;
@@ -195,7 +205,14 @@ export function DocumentDetail({
             Cancelar documento
           </Button>
         )}
+        {canVoid && (
+          <Button variant="destructive" onClick={() => setVoidOpen(true)}>
+            Anular documento
+          </Button>
+        )}
       </div>
+
+      {voidOpen && <VoidDialog doc={doc} onClose={() => setVoidOpen(false)} />}
 
       {confirmCancel && (
         <ConfirmDialog

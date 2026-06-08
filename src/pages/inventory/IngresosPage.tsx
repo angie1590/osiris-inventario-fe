@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   cancelled: "Cancelado",
+  voided: "Anulado",
 };
 const STATUS_VARIANTS: Record<
   DocumentStatus,
@@ -25,7 +26,8 @@ const STATUS_VARIANTS: Record<
 > = {
   pending: "secondary",
   approved: "default",
-  cancelled: "destructive",
+  cancelled: "secondary",
+  voided: "destructive",
 };
 
 export default function IngresosPage() {

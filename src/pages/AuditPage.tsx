@@ -59,6 +59,17 @@ const ACTION_VARIANTS: Partial<
   LOGOUT: "secondary",
 };
 
+const ACTION_LABELS: Record<AuditAction, string> = {
+  CREATE: "Creación",
+  UPDATE: "Actualización",
+  DELETE: "Eliminación",
+  APPROVE: "Aprobación",
+  CANCEL: "Anulación",
+  LOGIN: "Inicio de sesión",
+  LOGOUT: "Cierre de sesión",
+  PASSWORD_CHANGED: "Cambio de contraseña",
+};
+
 const ENTITY_TYPE_OPTIONS = [
   { value: "user", label: "Usuarios (user)" },
   { value: "product", label: "Productos (product)" },
@@ -273,10 +284,10 @@ export default function AuditPage() {
       key: "action",
       header: "Acción",
       sortable: true,
-      sortAccessor: (l) => l.action,
+      sortAccessor: (l) => ACTION_LABELS[l.action] ?? l.action,
       cell: (l) => (
         <Badge variant={ACTION_VARIANTS[l.action] ?? "secondary"} className="text-xs">
-          {l.action}
+          {ACTION_LABELS[l.action] ?? l.action}
         </Badge>
       ),
     },
@@ -383,7 +394,7 @@ export default function AuditPage() {
               <SelectItem value="__all__">Todas</SelectItem>
               {ACTIONS.map((a) => (
                 <SelectItem key={a} value={a}>
-                  {a}
+                  {ACTION_LABELS[a] ?? a}
                 </SelectItem>
               ))}
             </SelectContent>

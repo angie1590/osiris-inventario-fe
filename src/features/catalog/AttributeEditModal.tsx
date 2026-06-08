@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FormField } from '@/components/shared/FormField'
 import { useUpdateAttribute } from './hooks'
 import { useToast } from '@/hooks/use-toast'
+import { getApiErrorMessage } from '@/lib/api-error'
 import type { CategoryAttribute, AttributeDataType } from '@/types/api'
 
 const DATA_TYPES: AttributeDataType[] = ['text', 'integer', 'decimal', 'date', 'boolean', 'select']
@@ -34,6 +35,7 @@ export function AttributeEditModal({ categoryId, attribute, onClose }: Props) {
   const update = useUpdateAttribute()
   const { toast } = useToast()
   const [typeWarning, setTypeWarning] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -54,6 +56,7 @@ export function AttributeEditModal({ categoryId, attribute, onClose }: Props) {
   }
 
   const onSubmit = async (data: FormData) => {
+    setFormError(null)
     try {
       const payload = {
         name: data.name,
@@ -64,15 +67,13 @@ export function AttributeEditModal({ categoryId, attribute, onClose }: Props) {
           : undefined,
       }
       await update.mutateAsync({ categoryId, attrId: attribute.id, payload })
-      toast({ title: 'Atributo actualizado' })
+      toast({ variant: 'success', title: 'Atributo actualizado', description: `"${data.name}" actualizado.` })
       onClose()
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code
-      if (code === 'ATTRIBUTE_TYPE_CHANGE_BLOCKED') {
-        toast({ variant: 'destructive', description: 'No se puede cambiar el tipo: hay productos con este atributo' })
-      } else {
-        toast({ variant: 'destructive', description: 'Error al actualizar el atributo' })
-      }
+      setFormError(getApiErrorMessage(err, 'No se pudo actualizar el atributo. Intenta nuevamente.', {
+        ATTRIBUTE_TYPE_CHANGE_BLOCKED: 'No se puede cambiar el tipo: hay productos con este atributo.',
+        SELECT_REQUIRES_OPTIONS: 'Un atributo de tipo "select" debe tener al menos una opción.',
+      }))
     }
   }
 
@@ -82,6 +83,9 @@ export function AttributeEditModal({ categoryId, attribute, onClose }: Props) {
         <form onSubmit={handleSubmit(onSubmit)} className="contents">
           <DialogHeader><DialogTitle>Editar atributo</DialogTitle></DialogHeader>
           <DialogBody className="space-y-4">
+            {formError && (
+              <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>
+            )}
             <FormField label="Nombre" required error={errors.name?.message}>
               <Input {...register('name')} />
             </FormField>
@@ -120,7 +124,7 @@ export function AttributeEditModal({ categoryId, attribute, onClose }: Props) {
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>Guardar</Button>
+            <Button type="submit" isLoading={isSubmitting}>Guardar</Button>
           </DialogFooter>
         </form>
       </DialogContent>

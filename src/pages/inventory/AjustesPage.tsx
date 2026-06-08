@@ -25,11 +25,12 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   cancelled: "Cancelado",
+  voided: "Anulado",
 };
 const STATUS_VARIANTS: Record<
   DocumentStatus,
   "default" | "secondary" | "destructive"
-> = { pending: "secondary", approved: "default", cancelled: "destructive" };
+> = { pending: "secondary", approved: "default", cancelled: "secondary", voided: "destructive" };
 
 export default function AjustesPage() {
   const navigate = useNavigate();
@@ -159,6 +160,7 @@ export default function AjustesPage() {
               <SelectItem value="pending">Pendiente</SelectItem>
               <SelectItem value="approved">Aprobado</SelectItem>
               <SelectItem value="cancelled">Cancelado</SelectItem>
+              <SelectItem value="voided">Anulado</SelectItem>
             </SelectContent>
           </Select>
         </div>

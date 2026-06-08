@@ -258,3 +258,28 @@ export function useSetApprovalCode() {
     },
   });
 }
+
+export function useVoidDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      authorizerPin,
+    }: {
+      id: number;
+      authorizerPin?: string;
+    }) => {
+      const res = await api.post<InventoryDocument>(
+        `/inventory/documents/${id}/void`,
+        { authorizer_pin: authorizerPin || null },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      // Reversal affects every list, the document, kardex and reports.
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["kardex"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}

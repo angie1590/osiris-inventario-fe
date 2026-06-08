@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,9 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FormField } from '@/components/shared/FormField'
 import { useCreateAttribute } from './hooks'
 import { useToast } from '@/hooks/use-toast'
+import { getApiErrorMessage } from '@/lib/api-error'
 import type { AttributeDataType } from '@/types/api'
 
 const DATA_TYPES: AttributeDataType[] = ['text', 'integer', 'decimal', 'date', 'boolean', 'select']
@@ -25,6 +28,7 @@ type FormData = z.infer<typeof schema>
 export function AttributeFormModal({ categoryId, onClose }: { categoryId: number; onClose: () => void }) {
   const create = useCreateAttribute()
   const { toast } = useToast()
+  const [formError, setFormError] = useState<string | null>(null)
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -34,6 +38,7 @@ export function AttributeFormModal({ categoryId, onClose }: { categoryId: number
   const dataType = watch('data_type')
 
   const onSubmit = async (data: FormData) => {
+    setFormError(null)
     try {
       const payload = {
         name: data.name,
@@ -44,14 +49,12 @@ export function AttributeFormModal({ categoryId, onClose }: { categoryId: number
           : undefined,
       }
       await create.mutateAsync({ categoryId, payload })
-      toast({ title: 'Atributo creado' })
+      toast({ variant: 'success', title: 'Atributo creado', description: `"${data.name}" creado.` })
       onClose()
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code
-      const msg = code === 'ATTRIBUTE_NAME_EXISTS_IN_HIERARCHY'
-        ? 'Ya existe un atributo con ese nombre en la jerarquía'
-        : 'Error al crear el atributo'
-      toast({ variant: 'destructive', description: msg })
+      setFormError(getApiErrorMessage(err, 'No se pudo crear el atributo. Intenta nuevamente.', {
+        SELECT_REQUIRES_OPTIONS: 'Un atributo de tipo "select" debe tener al menos una opción.',
+      }))
     }
   }
 
@@ -61,6 +64,9 @@ export function AttributeFormModal({ categoryId, onClose }: { categoryId: number
         <form onSubmit={handleSubmit(onSubmit)} className="contents">
           <DialogHeader><DialogTitle>Nuevo atributo</DialogTitle></DialogHeader>
           <DialogBody className="space-y-4">
+            {formError && (
+              <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>
+            )}
             <FormField label="Nombre" required error={errors.name?.message}>
               <Input {...register('name')} />
             </FormField>
@@ -85,7 +91,7 @@ export function AttributeFormModal({ categoryId, onClose }: { categoryId: number
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>Crear</Button>
+            <Button type="submit" isLoading={isSubmitting}>Crear</Button>
           </DialogFooter>
         </form>
       </DialogContent>

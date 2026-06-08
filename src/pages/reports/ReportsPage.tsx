@@ -97,6 +97,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   cancelled: "Cancelado",
+  voided: "Anulado",
 };
 
 const DOC_TYPE_LABELS: Record<string, string> = {

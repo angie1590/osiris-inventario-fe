@@ -10,6 +10,7 @@ import { CategoryFormModal } from '@/features/catalog/CategoryFormModal'
 import { AttributesPanel } from '@/features/catalog/AttributesPanel'
 import type { Category } from '@/types/api'
 import { useToast } from '@/hooks/use-toast'
+import { parseApiError } from '@/lib/api-error'
 
 function CategoryNode({
   cat,
@@ -71,25 +72,42 @@ export default function CategoriesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [selectedForAttrs, setSelectedForAttrs] = useState<Category | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null)
+  const [productsPrompt, setProductsPrompt] = useState<{ cat: Category; message: string } | null>(null)
 
   const roots = (cats ?? []).filter((c) => !c.parent_id && c.is_active)
 
-  const performDelete = async (cat: Category) => {
+  // First step: try a plain delete. If the category has products, open a
+  // second confirmation asking whether to also delete those products.
+  const handleDelete = async (cat: Category) => {
     try {
-      await deleteCategory.mutateAsync(cat.id)
+      await deleteCategory.mutateAsync({ id: cat.id })
       toast({ variant: 'success', title: 'Categoría eliminada', description: `"${cat.name}" eliminada.` })
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
-      const restricted = code === 'CATEGORY_HAS_CHILDREN' || code === 'CATEGORY_HAS_PRODUCTS'
+      const { code, message } = parseApiError(err)
+      if (code === 'CATEGORY_HAS_PRODUCTS') {
+        setProductsPrompt({ cat, message: message ?? 'La categoría tiene productos asociados.' })
+        return
+      }
       toast({
-        variant: restricted ? 'warning' : 'destructive',
-        title: restricted ? 'Acción restringida' : 'Error al eliminar',
-        description: code === 'CATEGORY_HAS_CHILDREN'
-          ? 'No se puede eliminar una categoría con subcategorías activas.'
-          : code === 'CATEGORY_HAS_PRODUCTS'
-            ? 'No se puede eliminar una categoría con productos asignados.'
-            : `No se pudo eliminar "${cat.name}". Intenta nuevamente.`,
+        variant: code === 'CATEGORY_HAS_CHILDREN' ? 'warning' : 'destructive',
+        title: code === 'CATEGORY_HAS_CHILDREN' ? 'Acción restringida' : 'Error al eliminar',
+        description: message ?? `No se pudo eliminar "${cat.name}". Intenta nuevamente.`,
       })
+    }
+  }
+
+  // Second step: delete the category and deactivate its products.
+  const handleDeleteWithProducts = async (cat: Category) => {
+    try {
+      await deleteCategory.mutateAsync({ id: cat.id, deleteProducts: true })
+      toast({
+        variant: 'success',
+        title: 'Categoría y productos eliminados',
+        description: `"${cat.name}" y sus productos asociados fueron eliminados.`,
+      })
+    } catch (err: unknown) {
+      const { message } = parseApiError(err)
+      toast({ variant: 'destructive', title: 'Error al eliminar', description: message ?? `No se pudo eliminar "${cat.name}".` })
       throw err
     }
   }
@@ -133,7 +151,25 @@ export default function CategoriesPage() {
           description={<>¿Eliminar la categoría <strong>{deleteTarget.name}</strong>?</>}
           confirmLabel="Eliminar"
           variant="danger"
-          onConfirm={() => performDelete(deleteTarget)}
+          onConfirm={() => handleDelete(deleteTarget)}
+        />
+      )}
+
+      {productsPrompt && (
+        <ConfirmDialog
+          open
+          onClose={() => setProductsPrompt(null)}
+          title="La categoría tiene productos"
+          description={
+            <>
+              {productsPrompt.message} ¿Deseas eliminar también los productos
+              asociados a <strong>{productsPrompt.cat.name}</strong>? Quedarán inactivos.
+            </>
+          }
+          confirmLabel="Eliminar categoría y productos"
+          cancelLabel="Cancelar"
+          variant="danger"
+          onConfirm={() => handleDeleteWithProducts(productsPrompt.cat)}
         />
       )}
     </div>

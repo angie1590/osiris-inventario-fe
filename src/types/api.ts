@@ -9,7 +9,7 @@ export type AttributeDataType =
   | "boolean"
   | "select";
 export type DocumentType = "IN" | "EG" | "BI" | "AI";
-export type DocumentStatus = "pending" | "approved" | "cancelled";
+export type DocumentStatus = "pending" | "approved" | "cancelled" | "voided";
 export type AdjustType = "increment" | "decrement";
 export type KardexEntryType = "IN" | "OUT" | "ADJUST";
 export type AuditAction =

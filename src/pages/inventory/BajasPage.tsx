@@ -18,11 +18,12 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   cancelled: "Cancelado",
+  voided: "Anulado",
 };
 const STATUS_VARIANTS: Record<
   DocumentStatus,
   "default" | "secondary" | "destructive"
-> = { pending: "secondary", approved: "default", cancelled: "destructive" };
+> = { pending: "secondary", approved: "default", cancelled: "secondary", voided: "destructive" };
 
 export default function BajasPage() {
   const navigate = useNavigate();

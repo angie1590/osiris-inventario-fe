@@ -1,19 +1,24 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DetailModal } from '@/components/shared/DetailModal'
+import { VoidDialog } from './VoidDialog'
+import { useAuth } from '@/contexts/AuthContext'
 import type { DocumentStatus, DocumentType, InventoryDocument } from '@/types/api'
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: 'Pendiente',
   approved: 'Aprobado',
   cancelled: 'Cancelado',
+  voided: 'Anulado',
 }
 const STATUS_VARIANTS: Record<DocumentStatus, 'default' | 'secondary' | 'destructive'> = {
   pending: 'secondary',
   approved: 'default',
-  cancelled: 'destructive',
+  cancelled: 'secondary',
+  voided: 'destructive',
 }
 const TYPE_LABELS: Record<DocumentType, string> = {
   IN: 'Ingreso',
@@ -64,7 +69,14 @@ function LinesTable({ doc, showCost, showPrice }: { doc: InventoryDocument; show
 }
 
 export function DocumentDetailModal({ doc, onClose, showCost, showPrice, manageHref }: Props) {
+  const { user } = useAuth()
+  const [voidOpen, setVoidOpen] = useState(false)
+  const canVoid =
+    doc.status === 'approved' &&
+    (user?.role === 'admin' || user?.role === 'operator' || user?.role === 'supervisor')
+
   return (
+    <>
     <DetailModal
       open
       onClose={onClose}
@@ -90,6 +102,9 @@ export function DocumentDetailModal({ doc, onClose, showCost, showPrice, manageH
       ]}
       footer={
         <>
+          {canVoid && (
+            <Button variant="destructive" onClick={() => setVoidOpen(true)}>Anular</Button>
+          )}
           {manageHref && (
             <Button variant="outline" asChild>
               <Link to={manageHref}>Gestionar</Link>
@@ -99,5 +114,9 @@ export function DocumentDetailModal({ doc, onClose, showCost, showPrice, manageH
         </>
       }
     />
+    {voidOpen && (
+      <VoidDialog doc={doc} onClose={() => setVoidOpen(false)} onVoided={onClose} />
+    )}
+    </>
   )
 }

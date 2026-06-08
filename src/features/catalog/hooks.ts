@@ -51,8 +51,12 @@ export function useUpdateCategory() {
 export function useDeleteCategory() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => api.delete(`/categories/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+    mutationFn: ({ id, deleteProducts }: { id: number; deleteProducts?: boolean }) =>
+      api.delete(`/categories/${id}`, deleteProducts ? { params: { delete_products: true } } : undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['categories'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+    },
   })
 }
 

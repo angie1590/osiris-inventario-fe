@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Search, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import api from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -155,6 +157,13 @@ export function DocumentLinesEditor({
   showUnitPrice = false,
   enforceStockLimit = false,
 }: Props) {
+  const { data: settings } = useQuery<{ stock_quantity_mode: "integer" | "decimal" }>({
+    queryKey: ["reports", "settings"],
+    queryFn: async () => (await api.get("/reports/settings")).data,
+    staleTime: 5 * 60 * 1000,
+  });
+  const integerMode = (settings?.stock_quantity_mode ?? "integer") === "integer";
+
   const addLine = () => {
     onChange([
       ...lines,
@@ -231,17 +240,20 @@ export function DocumentLinesEditor({
                       <div className="space-y-1">
                         <Input
                           type="number"
-                          min="0.0001"
-                          step="0.0001"
+                          min={integerMode ? "1" : "0.0001"}
+                          step={integerMode ? "1" : "0.0001"}
                           className={cn(
                             "h-8 w-28",
                             exceedsStock &&
                               "border-destructive bg-rose-50 text-destructive focus-visible:border-destructive focus-visible:ring-destructive",
                           )}
                           value={line.quantity}
-                          onChange={(e) =>
-                            updateLine(i, { quantity: e.target.value })
-                          }
+                          onChange={(e) => {
+                            let v = e.target.value;
+                            // Integer stock mode: strip any decimal part.
+                            if (integerMode) v = v.replace(/[.,].*$/, "").replace(/\D/g, "");
+                            updateLine(i, { quantity: v });
+                          }}
                           aria-invalid={exceedsStock || undefined}
                         />
                         {typeof line.product_stock === "number" && (
