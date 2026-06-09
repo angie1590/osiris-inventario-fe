@@ -18,6 +18,9 @@ const CategoriesPage = lazy(() => import('@/pages/catalog/CategoriesPage'))
 const ProductsPage = lazy(() => import('@/pages/catalog/ProductsPage'))
 const ProductDetailPage = lazy(() => import('@/pages/catalog/ProductDetailPage'))
 const ProductFormPage = lazy(() => import('@/pages/catalog/ProductFormPage'))
+const RecategorizePage = lazy(() => import('@/pages/catalog/RecategorizePage'))
+const CatalogsPage = lazy(() => import('@/pages/catalog/CatalogsPage'))
+const RemapPage = lazy(() => import('@/pages/catalog/RemapPage'))
 const IngresosPage = lazy(() => import('@/pages/inventory/IngresosPage'))
 const IngresoNewPage = lazy(() => import('@/pages/inventory/IngresoNewPage'))
 const IngresoDetailPage = lazy(() => import('@/pages/inventory/IngresoDetailPage'))
@@ -58,14 +61,21 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route path="/" element={<DashboardPage />} />
 
-                {/* Catalog - admin + operator */}
-                <Route element={<RoleGuard roles={['admin', 'operator']} />}>
-                  <Route path="/categories" element={<CategoriesPage />} />
-                </Route>
+                {/* Categories - all roles can view; write is gated in-page (admin + supervisor) */}
+                <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/products/new" element={<ProductFormPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/products/:id/edit" element={<ProductFormPage />} />
+                {/* Recategorization + attribute remap - admin + operator (product write) */}
+                <Route element={<RoleGuard roles={['admin', 'operator']} />}>
+                  <Route path="/recategorize" element={<RecategorizePage />} />
+                  <Route path="/remap" element={<RemapPage />} />
+                </Route>
+                {/* Master catalogs - admin + supervisor */}
+                <Route element={<RoleGuard roles={['admin', 'supervisor']} />}>
+                  <Route path="/catalogs" element={<CatalogsPage />} />
+                </Route>
 
                 {/* Inventory movements - admin + operator */}
                 <Route element={<RoleGuard roles={['admin', 'operator']} />}>

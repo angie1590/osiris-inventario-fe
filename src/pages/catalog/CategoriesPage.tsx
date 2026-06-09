@@ -4,18 +4,23 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { FilterBar } from '@/components/shared/FilterBar'
+import { SearchInput } from '@/components/shared/SearchInput'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useCategories, useDeleteCategory } from '@/features/catalog/hooks'
 import { CategoryFormModal } from '@/features/catalog/CategoryFormModal'
 import { AttributesPanel } from '@/features/catalog/AttributesPanel'
+import { buildCategoryPath } from '@/features/catalog/categoryPath'
 import type { Category } from '@/types/api'
 import { useToast } from '@/hooks/use-toast'
 import { parseApiError } from '@/lib/api-error'
+import { useAuth } from '@/contexts/AuthContext'
 
 function CategoryNode({
   cat,
   allCats,
   depth,
+  canManage,
   onEdit,
   onDelete,
   onSelectAttrs,
@@ -23,6 +28,7 @@ function CategoryNode({
   cat: Category
   allCats: Category[]
   depth: number
+  canManage: boolean
   onEdit: (c: Category) => void
   onDelete: (c: Category) => void
   onSelectAttrs: (c: Category) => void
@@ -48,17 +54,21 @@ function CategoryNode({
           <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onSelectAttrs(cat)} title="Atributos">
             <Tags className="h-3 w-3" />
           </Button>
-          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onEdit(cat)} title="Editar">
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => onDelete(cat)} title="Eliminar">
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          {canManage && (
+            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onEdit(cat)} title="Editar">
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+          {canManage && (
+            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => onDelete(cat)} title="Eliminar">
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </div>
       {expanded && children.map((child) => (
         <CategoryNode key={child.id} cat={child} allCats={allCats} depth={depth + 1}
-          onEdit={onEdit} onDelete={onDelete} onSelectAttrs={onSelectAttrs} />
+          canManage={canManage} onEdit={onEdit} onDelete={onDelete} onSelectAttrs={onSelectAttrs} />
       ))}
     </div>
   )
@@ -68,13 +78,20 @@ export default function CategoriesPage() {
   const { data: cats, isLoading } = useCategories()
   const deleteCategory = useDeleteCategory()
   const { toast } = useToast()
+  const { user } = useAuth()
+  const canManage = user?.role === 'admin' || user?.role === 'supervisor'
   const [editTarget, setEditTarget] = useState<Category | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedForAttrs, setSelectedForAttrs] = useState<Category | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null)
+  const [filter, setFilter] = useState('')
   const [productsPrompt, setProductsPrompt] = useState<{ cat: Category; message: string } | null>(null)
 
   const roots = (cats ?? []).filter((c) => !c.parent_id && c.is_active)
+  const q = filter.trim().toLowerCase()
+  const matches = q
+    ? (cats ?? []).filter((c) => c.is_active && c.name.toLowerCase().includes(q))
+    : []
 
   // First step: try a plain delete. If the category has products, open a
   // second confirmation asking whether to also delete those products.
@@ -88,9 +105,10 @@ export default function CategoriesPage() {
         setProductsPrompt({ cat, message: message ?? 'La categoría tiene productos asociados.' })
         return
       }
+      const restricted = code === 'CATEGORY_HAS_CHILDREN' || code === 'CATEGORY_HAS_PRODUCTS_WITH_STOCK'
       toast({
-        variant: code === 'CATEGORY_HAS_CHILDREN' ? 'warning' : 'destructive',
-        title: code === 'CATEGORY_HAS_CHILDREN' ? 'Acción restringida' : 'Error al eliminar',
+        variant: restricted ? 'warning' : 'destructive',
+        title: restricted ? 'Acción restringida' : 'Error al eliminar',
         description: message ?? `No se pudo eliminar "${cat.name}". Intenta nuevamente.`,
       })
     }
@@ -120,19 +138,41 @@ export default function CategoriesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Categorías"
-        actions={<Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Nueva categoría</Button>}
+        actions={canManage && <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Nueva categoría</Button>}
       />
 
+      <FilterBar>
+        <SearchInput value={filter} onChange={setFilter} placeholder="Buscar categoría por nombre..." />
+      </FilterBar>
+
       <div className="rounded-lg border bg-card">
-        {isLoading
-          ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="mx-3 my-2 h-8" />)
-          : roots.length === 0
-            ? <p className="p-6 text-center text-muted-foreground">No hay categorías todavía.</p>
-            : roots.map((cat) => (
-              <CategoryNode key={cat.id} cat={cat} allCats={cats ?? []} depth={0}
-                onEdit={setEditTarget} onDelete={setDeleteTarget} onSelectAttrs={setSelectedForAttrs} />
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="mx-3 my-2 h-8" />)
+        ) : q ? (
+          matches.length === 0
+            ? <p className="p-6 text-center text-muted-foreground">Sin coincidencias para "{filter}".</p>
+            : matches.map((cat) => (
+              <div key={cat.id} className="group flex items-center gap-2 rounded px-3 py-2 hover:bg-muted">
+                <Tags className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm">{cat.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{buildCategoryPath(cats ?? [], cat.id)}</p>
+                </div>
+                <div className="hidden group-hover:flex gap-1">
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setSelectedForAttrs(cat)} title="Atributos"><Tags className="h-3 w-3" /></Button>
+                  {canManage && <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditTarget(cat)} title="Editar"><Pencil className="h-3 w-3" /></Button>}
+                  {canManage && <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setDeleteTarget(cat)} title="Eliminar"><Trash2 className="h-3 w-3" /></Button>}
+                </div>
+              </div>
             ))
-        }
+        ) : roots.length === 0 ? (
+          <p className="p-6 text-center text-muted-foreground">No hay categorías todavía.</p>
+        ) : (
+          roots.map((cat) => (
+            <CategoryNode key={cat.id} cat={cat} allCats={cats ?? []} depth={0}
+              canManage={canManage} onEdit={setEditTarget} onDelete={setDeleteTarget} onSelectAttrs={setSelectedForAttrs} />
+          ))
+        )}
       </div>
 
       {(showCreate || editTarget) && (

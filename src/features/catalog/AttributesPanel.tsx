@@ -3,16 +3,21 @@ import { ArrowLeft, Plus, Trash2, Pencil, PowerOff, Power } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type Column } from '@/components/shared/DataTable'
+import { FilterBar } from '@/components/shared/FilterBar'
+import { SearchInput } from '@/components/shared/SearchInput'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useCategoryAttributes, useDeleteAttribute, useDeactivateAttribute, useReactivateAttribute } from './hooks'
-import { AttributeFormModal } from './AttributeFormModal'
+import { AttributeFormModal, DATA_TYPE_LABELS } from './AttributeFormModal'
 import { AttributeEditModal } from './AttributeEditModal'
 import type { Category, CategoryAttribute } from '@/types/api'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Props { category: Category; onBack: () => void }
 
 export function AttributesPanel({ category, onBack }: Props) {
+  const { user } = useAuth()
+  const canManage = user?.role === 'admin' || user?.role === 'supervisor'
   const { data: attrs, isLoading, isError, refetch } = useCategoryAttributes(category.id)
   const deleteAttr = useDeleteAttribute()
   const deactivate = useDeactivateAttribute()
@@ -22,6 +27,8 @@ export function AttributesPanel({ category, onBack }: Props) {
   const [editTarget, setEditTarget] = useState<CategoryAttribute | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CategoryAttribute | null>(null)
   const [toggleTarget, setToggleTarget] = useState<CategoryAttribute | null>(null)
+  const [filter, setFilter] = useState('')
+  const filtered = (attrs ?? []).filter((a) => a.name.toLowerCase().includes(filter.trim().toLowerCase()))
 
   const handleDelete = async (attr: CategoryAttribute) => {
     try {
@@ -58,7 +65,7 @@ export function AttributesPanel({ category, onBack }: Props) {
 
   const columns: Column<CategoryAttribute>[] = [
     { key: 'name', header: 'Nombre', sortable: true, sortAccessor: (a) => a.name, cell: (a) => <span className={`font-medium ${!a.is_active ? 'opacity-60' : ''}`}>{a.name}</span> },
-    { key: 'data_type', header: 'Tipo', sortable: true, sortAccessor: (a) => a.data_type, cell: (a) => <Badge variant="outline">{a.data_type}</Badge> },
+    { key: 'data_type', header: 'Tipo', sortable: true, sortAccessor: (a) => a.data_type, cell: (a) => <Badge variant="outline">{DATA_TYPE_LABELS[a.data_type]}</Badge> },
     { key: 'is_required', header: 'Requerido', sortable: true, sortAccessor: (a) => (a.is_required ? 1 : 0), cell: (a) => (a.is_required ? 'Sí' : 'No') },
     { key: 'is_active', header: 'Estado', sortable: true, sortAccessor: (a) => (a.is_active ? 1 : 0), cell: (a) => <Badge variant={a.is_active ? 'success' : 'secondary'}>{a.is_active ? 'Activo' : 'Inactivo'}</Badge> },
     { key: 'inherited', header: 'Origen', sortable: true, sortAccessor: (a) => (a.inherited ? 'Heredado' : 'Propio'), cell: (a) => <Badge variant={a.inherited ? 'secondary' : 'default'}>{a.inherited ? 'Heredado' : 'Propio'}</Badge> },
@@ -66,7 +73,7 @@ export function AttributesPanel({ category, onBack }: Props) {
       key: 'actions',
       header: '',
       className: 'text-right',
-      cell: (a) => (!a.inherited ? (
+      cell: (a) => (canManage && !a.inherited ? (
         <div className="flex justify-end gap-1">
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditTarget(a)} title="Editar">
             <Pencil className="h-3 w-3" />
@@ -87,18 +94,22 @@ export function AttributesPanel({ category, onBack }: Props) {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-xl font-bold">Atributos — {category.name}</h1>
-        <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="mr-1 h-4 w-4" />Agregar</Button>
+        {canManage && <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="mr-1 h-4 w-4" />Agregar</Button>}
       </div>
+
+      <FilterBar>
+        <SearchInput value={filter} onChange={setFilter} placeholder="Buscar atributo por nombre..." />
+      </FilterBar>
 
       <DataTable
         columns={columns}
-        data={attrs ?? []}
+        data={filtered}
         rowKey={(a) => a.id}
         isLoading={isLoading}
         isError={isError}
         onRetry={refetch}
-        emptyHeading="Sin atributos"
-        emptyDescription="Esta categoría no tiene atributos definidos."
+        emptyHeading={filter ? 'Sin coincidencias' : 'Sin atributos'}
+        emptyDescription={filter ? `No hay atributos que coincidan con "${filter}".` : 'Esta categoría no tiene atributos definidos.'}
       />
 
       {showCreate && <AttributeFormModal categoryId={category.id} onClose={() => setShowCreate(false)} />}

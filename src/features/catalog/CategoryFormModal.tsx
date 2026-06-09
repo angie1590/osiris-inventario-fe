@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +17,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FormField } from "@/components/shared/FormField";
 import { TreeSelector } from "@/components/shared/TreeSelector";
 import { useCreateCategory, useUpdateCategory } from "./hooks";
-import type { Category } from "@/types/api";
+import type { Category, Product } from "@/types/api";
+import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 
@@ -57,6 +59,18 @@ export function CategoryFormModal({ category, allCategories, onClose }: Props) {
 
   const parentId = watch("parent_id");
 
+  // When creating a subcategory under a parent that already holds products,
+  // warn that those products will be moved to a temporary "Sin clasificar".
+  const { data: parentProducts } = useQuery({
+    queryKey: ["products", "parent-has-products", parentId],
+    queryFn: () =>
+      api
+        .get<Product[]>("/products", { params: { category_id: parentId, status: "active", limit: 50 } })
+        .then((r) => r.data),
+    enabled: !isEdit && parentId != null,
+  });
+  const parentHasProducts = !isEdit && (parentProducts?.length ?? 0) > 0;
+
   const onSubmit = async (data: FormData) => {
     setFormError(null);
     try {
@@ -73,11 +87,15 @@ export function CategoryFormModal({ category, allCategories, onClose }: Props) {
           description: `"${data.name}" actualizada.`,
         });
       } else {
-        await create.mutateAsync(payload);
+        const result = await create.mutateAsync(payload);
+        const moved = result.products_moved ?? 0;
         toast({
           variant: "success",
           title: "Categoría creada",
-          description: `"${data.name}" creada.`,
+          description:
+            moved > 0
+              ? `"${data.name}" creada. ${moved} producto(s) movido(s) a "Sin clasificar".`
+              : `"${data.name}" creada.`,
         });
       }
       onClose();
@@ -113,6 +131,15 @@ export function CategoryFormModal({ category, allCategories, onClose }: Props) {
             {formError && (
               <Alert variant="destructive">
                 <AlertDescription>{formError}</AlertDescription>
+              </Alert>
+            )}
+            {parentHasProducts && (
+              <Alert variant="warning">
+                <AlertDescription>
+                  La categoría padre tiene productos. Al crear esta subcategoría, esos
+                  productos se moverán a una categoría temporal{" "}
+                  <strong>"Sin clasificar"</strong> para que los recategorices.
+                </AlertDescription>
               </Alert>
             )}
             <FormField label="Nombre" required error={errors.name?.message}>

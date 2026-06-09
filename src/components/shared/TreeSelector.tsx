@@ -1,79 +1,130 @@
-import * as React from 'react'
-import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { ChevronRight, ChevronDown, Check, ChevronsUpDown, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import type { Category } from '@/types/api'
+import * as React from "react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
+import {
+  ChevronRight,
+  ChevronDown,
+  Check,
+  ChevronsUpDown,
+  Search,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import type { Category } from "@/types/api";
 
 interface TreeSelectorProps {
-  categories: Category[]
-  value: number | null
-  onChange: (id: number | null) => void
-  placeholder?: string
-  allowRootOption?: boolean
-  rootLabel?: string
-  disabled?: boolean
-  id?: string
-  'aria-invalid'?: boolean
-  'aria-describedby'?: string
+  categories: Category[];
+  value: number | null;
+  onChange: (id: number | null) => void;
+  placeholder?: string;
+  allowRootOption?: boolean;
+  rootLabel?: string;
+  disabled?: boolean;
+  /** When true, only leaf categories (no active children) can be selected;
+   * parent categories only expand. Used when assigning products. */
+  leafOnly?: boolean;
+  /** Expand all nodes by default (useful when scoping to a single small branch). */
+  defaultExpanded?: boolean;
+  id?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 }
 
 function buildPath(categories: Category[], id: number): string {
-  const parts: string[] = []
-  let current: Category | undefined = categories.find((c) => c.id === id)
+  const parts: string[] = [];
+  let current: Category | undefined = categories.find((c) => c.id === id);
   while (current) {
-    parts.unshift(current.name)
-    current = current.parent_id ? categories.find((c) => c.id === current!.parent_id) : undefined
+    parts.unshift(current.name);
+    current = current.parent_id
+      ? categories.find((c) => c.id === current!.parent_id)
+      : undefined;
   }
-  return parts.join(' › ')
+  return parts.join(" › ");
 }
 
-function matchesSearch(cat: Category, categories: Category[], query: string): boolean {
-  if (!query) return true
-  const lower = query.toLowerCase()
-  if (cat.name.toLowerCase().includes(lower)) return true
-  let parent = cat.parent_id ? categories.find((c) => c.id === cat.parent_id) : undefined
+function matchesSearch(
+  cat: Category,
+  categories: Category[],
+  query: string,
+): boolean {
+  if (!query) return true;
+  const lower = query.toLowerCase();
+  if (cat.name.toLowerCase().includes(lower)) return true;
+  let parent = cat.parent_id
+    ? categories.find((c) => c.id === cat.parent_id)
+    : undefined;
   while (parent) {
-    if (parent.name.toLowerCase().includes(lower)) return true
-    parent = parent.parent_id ? categories.find((c) => c.id === parent!.parent_id) : undefined
+    if (parent.name.toLowerCase().includes(lower)) return true;
+    parent = parent.parent_id
+      ? categories.find((c) => c.id === parent!.parent_id)
+      : undefined;
   }
-  return false
+  return false;
 }
 
-function hasVisibleDescendant(cat: Category, categories: Category[], query: string): boolean {
-  const children = categories.filter((c) => c.parent_id === cat.id && c.is_active)
-  return children.some((c) => matchesSearch(c, categories, query) || hasVisibleDescendant(c, categories, query))
+function hasVisibleDescendant(
+  cat: Category,
+  categories: Category[],
+  query: string,
+): boolean {
+  const children = categories.filter(
+    (c) => c.parent_id === cat.id && c.is_active,
+  );
+  return children.some(
+    (c) =>
+      matchesSearch(c, categories, query) ||
+      hasVisibleDescendant(c, categories, query),
+  );
 }
 
 interface NodeProps {
-  cat: Category
-  categories: Category[]
-  depth: number
-  query: string
-  selected: number | null
-  onSelect: (id: number) => void
-  focusedId: number | null
-  setFocusedId: (id: number | null) => void
-  flatVisible: React.MutableRefObject<number[]>
+  cat: Category;
+  categories: Category[];
+  depth: number;
+  query: string;
+  selected: number | null;
+  onSelect: (id: number) => void;
+  focusedId: number | null;
+  setFocusedId: (id: number | null) => void;
+  flatVisible: React.MutableRefObject<number[]>;
+  leafOnly: boolean;
+  defaultExpanded: boolean;
 }
 
-function TreeNode({ cat, categories, depth, query, selected, onSelect, focusedId, setFocusedId, flatVisible }: NodeProps) {
-  const children = categories.filter((c) => c.parent_id === cat.id && c.is_active)
-  const visible = matchesSearch(cat, categories, query)
-  const childVisible = hasVisibleDescendant(cat, categories, query)
+function TreeNode({
+  cat,
+  categories,
+  depth,
+  query,
+  selected,
+  onSelect,
+  focusedId,
+  setFocusedId,
+  flatVisible,
+  leafOnly,
+  defaultExpanded,
+}: NodeProps) {
+  const children = categories.filter(
+    (c) => c.parent_id === cat.id && c.is_active,
+  );
+  const visible = matchesSearch(cat, categories, query);
+  const childVisible = hasVisibleDescendant(cat, categories, query);
+  const isLeaf = children.length === 0;
+  const selectable = visible && (!leafOnly || isLeaf);
 
-  const [expanded, setExpanded] = React.useState(!query ? false : true)
+  const [expanded, setExpanded] = React.useState(
+    !query ? defaultExpanded : true,
+  );
 
   React.useEffect(() => {
-    if (query) setExpanded(true)
-    else setExpanded(false)
-  }, [query])
+    if (query) setExpanded(true);
+    else setExpanded(defaultExpanded);
+  }, [query, defaultExpanded]);
 
-  if (!visible && !childVisible) return null
+  if (!visible && !childVisible) return null;
 
-  if (visible) {
-    flatVisible.current.push(cat.id)
+  if (selectable) {
+    flatVisible.current.push(cat.id);
   }
 
   return (
@@ -81,112 +132,133 @@ function TreeNode({ cat, categories, depth, query, selected, onSelect, focusedId
       <div
         role="option"
         aria-selected={selected === cat.id}
+        aria-disabled={!selectable}
         data-focused={focusedId === cat.id}
         tabIndex={-1}
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer text-sm select-none',
-          'hover:bg-accent focus:outline-none',
-          selected === cat.id && 'bg-primary/10 font-medium',
-          focusedId === cat.id && 'ring-2 ring-ring ring-inset',
+          "flex items-center gap-1.5 px-2 py-1.5 rounded text-sm select-none cursor-pointer",
+          "hover:bg-accent focus:outline-none",
+          selected === cat.id && "bg-primary/10 font-medium",
+          focusedId === cat.id && selectable && "ring-2 ring-ring ring-inset",
+          !selectable && "text-muted-foreground",
         )}
         style={{ paddingLeft: `${(depth + 1) * 14 + 4}px` }}
-        onClick={() => { if (visible) onSelect(cat.id) }}
-        onMouseEnter={() => setFocusedId(cat.id)}
+        onClick={() => {
+          if (selectable) onSelect(cat.id);
+          else if (!isLeaf) setExpanded((v) => !v);
+        }}
+        onMouseEnter={() => selectable && setFocusedId(cat.id)}
       >
         <button
           type="button"
           className="flex w-4 shrink-0 items-center justify-center"
-          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
-          aria-label={expanded ? 'Colapsar' : 'Expandir'}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          aria-label={expanded ? "Colapsar" : "Expandir"}
         >
-          {children.length > 0
-            ? (expanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />)
-            : null}
+          {children.length > 0 ? (
+            expanded ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            )
+          ) : null}
         </button>
-        <span className={cn('flex-1 truncate', !visible && 'opacity-40')}>{cat.name}</span>
-        {selected === cat.id && <Check className="h-3 w-3 shrink-0 text-primary" />}
+        <span className={cn("flex-1 truncate", !visible && "opacity-40")}>
+          {cat.name}
+        </span>
+        {selected === cat.id && (
+          <Check className="h-3 w-3 shrink-0 text-primary" />
+        )}
       </div>
-      {expanded && children.map((child) => (
-        <TreeNode
-          key={child.id}
-          cat={child}
-          categories={categories}
-          depth={depth + 1}
-          query={query}
-          selected={selected}
-          onSelect={onSelect}
-          focusedId={focusedId}
-          setFocusedId={setFocusedId}
-          flatVisible={flatVisible}
-        />
-      ))}
+      {expanded &&
+        children.map((child) => (
+          <TreeNode
+            key={child.id}
+            cat={child}
+            categories={categories}
+            depth={depth + 1}
+            query={query}
+            selected={selected}
+            onSelect={onSelect}
+            focusedId={focusedId}
+            setFocusedId={setFocusedId}
+            flatVisible={flatVisible}
+            leafOnly={leafOnly}
+            defaultExpanded={defaultExpanded}
+          />
+        ))}
     </div>
-  )
+  );
 }
 
 export function TreeSelector({
   categories,
   value,
   onChange,
-  placeholder = 'Seleccionar categoría',
+  placeholder = "Seleccionar categoría",
   allowRootOption = false,
-  rootLabel = 'Sin padre (raíz)',
+  rootLabel = "Sin padre (raíz)",
   disabled,
+  leafOnly = false,
+  defaultExpanded = false,
   id,
-  'aria-invalid': ariaInvalid,
-  'aria-describedby': ariaDescribedby,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedby,
 }: TreeSelectorProps) {
-  const [open, setOpen] = React.useState(false)
-  const [query, setQuery] = React.useState('')
-  const [focusedId, setFocusedId] = React.useState<number | null>(null)
-  const searchRef = React.useRef<HTMLInputElement>(null)
-  const flatVisible = React.useRef<number[]>([])
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [focusedId, setFocusedId] = React.useState<number | null>(null);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const flatVisible = React.useRef<number[]>([]);
 
-  const activeCategories = categories.filter((c) => c.is_active)
-  const roots = activeCategories.filter((c) => !c.parent_id)
+  const activeCategories = categories.filter((c) => c.is_active);
+  const roots = activeCategories.filter((c) => !c.parent_id);
 
-  const label = value ? buildPath(activeCategories, value) : null
+  const label = value ? buildPath(activeCategories, value) : null;
 
   React.useEffect(() => {
     if (open) {
-      setTimeout(() => searchRef.current?.focus(), 50)
+      setTimeout(() => searchRef.current?.focus(), 50);
     } else {
-      setQuery('')
-      setFocusedId(null)
+      setQuery("");
+      setFocusedId(null);
     }
-  }, [open])
+  }, [open]);
 
   const handleSelect = (id: number) => {
     if (id === -1) {
-      onChange(null)
-      setOpen(false)
-      return
+      onChange(null);
+      setOpen(false);
+      return;
     }
-    onChange(id)
-    setOpen(false)
-  }
+    onChange(id);
+    setOpen(false);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const ids = flatVisible.current
-    if (!ids.length) return
-    const idx = focusedId !== null ? ids.indexOf(focusedId) : -1
+    const ids = flatVisible.current;
+    if (!ids.length) return;
+    const idx = focusedId !== null ? ids.indexOf(focusedId) : -1;
 
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setFocusedId(ids[Math.min(idx + 1, ids.length - 1)])
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setFocusedId(ids[Math.max(idx - 1, 0)])
-    } else if (e.key === 'Enter' && focusedId !== null) {
-      e.preventDefault()
-      handleSelect(focusedId)
-    } else if (e.key === 'Escape') {
-      setOpen(false)
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedId(ids[Math.min(idx + 1, ids.length - 1)]);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedId(ids[Math.max(idx - 1, 0)]);
+    } else if (e.key === "Enter" && focusedId !== null) {
+      e.preventDefault();
+      handleSelect(focusedId);
+    } else if (e.key === "Escape") {
+      setOpen(false);
     }
-  }
+  };
 
-  flatVisible.current = []
-  if (allowRootOption) flatVisible.current.push(-1)
+  flatVisible.current = [];
+  if (allowRootOption) flatVisible.current.push(-1);
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -200,7 +272,10 @@ export function TreeSelector({
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedby}
           disabled={disabled}
-          className={cn('w-full justify-between font-normal', !label && 'text-muted-foreground')}
+          className={cn(
+            "w-full justify-between font-normal",
+            !label && "text-muted-foreground",
+          )}
         >
           <span className="truncate">{label ?? placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -209,9 +284,9 @@ export function TreeSelector({
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           className={cn(
-            'w-(--radix-popover-trigger-width) rounded-md border bg-popover p-0 shadow-md',
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+            "w-(--radix-popover-trigger-width) rounded-md border bg-popover p-0 shadow-md",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out",
+            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           )}
           style={{ zIndex: 350 }}
           align="start"
@@ -228,7 +303,25 @@ export function TreeSelector({
               className="h-7 border-none shadow-none focus-visible:ring-0 p-0 text-sm"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto p-1" role="listbox">
+          <div
+            className="max-h-64 overflow-y-auto overscroll-contain p-1"
+            role="listbox"
+            onWheelCapture={(e) => {
+              // Inside a Radix Dialog (body[data-scroll-locked]) react-remove-scroll
+              // blocks native wheel scroll on this portaled popover; drive it
+              // manually there. Outside a dialog, let native scrolling happen.
+              if (!document.body.hasAttribute("data-scroll-locked")) return;
+              const el = e.currentTarget;
+              const atTop = el.scrollTop === 0 && e.deltaY < 0;
+              const atBottom =
+                el.scrollTop + el.clientHeight >= el.scrollHeight &&
+                e.deltaY > 0;
+              if (!atTop && !atBottom) {
+                el.scrollTop += e.deltaY;
+                e.stopPropagation();
+              }
+            }}
+          >
             {allowRootOption && (
               <div
                 role="option"
@@ -236,21 +329,25 @@ export function TreeSelector({
                 data-focused={focusedId === -1}
                 tabIndex={-1}
                 className={cn(
-                  'mb-1 flex items-center gap-2 rounded border border-dashed border-border px-2 py-1.5 text-sm select-none',
-                  'cursor-pointer hover:bg-accent focus:outline-none',
-                  value === null && 'bg-primary/10 font-medium',
-                  focusedId === -1 && 'ring-2 ring-ring ring-inset',
+                  "mb-1 flex items-center gap-2 rounded border border-dashed border-border px-2 py-1.5 text-sm select-none",
+                  "cursor-pointer hover:bg-accent focus:outline-none",
+                  value === null && "bg-primary/10 font-medium",
+                  focusedId === -1 && "ring-2 ring-ring ring-inset",
                 )}
                 onClick={() => handleSelect(-1)}
                 onMouseEnter={() => setFocusedId(-1)}
               >
                 <span className="flex-1 truncate">{rootLabel}</span>
-                {value === null && <Check className="h-3 w-3 shrink-0 text-primary" />}
+                {value === null && (
+                  <Check className="h-3 w-3 shrink-0 text-primary" />
+                )}
               </div>
             )}
 
             {roots.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">Sin categorías</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Sin categorías
+              </p>
             ) : (
               roots.map((cat) => (
                 <TreeNode
@@ -264,6 +361,8 @@ export function TreeSelector({
                   focusedId={focusedId}
                   setFocusedId={setFocusedId}
                   flatVisible={flatVisible}
+                  leafOnly={leafOnly}
+                  defaultExpanded={defaultExpanded}
                 />
               ))
             )}
@@ -271,5 +370,5 @@ export function TreeSelector({
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
-  )
+  );
 }

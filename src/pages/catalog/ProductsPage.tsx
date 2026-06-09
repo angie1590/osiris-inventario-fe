@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, AlertTriangle, BookOpen, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,13 +14,22 @@ import { DetailModal } from '@/components/shared/DetailModal'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TreeSelector } from '@/components/shared/TreeSelector'
 import { ProductFormModal } from '@/features/catalog/ProductFormModal'
+import { ReactivateProductDialog } from '@/features/catalog/ReactivateProductDialog'
 import { useProducts, useCategories, useToggleProductStatus } from '@/features/catalog/hooks'
+import { buildCategoryPath } from '@/features/catalog/categoryPath'
+import { useStockMode, formatQuantity, useInternalCodeEnabled } from '@/hooks/useStockMode'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import type { Product, ProductStatus } from '@/types/api'
 
 function fmtCurrency(value: number) {
   return `$${Number(value).toFixed(2)}`
+}
+
+function fmtAttrValue(v: unknown): string {
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No'
+  if (v === null || v === undefined || v === '') return '—'
+  return String(v)
 }
 
 function StatusBadge({ status }: { status: ProductStatus }) {
@@ -50,6 +59,7 @@ export default function ProductsPage() {
   }
   const [viewProduct, setViewProduct] = useState<Product | undefined>()
   const [toggleTarget, setToggleTarget] = useState<Product | undefined>()
+  const [reactivateTarget, setReactivateTarget] = useState<Product | undefined>()
   const [showCreate, setShowCreate] = useState(false)
   const [editProduct, setEditProduct] = useState<Product | undefined>()
 
@@ -57,13 +67,18 @@ export default function ProductsPage() {
   const { data: categories } = useCategories()
   const toggleStatus = useToggleProductStatus()
 
-  const categoryNameById = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const c of categories ?? []) map.set(c.id, c.name)
-    return map
-  }, [categories])
+  const { integerMode } = useStockMode()
+  const internalCodeEnabled = useInternalCodeEnabled()
+  const fmtQty = (v: number | string) => formatQuantity(v, integerMode)
+  const categoryPath = (id: number) => buildCategoryPath(categories ?? [], id)
+  const categoryAlive = (p: Product) => (categories ?? []).some((c) => c.id === p.category_id)
 
-  const categoryName = (id: number) => categoryNameById.get(id) ?? '—'
+  // Reactivating a product whose category was deleted must force picking a new
+  // active category; otherwise use the normal activate/deactivate confirmation.
+  const handleStatusClick = (p: Product) => {
+    if (p.status === 'inactive' && !categoryAlive(p)) setReactivateTarget(p)
+    else setToggleTarget(p)
+  }
 
   const handleToggle = async (p: Product) => {
     const newStatus: ProductStatus = p.status === 'active' ? 'inactive' : 'active'
@@ -101,8 +116,8 @@ export default function ProductsPage() {
       key: 'category',
       header: 'Categoría',
       sortable: true,
-      sortAccessor: (p) => categoryName(p.category_id),
-      cell: (p) => <span className="text-sm">{categoryName(p.category_id)}</span>,
+      sortAccessor: (p) => categoryPath(p.category_id),
+      cell: (p) => <span className="text-sm">{categoryPath(p.category_id)}</span>,
     },
     {
       key: 'stock_actual',
@@ -110,7 +125,7 @@ export default function ProductsPage() {
       align: 'right',
       sortable: true,
       sortAccessor: (p) => p.stock_actual,
-      cell: (p) => <span className={p.bajo_stock ? 'font-medium text-destructive' : ''}>{p.stock_actual}</span>,
+      cell: (p) => <span className={p.bajo_stock ? 'font-medium text-destructive' : ''}>{fmtQty(p.stock_actual)}</span>,
     },
     {
       key: 'stock_minimo',
@@ -118,7 +133,7 @@ export default function ProductsPage() {
       align: 'right',
       sortable: true,
       sortAccessor: (p) => p.stock_minimo,
-      cell: (p) => p.stock_minimo,
+      cell: (p) => fmtQty(p.stock_minimo),
     },
     {
       key: 'pvp',
@@ -144,7 +159,7 @@ export default function ProductsPage() {
           <Button variant="ghost" size="sm" onClick={() => setViewProduct(p)}>Ver</Button>
           {canEdit && <Button variant="ghost" size="sm" onClick={() => setEditProduct(p)}>Editar</Button>}
           {canEdit && (
-            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setToggleTarget(p)}>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleStatusClick(p)}>
               {p.status === 'active' ? 'Desactivar' : 'Activar'}
             </Button>
           )}
@@ -165,7 +180,7 @@ export default function ProductsPage() {
       />
 
       <FilterBar>
-        <SearchInput value={name} onChange={(v) => { setName(v); resetPage() }} placeholder="Buscar por nombre..." />
+        <SearchInput value={name} onChange={(v) => { setName(v); resetPage() }} placeholder={internalCodeEnabled ? 'Buscar por código, ISBN o nombre...' : 'Buscar por ISBN o nombre...'} />
         <div className="w-56">
           <TreeSelector
             categories={categories ?? []}
@@ -225,8 +240,9 @@ export default function ProductsPage() {
             {
               title: 'Información general',
               fields: [
+                ...(internalCodeEnabled ? [{ label: 'Código interno', value: viewProduct.codigo_interno || '—' }] : []),
                 { label: 'Descripción', value: viewProduct.description || '—', full: true },
-                { label: 'Categoría', value: categoryName(viewProduct.category_id) },
+                { label: 'Categoría', value: categoryPath(viewProduct.category_id) },
                 { label: 'PVP', value: fmtCurrency(viewProduct.pvp) },
                 { label: 'Estado', value: <StatusBadge status={viewProduct.status} /> },
               ],
@@ -236,15 +252,15 @@ export default function ProductsPage() {
               fields: [
                 {
                   label: 'Stock actual',
-                  value: <span className={viewProduct.bajo_stock ? 'font-semibold text-destructive' : 'font-semibold'}>{viewProduct.stock_actual}</span>,
+                  value: <span className={viewProduct.bajo_stock ? 'font-semibold text-destructive' : 'font-semibold'}>{fmtQty(viewProduct.stock_actual)}</span>,
                 },
-                { label: 'Stock mínimo', value: viewProduct.stock_minimo },
+                { label: 'Stock mínimo', value: fmtQty(viewProduct.stock_minimo) },
               ],
             },
             ...(Object.keys(viewProduct.custom_attributes ?? {}).length > 0
               ? [{
                   title: 'Atributos personalizados',
-                  fields: Object.entries(viewProduct.custom_attributes).map(([k, v]) => ({ label: k, value: String(v) })),
+                  fields: Object.entries(viewProduct.custom_attributes).map(([k, v]) => ({ label: k, value: fmtAttrValue(v) })),
                 }]
               : []),
           ]}
@@ -277,6 +293,10 @@ export default function ProductsPage() {
           variant={toggleTarget.status === 'active' ? 'danger' : 'default'}
           onConfirm={() => handleToggle(toggleTarget)}
         />
+      )}
+
+      {reactivateTarget && (
+        <ReactivateProductDialog product={reactivateTarget} onClose={() => setReactivateTarget(undefined)} />
       )}
     </div>
   )

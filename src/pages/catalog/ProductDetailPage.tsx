@@ -7,7 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { useProduct, useToggleProductStatus } from '@/features/catalog/hooks'
+import { useProduct, useToggleProductStatus, useCategories } from '@/features/catalog/hooks'
+import { buildCategoryPath } from '@/features/catalog/categoryPath'
+import { ReactivateProductDialog } from '@/features/catalog/ReactivateProductDialog'
+import { useStockMode, formatQuantity } from '@/hooks/useStockMode'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 
@@ -18,8 +21,11 @@ export default function ProductDetailPage() {
   const { toast } = useToast()
   const canEdit = user?.role === 'admin' || user?.role === 'operator'
   const [confirmToggle, setConfirmToggle] = useState(false)
+  const [reactivate, setReactivate] = useState(false)
 
   const { data: product, isLoading } = useProduct(Number(id))
+  const { data: categories } = useCategories()
+  const { integerMode } = useStockMode()
   const toggleStatus = useToggleProductStatus()
 
   if (isLoading) return <Skeleton className="h-64 w-full" />
@@ -63,6 +69,7 @@ export default function ProductDetailPage() {
         <Card>
           <CardHeader><CardTitle>Información general</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
+            <div className="flex justify-between gap-4"><span className="text-muted-foreground">Categoría</span><span className="text-right">{buildCategoryPath(categories ?? [], product.category_id)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Descripción</span><span>{product.description || '—'}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">PVP</span><span>${Number(product.pvp).toFixed(2)}</span></div>
           </CardContent>
@@ -72,9 +79,9 @@ export default function ProductDetailPage() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Stock actual</span>
-              <span className={product.bajo_stock ? 'text-destructive font-bold' : 'font-bold'}>{product.stock_actual}</span>
+              <span className={product.bajo_stock ? 'text-destructive font-bold' : 'font-bold'}>{formatQuantity(product.stock_actual, integerMode)}</span>
             </div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Stock mínimo</span><span>{product.stock_minimo}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Stock mínimo</span><span>{formatQuantity(product.stock_minimo, integerMode)}</span></div>
           </CardContent>
         </Card>
       </div>
@@ -87,7 +94,7 @@ export default function ProductDetailPage() {
               {Object.entries(product.custom_attributes).map(([k, v]) => (
                 <div key={k} className="flex justify-between rounded bg-muted/50 px-3 py-1">
                   <span className="text-muted-foreground">{k}</span>
-                  <span>{String(v)}</span>
+                  <span>{typeof v === 'boolean' ? (v ? 'Sí' : 'No') : String(v)}</span>
                 </div>
               ))}
             </div>
@@ -102,7 +109,14 @@ export default function ProductDetailPage() {
           </Button>
         )}
         {canEdit && (
-          <Button variant="outline" onClick={() => setConfirmToggle(true)}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const categoryAlive = (categories ?? []).some((c) => c.id === product.category_id)
+              if (product.status === 'inactive' && !categoryAlive) setReactivate(true)
+              else setConfirmToggle(true)
+            }}
+          >
             {product.status === 'active' ? 'Desactivar' : 'Activar'}
           </Button>
         )}
@@ -121,6 +135,10 @@ export default function ProductDetailPage() {
           variant={product.status === 'active' ? 'danger' : 'default'}
           onConfirm={handleToggle}
         />
+      )}
+
+      {reactivate && (
+        <ReactivateProductDialog product={product} onClose={() => setReactivate(false)} />
       )}
     </div>
   )

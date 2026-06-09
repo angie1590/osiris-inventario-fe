@@ -7,7 +7,25 @@ export type AttributeDataType =
   | "decimal"
   | "date"
   | "boolean"
-  | "select";
+  | "select"
+  | "catalog";
+
+export interface Catalog {
+  id: number;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  value_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogValue {
+  id: number;
+  catalog_id: number;
+  value: string;
+  is_active: boolean;
+}
 export type DocumentType = "IN" | "EG" | "BI" | "AI";
 export type DocumentStatus = "pending" | "approved" | "cancelled" | "voided";
 export type AdjustType = "increment" | "decrement";
@@ -81,6 +99,8 @@ export interface CategoryAttribute {
   is_required: boolean;
   is_active: boolean;
   select_options: string[] | null;
+  catalog_id?: number | null;
+  allow_negative?: boolean;
   inherited?: boolean;
   created_at: string;
 }
@@ -90,6 +110,8 @@ export interface UpdateAttributePayload {
   data_type?: AttributeDataType;
   is_required?: boolean;
   select_options?: string[];
+  catalog_id?: number | null;
+  allow_negative?: boolean;
 }
 
 export interface Category {
@@ -98,6 +120,7 @@ export interface Category {
   description: string | null;
   parent_id: number | null;
   is_active: boolean;
+  is_default?: boolean;
   created_at: string;
   updated_at: string;
   attributes?: CategoryAttribute[];
@@ -114,12 +137,15 @@ export interface CreateAttributePayload {
   data_type: AttributeDataType;
   is_required?: boolean;
   select_options?: string[];
+  catalog_id?: number | null;
+  allow_negative?: boolean;
 }
 
 // Products
 export interface Product {
   id: number;
   isbn: string;
+  codigo_interno: string | null;
   name: string;
   description: string | null;
   category_id: number;
@@ -135,6 +161,7 @@ export interface Product {
 
 export interface CreateProductPayload {
   isbn?: string;
+  codigo_interno?: string | null;
   name: string;
   description?: string;
   category_id: number;
@@ -145,8 +172,10 @@ export interface CreateProductPayload {
 
 export interface UpdateProductPayload {
   isbn?: string;
+  codigo_interno?: string | null;
   name?: string;
   description?: string;
+  category_id?: number;
   stock_minimo?: number;
   pvp?: string | number;
   custom_attributes?: Record<string, unknown>;

@@ -34,8 +34,12 @@ export function useCategoryAttributes(id: number) {
 export function useCreateCategory() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: CreateCategoryPayload) => api.post<Category>('/categories', payload).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+    mutationFn: (payload: CreateCategoryPayload) =>
+      api.post<Category & { products_moved?: number }>('/categories', payload).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['categories'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+    },
   })
 }
 
@@ -82,8 +86,12 @@ export function useUpdateAttribute() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ categoryId, attrId, payload }: { categoryId: number; attrId: number; payload: UpdateAttributePayload }) =>
-      api.patch<CategoryAttribute>(`/categories/${categoryId}/attributes/${attrId}`, payload).then((r) => r.data),
-    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['category-attributes', v.categoryId] }),
+      api.patch<CategoryAttribute & { remap_pending?: number }>(`/categories/${categoryId}/attributes/${attrId}`, payload).then((r) => r.data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['category-attributes', v.categoryId] })
+      qc.invalidateQueries({ queryKey: ['attribute-remap'] })
+      qc.invalidateQueries({ queryKey: ['catalogs'] })
+    },
   })
 }
 
@@ -131,6 +139,26 @@ export function useProduct(id: number) {
   })
 }
 
+export function usePendingRecategorization() {
+  return useQuery({
+    queryKey: ['products', 'pending-recategorization'],
+    queryFn: () => api.get<Product[]>('/products/pending-recategorization').then((r) => r.data),
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useRecategorize() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (assignments: { product_id: number; category_id: number }[]) =>
+      api.post('/products/recategorize', { assignments }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['categories'] })
+    },
+  })
+}
+
 export function useCreateProduct() {
   const qc = useQueryClient()
   return useMutation({
@@ -154,8 +182,8 @@ export function useUpdateProduct() {
 export function useToggleProductStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: ProductStatus }) =>
-      api.patch<Product>(`/products/${id}/status`, { status }).then((r) => r.data),
+    mutationFn: ({ id, status, categoryId }: { id: number; status: ProductStatus; categoryId?: number }) =>
+      api.patch<Product>(`/products/${id}/status`, categoryId != null ? { status, category_id: categoryId } : { status }).then((r) => r.data),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['product', v.id] })
