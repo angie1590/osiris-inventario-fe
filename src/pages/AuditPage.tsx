@@ -42,9 +42,12 @@ const ACTIONS: AuditAction[] = [
   "UPDATE",
   "DELETE",
   "APPROVE",
+  "REJECT",
   "CANCEL",
   "LOGIN",
+  "LOGIN_FAILED",
   "LOGOUT",
+  "SESSION_EXPIRED",
   "PASSWORD_CHANGED",
 ];
 
@@ -64,9 +67,12 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   UPDATE: "Actualización",
   DELETE: "Eliminación",
   APPROVE: "Aprobación",
+  REJECT: "Rechazo",
   CANCEL: "Anulación",
   LOGIN: "Inicio de sesión",
+  LOGIN_FAILED: "Inicio de sesión fallido",
   LOGOUT: "Cierre de sesión",
+  SESSION_EXPIRED: "Sesión expirada",
   PASSWORD_CHANGED: "Cambio de contraseña",
 };
 

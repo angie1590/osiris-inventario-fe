@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryDocument } from "@/types/api";
 
 const approveSchema = z.object({
-  authorization_code: z.string().length(8, "El código debe tener 8 caracteres"),
+  authorization_code: z.string().regex(/^\d{4}$/, "El PIN debe tener 4 dígitos"),
 });
 
 interface Props {
@@ -113,10 +113,7 @@ export function ApprovalActions({ doc }: Props) {
 
   const handleSetCode = async (data: { approval_code: string }) => {
     try {
-      const normalized = data.approval_code
-        .toUpperCase()
-        .replace(/[^A-F0-9]/g, "")
-        .slice(0, 8);
+      const normalized = data.approval_code.replace(/\D/g, "").slice(0, 4);
       await setApprovalCode.mutateAsync({ approval_code: normalized });
       toast({
         title: "Código configurado",
@@ -134,8 +131,7 @@ export function ApprovalActions({ doc }: Props) {
       if (code === "INVALID_APPROVAL_CODE_FORMAT") {
         toast({
           variant: "destructive",
-          description:
-            "El código debe tener 8 caracteres hexadecimales (A-F, 0-9).",
+          description: "El PIN debe tener exactamente 4 dígitos.",
         });
       } else {
         toast({
@@ -176,7 +172,7 @@ export function ApprovalActions({ doc }: Props) {
               <DialogTitle>Configurar código de aprobación</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Define tu código personal (8 caracteres hexadecimales). Se usará
+              Define tu PIN personal (4 dígitos). Se usará
               para aprobar bajas y ajustes.
             </p>
             <form
@@ -187,19 +183,16 @@ export function ApprovalActions({ doc }: Props) {
                 <Label className="text-sm font-medium">Código personal</Label>
                 <Input
                   {...registerCode("approval_code", {
-                    required: "Código requerido",
-                    minLength: { value: 8, message: "Debe tener 8 caracteres" },
-                    maxLength: { value: 8, message: "Debe tener 8 caracteres" },
+                    required: "PIN requerido",
+                    pattern: { value: /^\d{4}$/, message: "Debe tener 4 dígitos" },
                   })}
-                  placeholder="Ej. A1B2C3D4"
-                  maxLength={8}
+                  placeholder="Ej. 1234"
+                  maxLength={4}
+                  inputMode="numeric"
                   autoComplete="one-time-code"
-                  className="h-11 text-center text-lg font-mono tracking-[0.25em] uppercase"
+                  className="h-11 text-center text-lg font-mono tracking-[0.25em]"
                   onChange={(e) => {
-                    e.target.value = e.target.value
-                      .toUpperCase()
-                      .replace(/[^A-F0-9]/g, "")
-                      .slice(0, 8);
+                    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
                   }}
                 />
                 {codeErrors.approval_code && (
@@ -241,24 +234,22 @@ export function ApprovalActions({ doc }: Props) {
               <DialogTitle>Aprobar documento</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Ingresa tu código personal de aprobación (admin/supervisor).
+              Ingresa tu PIN personal de aprobación (admin/supervisor).
             </p>
             <form onSubmit={handleSubmit(handleApprove)} className="space-y-5">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">
-                  Código de autorización
+                  PIN de autorización
                 </Label>
                 <Input
                   {...register("authorization_code")}
-                  placeholder="Ej. A1B2C3D4"
-                  maxLength={8}
+                  placeholder="Ej. 1234"
+                  maxLength={4}
+                  inputMode="numeric"
                   autoComplete="one-time-code"
-                  className="h-11 text-center text-lg font-mono tracking-[0.25em] uppercase"
+                  className="h-11 text-center text-lg font-mono tracking-[0.25em]"
                   onChange={(e) => {
-                    e.target.value = e.target.value
-                      .toUpperCase()
-                      .replace(/[^A-F0-9]/g, "")
-                      .slice(0, 8);
+                    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
                   }}
                 />
                 {errors.authorization_code && (

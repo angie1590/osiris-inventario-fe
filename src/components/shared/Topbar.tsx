@@ -112,13 +112,12 @@ export function Topbar({
 
   const handleSavePin = async () => {
     const normalized = approvalCode
-      .toUpperCase()
-      .replace(/[^A-F0-9]/g, "")
-      .slice(0, 8);
-    if (normalized.length !== 8) {
+      .replace(/\D/g, "")
+      .slice(0, 4);
+    if (normalized.length !== 4) {
       toast({
         variant: "destructive",
-        description: "El PIN debe tener 8 caracteres hexadecimales (A-F, 0-9).",
+        description: "El PIN debe tener exactamente 4 dígitos.",
       });
       return;
     }
@@ -144,8 +143,7 @@ export function Topbar({
       if (code === "INVALID_APPROVAL_CODE_FORMAT") {
         toast({
           variant: "destructive",
-          description:
-            "El PIN debe tener 8 caracteres hexadecimales (A-F, 0-9).",
+          description: "El PIN debe tener exactamente 4 dígitos.",
         });
       } else {
         toast({
@@ -337,18 +335,18 @@ export function Topbar({
                         onChange={(e) =>
                           setApprovalCode(
                             e.target.value
-                              .toUpperCase()
-                              .replace(/[^A-F0-9]/g, "")
-                              .slice(0, 8),
+                              .replace(/\D/g, "")
+                              .slice(0, 4),
                           )
                         }
-                        maxLength={8}
-                        placeholder="Ej. A1B2C3D4"
+                        maxLength={4}
+                        placeholder="Ej. 1234"
+                        inputMode="numeric"
                         autoComplete="one-time-code"
                         className="h-11 text-center font-mono tracking-[0.25em]"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Usa 8 caracteres hexadecimales (A-F y 0-9).
+                        Usa 4 dígitos numéricos.
                       </p>
                     </div>
                     <Button onClick={handleSavePin} disabled={savingPin}>

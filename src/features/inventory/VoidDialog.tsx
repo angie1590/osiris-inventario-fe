@@ -29,12 +29,13 @@ export function VoidDialog({ doc, onClose, onVoided }: Props) {
 
   const handleConfirm = async () => {
     setError(null)
-    if (needsPin && !pin.trim()) {
-      setError('Ingresa el PIN de un supervisor o administrador.')
+    const normalizedPin = pin.trim().replace(/\D/g, '')
+    if (needsPin && normalizedPin.length !== 4) {
+      setError('Ingresa un PIN de 4 dígitos de un supervisor o administrador.')
       return
     }
     try {
-      await voidDoc.mutateAsync({ id: doc.id, authorizerPin: needsPin ? pin.trim() : undefined })
+      await voidDoc.mutateAsync({ id: doc.id, authorizerPin: needsPin ? normalizedPin : undefined })
       toast({
         variant: 'success',
         title: 'Documento anulado',
@@ -70,11 +71,12 @@ export function VoidDialog({ doc, onClose, onVoided }: Props) {
             <FormField label="PIN de supervisor/administrador" required>
               <Input
                 type="password"
-                inputMode="text"
+                inputMode="numeric"
                 autoComplete="off"
                 value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                placeholder="Código de autorización"
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="PIN de 4 dígitos"
+                maxLength={4}
               />
             </FormField>
           ) : (

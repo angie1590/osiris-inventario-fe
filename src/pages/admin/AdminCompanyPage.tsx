@@ -16,16 +16,85 @@ import { useToast } from '@/hooks/use-toast'
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024
 
+const onlyDigits = (value: string) => value.replace(/\D/g, '')
+const toUpper = (value: string) => value.toUpperCase()
+
+function mod10CheckDigit(base9: string): number {
+  const coefs = [2, 1, 2, 1, 2, 1, 2, 1, 2]
+  let total = 0
+  for (let i = 0; i < 9; i += 1) {
+    let val = Number(base9[i]) * coefs[i]
+    if (val >= 10) val -= 9
+    total += val
+  }
+  const check = 10 - (total % 10)
+  return check === 10 ? 0 : check
+}
+
+function isValidEcuadorianRuc(ruc: string): boolean {
+  if (!/^\d{13}$/.test(ruc)) return false
+
+  const province = Number(ruc.slice(0, 2))
+  if (province < 1 || province > 24) return false
+
+  const third = Number(ruc[2])
+
+  if (third >= 0 && third <= 5) {
+    const verifier = mod10CheckDigit(ruc.slice(0, 9))
+    if (verifier !== Number(ruc[9])) return false
+    return ruc.slice(10) !== '000'
+  }
+
+  if (third === 6) {
+    const coefs = [3, 2, 7, 6, 5, 4, 3, 2]
+    let total = 0
+    for (let i = 0; i < 8; i += 1) total += Number(ruc[i]) * coefs[i]
+    let check = 11 - (total % 11)
+    if (check === 11) check = 0
+    if (check === 10) return false
+    if (check !== Number(ruc[8])) return false
+    return ruc.slice(9) !== '0000'
+  }
+
+  if (third === 9) {
+    const coefs = [4, 3, 2, 7, 6, 5, 4, 3, 2]
+    let total = 0
+    for (let i = 0; i < 9; i += 1) total += Number(ruc[i]) * coefs[i]
+    let check = 11 - (total % 11)
+    if (check === 11) check = 0
+    if (check === 10) return false
+    if (check !== Number(ruc[9])) return false
+    return ruc.slice(10) !== '000'
+  }
+
+  return false
+}
+
 const schema = z.object({
-  razon_social: z.string().min(1, 'Requerido'),
-  ruc: z.string().min(1, 'Requerido'),
-  email: z.string().min(1, 'Requerido').email('Email inválido'),
-  nombre_comercial: z.string().optional(),
-  direccion: z.string().optional(),
-  telefono: z.string().optional(),
+  razon_social: z.string().trim().min(1, 'Requerido').transform(toUpper),
+  ruc: z
+    .string()
+    .trim()
+    .transform(onlyDigits)
+    .refine((value) => /^\d{13}$/.test(value), 'RUC debe tener 13 dígitos')
+    .refine(isValidEcuadorianRuc, 'RUC ecuatoriano inválido'),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Requerido')
+    .email('Correo electrónico inválido')
+    .transform(toUpper),
+  nombre_comercial: z.string().optional().transform((v) => (v ?? '').trim().toUpperCase()),
+  direccion: z.string().optional().transform((v) => (v ?? '').trim().toUpperCase()),
+  telefono: z
+    .string()
+    .optional()
+    .transform((v) => onlyDigits(v ?? ''))
+    .refine((value) => !value || /^\d+$/.test(value), 'Teléfono debe contener solo dígitos'),
 })
 
-type FormData = z.infer<typeof schema>
+type FormInput = z.input<typeof schema>
+type FormData = z.output<typeof schema>
 
 type ApiError = {
   response?: {
@@ -38,10 +107,11 @@ type ApiError = {
 }
 
 function ViewField({ label, value }: { label: string; value?: string | null }) {
+  const normalized = typeof value === 'string' ? value.toUpperCase() : value
   return (
     <div className="space-y-0.5">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-sm">{value || '—'}</p>
+      <p className="text-sm">{normalized || '—'}</p>
     </div>
   )
 }
@@ -61,11 +131,12 @@ export default function AdminCompanyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isEdit = !!company
-  // Show the form for first-time setup (no company yet) or when explicitly editing.
   const showForm = !company || editing
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
+    mode: 'onBlur',
+    reValidateMode: 'onBlur',
     values: company
       ? {
           razon_social: company.razon_social,
@@ -155,7 +226,7 @@ export default function AdminCompanyPage() {
       const msg = apiErr?.response?.data?.message ?? 'Error al guardar la configuración'
 
       if (fieldErrors) {
-        const knownFields: (keyof FormData)[] = ['razon_social', 'ruc', 'email', 'nombre_comercial', 'direccion', 'telefono']
+        const knownFields: (keyof FormInput)[] = ['razon_social', 'ruc', 'email', 'nombre_comercial', 'direccion', 'telefono']
         knownFields.forEach((field) => {
           if (fieldErrors[field]) {
             setError(field, { message: fieldErrors[field] })
@@ -176,7 +247,6 @@ export default function AdminCompanyPage() {
     )
   }
 
-  // ── View mode: company configured and not editing ─────────────────────────
   if (!showForm && company) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
@@ -218,12 +288,11 @@ export default function AdminCompanyPage() {
     )
   }
 
-  // ── Form mode: first-time setup or editing ────────────────────────────────
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader title="Configuración de Empresa" />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
         {formError && (
           <Alert variant="destructive">
             <AlertDescription>{formError}</AlertDescription>
@@ -233,27 +302,74 @@ export default function AdminCompanyPage() {
         <Section title="Datos de la empresa">
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Razón Social" required error={errors.razon_social?.message} className="col-span-2">
-              <Input id="razon_social" {...register('razon_social')} />
+              <Input
+                id="razon_social"
+                {...register('razon_social', {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.toUpperCase()
+                  },
+                })}
+              />
             </FormField>
 
             <FormField label="Nombre Comercial" error={errors.nombre_comercial?.message}>
-              <Input id="nombre_comercial" {...register('nombre_comercial')} />
+              <Input
+                id="nombre_comercial"
+                {...register('nombre_comercial', {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.toUpperCase()
+                  },
+                })}
+              />
             </FormField>
 
             <FormField label="RUC" required error={errors.ruc?.message}>
-              <Input id="ruc" {...register('ruc')} />
+              <Input
+                id="ruc"
+                inputMode="numeric"
+                maxLength={13}
+                {...register('ruc', {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 13)
+                  },
+                })}
+              />
             </FormField>
 
             <FormField label="Email" required error={errors.email?.message}>
-              <Input id="email" type="email" {...register('email')} />
+              <Input
+                id="email"
+                type="text"
+                {...register('email', {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.toUpperCase()
+                  },
+                })}
+              />
             </FormField>
 
             <FormField label="Teléfono" error={errors.telefono?.message}>
-              <Input id="telefono" {...register('telefono')} />
+              <Input
+                id="telefono"
+                inputMode="numeric"
+                maxLength={15}
+                {...register('telefono', {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(/\D/g, '')
+                  },
+                })}
+              />
             </FormField>
 
             <FormField label="Dirección" error={errors.direccion?.message} className="col-span-2">
-              <Input id="direccion" {...register('direccion')} />
+              <Input
+                id="direccion"
+                {...register('direccion', {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.toUpperCase()
+                  },
+                })}
+              />
             </FormField>
           </div>
         </Section>
