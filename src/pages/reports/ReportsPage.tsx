@@ -624,7 +624,7 @@ function MovementReport({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ISBN</TableHead>
+                      <TableHead>Código de barras</TableHead>
                       <TableHead>Producto</TableHead>
                       <TableHead className="text-right">Cantidad</TableHead>
                       <TableHead className="text-right">Costo</TableHead>
@@ -1581,7 +1581,7 @@ function MovimientosPorUsuarioReport({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ISBN</TableHead>
+                      <TableHead>Código de barras</TableHead>
                       <TableHead>Producto</TableHead>
                       <TableHead className="text-right">Cantidad</TableHead>
                       <TableHead className="text-right">Costo</TableHead>
