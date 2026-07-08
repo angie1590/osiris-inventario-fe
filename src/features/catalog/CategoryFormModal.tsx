@@ -65,7 +65,14 @@ export function CategoryFormModal({ category, allCategories, onClose }: Props) {
     queryKey: ["products", "parent-has-products", parentId],
     queryFn: () =>
       api
-        .get<Product[]>("/products", { params: { category_id: parentId, status: "active", limit: 50 } })
+        .get<Product[]>("/products", {
+          params: {
+            category_id: parentId,
+            include_descendants: false,
+            status: "active",
+            limit: 1,
+          },
+        })
         .then((r) => r.data),
     enabled: !isEdit && parentId != null,
   });
@@ -136,9 +143,10 @@ export function CategoryFormModal({ category, allCategories, onClose }: Props) {
             {parentHasProducts && (
               <Alert variant="warning">
                 <AlertDescription>
-                  La categoría padre tiene productos. Al crear esta subcategoría, esos
-                  productos se moverán a una categoría temporal{" "}
-                  <strong>"Sin clasificar"</strong> para que los recategorices.
+                  La categoría padre tiene productos. Al crear esta
+                  subcategoría, esos productos se moverán a una categoría
+                  temporal <strong>"Sin clasificar"</strong> para que los
+                  recategorices.
                 </AlertDescription>
               </Alert>
             )}
