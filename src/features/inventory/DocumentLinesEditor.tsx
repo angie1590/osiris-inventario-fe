@@ -347,7 +347,7 @@ export function DocumentLinesEditor({
                           step={integerMode ? "1" : "0.0001"}
                           disabled={!line.product_id}
                           className={cn(
-                            "h-8 w-20",
+                            "h-8 w-20 text-center",
                             !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
                             exceedsStock &&
                               "border-destructive bg-rose-50 text-destructive focus-visible:border-destructive focus-visible:ring-destructive",
@@ -413,7 +413,7 @@ export function DocumentLinesEditor({
                         <TableCell className="align-top">
                           <Input
                             type="number"
-                            className="h-8 w-24 bg-muted text-muted-foreground"
+                            className="h-8 w-24 bg-muted text-muted-foreground text-right"
                             value={pvp > 0 ? pvp.toFixed(2) : ""}
                             readOnly
                             placeholder="—"
@@ -488,7 +488,7 @@ export function DocumentLinesEditor({
                                 step="0.01"
                                 disabled={!line.product_id}
                                 className={cn(
-                                  "h-8 w-28",
+                                  "h-8 w-28 text-right",
                                   !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
                                   discountExceedsPvp &&
                                     "border-destructive bg-rose-50 text-destructive",
@@ -531,7 +531,7 @@ export function DocumentLinesEditor({
                         <TableCell className="align-top">
                           <Input
                             type="number"
-                            className="h-8 w-28 bg-muted font-medium text-foreground"
+                            className="h-8 w-28 bg-muted font-medium text-foreground text-right"
                             value={pvp > 0 ? finalPrice.toFixed(2) : ""}
                             readOnly
                             placeholder="—"
