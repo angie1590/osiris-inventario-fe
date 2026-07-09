@@ -13,6 +13,7 @@ import { Section } from "@/components/shared/Section";
 import {
   DocumentLinesEditor,
   type DocumentLine,
+  applyDiscount,
 } from "@/features/inventory/DocumentLinesEditor";
 import { useCreateEgreso } from "@/features/inventory/hooks";
 import { useToast } from "@/hooks/use-toast";
@@ -56,11 +57,22 @@ export default function EgresoNewPage() {
       const doc = await create.mutateAsync({
         reference: data.reference || undefined,
         notes: data.notes || undefined,
-        lines: lines.map((l) => ({
-          product_id: l.product_id,
-          quantity: l.quantity,
-          unit_price: l.unit_price || undefined,
-        })),
+        lines: lines.map((l) => {
+          const pvp = l.product_pvp ?? Number(l.unit_price ?? 0);
+          const finalPrice =
+            l.discount_value && pvp > 0
+              ? applyDiscount(
+                  pvp,
+                  l.discount_type ?? "percent",
+                  l.discount_value,
+                )
+              : pvp;
+          return {
+            product_id: l.product_id,
+            quantity: l.quantity,
+            unit_price: finalPrice > 0 ? String(finalPrice) : undefined,
+          };
+        }),
       });
       toast({
         variant: "success",
@@ -113,14 +125,13 @@ export default function EgresoNewPage() {
           </div>
         </Section>
 
-        <Section title="Líneas del documento">
+        <Section title="Ítems">
           <DocumentLinesEditor
             lines={lines}
             onChange={setLines}
-            showUnitPrice
+            showDiscount
             prioritizeInStock
             enforceStockLimit
-            lockUnitPrice
             autoFillUnitPriceFromProduct
           />
         </Section>

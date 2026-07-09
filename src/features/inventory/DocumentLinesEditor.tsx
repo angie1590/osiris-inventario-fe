@@ -17,13 +17,18 @@ import { useProducts } from "@/features/catalog/hooks";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types/api";
 
+export type DiscountType = "percent" | "fixed";
+
 export interface DocumentLine {
   product_id: number;
   product_name: string;
   product_stock?: number;
+  product_pvp?: number;
   quantity: string;
   unit_cost?: string;
   unit_price?: string;
+  discount_type?: DiscountType;
+  discount_value?: string;
 }
 
 interface Props {
@@ -31,10 +36,26 @@ interface Props {
   onChange: (lines: DocumentLine[]) => void;
   showUnitCost?: boolean;
   showUnitPrice?: boolean;
+  showDiscount?: boolean;
   enforceStockLimit?: boolean;
   prioritizeInStock?: boolean;
   lockUnitPrice?: boolean;
   autoFillUnitPriceFromProduct?: boolean;
+}
+
+/** Calcula el precio final aplicando el descuento al pvp. */
+export function applyDiscount(
+  pvp: number,
+  discountType: DiscountType,
+  discountValue: string,
+): number {
+  const d = parseFloat(discountValue) || 0;
+  if (d <= 0) return pvp;
+  if (discountType === "percent") {
+    const pct = Math.min(d, 100);
+    return Math.max(0, pvp - (pvp * pct) / 100);
+  }
+  return Math.max(0, pvp - d);
 }
 
 function ProductCombobox({
@@ -177,6 +198,7 @@ export function DocumentLinesEditor({
   onChange,
   showUnitCost = false,
   showUnitPrice = false,
+  showDiscount = false,
   enforceStockLimit = false,
   prioritizeInStock = false,
   lockUnitPrice = false,
@@ -201,6 +223,8 @@ export function DocumentLinesEditor({
         quantity: "1",
         unit_cost: "",
         unit_price: "",
+        discount_type: "percent",
+        discount_value: "",
       },
     ]);
   };
@@ -219,12 +243,19 @@ export function DocumentLinesEditor({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[40%]">Producto</TableHead>
+              <TableHead className="w-[35%]">Producto</TableHead>
               <TableHead className="w-24">Cantidad</TableHead>
               {showUnitCost && (
                 <TableHead className="w-28">Costo unit.</TableHead>
               )}
-              {showUnitPrice && (
+              {showDiscount && <TableHead className="w-24">PVP</TableHead>}
+              {showDiscount && (
+                <TableHead className="w-36">Descuento</TableHead>
+              )}
+              {showDiscount && (
+                <TableHead className="w-28">Precio final</TableHead>
+              )}
+              {showUnitPrice && !showDiscount && (
                 <TableHead className="w-28">Precio unit.</TableHead>
               )}
               <TableHead className="w-10" />
@@ -234,7 +265,12 @@ export function DocumentLinesEditor({
             {lines.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={showUnitCost || showUnitPrice ? 4 : 3}
+                  colSpan={
+                    3 +
+                    (showUnitCost ? 1 : 0) +
+                    (showDiscount ? 3 : 0) +
+                    (showUnitPrice && !showDiscount ? 1 : 0)
+                  }
                   className="text-center text-sm text-muted-foreground py-4"
                 >
                   Sin líneas. Haz clic en "Agregar línea".
@@ -252,6 +288,7 @@ export function DocumentLinesEditor({
                         product_id: p.id,
                         product_name: p.name,
                         product_stock: Number(p.stock_actual),
+                        product_pvp: Number(p.pvp ?? 0),
                         ...(autoFillUnitPriceFromProduct
                           ? { unit_price: String(p.pvp ?? "") }
                           : {}),
@@ -318,7 +355,113 @@ export function DocumentLinesEditor({
                     />
                   </TableCell>
                 )}
-                {showUnitPrice && (
+                {showDiscount &&
+                  (() => {
+                    const pvp = line.product_pvp ?? 0;
+                    const discType = line.discount_type ?? "percent";
+                    const finalPrice =
+                      pvp > 0
+                        ? applyDiscount(
+                            pvp,
+                            discType,
+                            line.discount_value ?? "",
+                          )
+                        : 0;
+                    const discountExceedsPvp =
+                      pvp > 0 &&
+                      (line.discount_value ?? "") !== "" &&
+                      finalPrice <= 0;
+                    return (
+                      <>
+                        {/* PVP locked */}
+                        <TableCell>
+                          <Input
+                            type="number"
+                            className="h-8 w-24 bg-muted text-muted-foreground"
+                            value={pvp > 0 ? pvp.toFixed(2) : ""}
+                            readOnly
+                            placeholder="—"
+                            title="Precio de venta del producto"
+                          />
+                        </TableCell>
+
+                        {/* Descuento: toggle tipo + valor */}
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className={cn(
+                                "h-8 rounded-l-md border px-2 text-xs font-semibold transition-colors",
+                                discType === "percent"
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-input bg-background text-muted-foreground hover:bg-accent",
+                              )}
+                              onClick={() =>
+                                updateLine(i, { discount_type: "percent" })
+                              }
+                              title="Descuento en porcentaje"
+                            >
+                              %
+                            </button>
+                            <button
+                              type="button"
+                              className={cn(
+                                "h-8 rounded-r-md border-y border-r px-2 text-xs font-semibold transition-colors",
+                                discType === "fixed"
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-input bg-background text-muted-foreground hover:bg-accent",
+                              )}
+                              onClick={() =>
+                                updateLine(i, { discount_type: "fixed" })
+                              }
+                              title="Descuento en valor fijo"
+                            >
+                              $
+                            </button>
+                            <Input
+                              type="number"
+                              min="0"
+                              max={discType === "percent" ? "100" : undefined}
+                              step="0.01"
+                              className={cn(
+                                "h-8 w-20",
+                                discountExceedsPvp &&
+                                  "border-destructive bg-rose-50 text-destructive",
+                              )}
+                              placeholder={
+                                discType === "percent" ? "0 %" : "0.00"
+                              }
+                              value={line.discount_value ?? ""}
+                              onChange={(e) =>
+                                updateLine(i, {
+                                  discount_value: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          {discountExceedsPvp && (
+                            <p className="mt-0.5 text-[11px] font-medium text-destructive">
+                              Descuento supera el PVP.
+                            </p>
+                          )}
+                        </TableCell>
+
+                        {/* Precio final calculado */}
+                        <TableCell>
+                          <Input
+                            type="number"
+                            className="h-8 w-28 bg-muted font-medium text-foreground"
+                            value={pvp > 0 ? finalPrice.toFixed(2) : ""}
+                            readOnly
+                            placeholder="—"
+                            title="Precio final tras descuento"
+                          />
+                        </TableCell>
+                      </>
+                    );
+                  })()}
+
+                {showUnitPrice && !showDiscount && (
                   <TableCell>
                     <Input
                       type="number"
@@ -361,7 +504,7 @@ export function DocumentLinesEditor({
       </div>
       <Button type="button" variant="outline" size="sm" onClick={addLine}>
         <Plus className="mr-1.5 h-3.5 w-3.5" />
-        Agregar línea
+        Agregar ítem
       </Button>
     </div>
   );

@@ -109,7 +109,7 @@ export default function IngresoNewPage() {
           </div>
         </Section>
 
-        <Section title="Líneas del documento">
+        <Section title="Ítems">
           <DocumentLinesEditor lines={lines} onChange={setLines} showUnitCost />
         </Section>
 

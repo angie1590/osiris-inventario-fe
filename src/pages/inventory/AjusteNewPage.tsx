@@ -130,7 +130,7 @@ export default function AjusteNewPage() {
             </FormField>
           </div>
         </Section>
-        <Section title="Líneas del documento">
+        <Section title="Ítems">
           <DocumentLinesEditor
             lines={lines}
             onChange={setLines}
