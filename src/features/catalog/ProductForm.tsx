@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,8 +35,9 @@ import {
 } from "@/hooks/useStockMode";
 import { useCatalogValues } from "@/features/catalog/catalogHooks";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { CategoryFormModal } from "@/features/catalog/CategoryFormModal";
 import { useToast } from "@/hooks/use-toast";
-import type { CategoryAttribute, Product } from "@/types/api";
+import type { CategoryAttribute, Product, Category } from "@/types/api";
 
 const schema = z.object({
   // Barcode length/required validated in onSubmit (depends on the system param).
@@ -197,6 +199,10 @@ export function ProductForm({
     targetCategory: number;
     orphans: string[];
   } | null>(null);
+  // Checkbox to use internal code as barcode
+  const [useInternalCodeAsIsbn, setUseInternalCodeAsIsbn] = useState(false);
+  // Modal to create new category
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
 
   const {
     register,
@@ -326,7 +332,11 @@ export function ProductForm({
     }
 
     // Barcode: required is parametrizable; length only enforced when provided.
-    const isbnVal = (data.isbn ?? "").trim();
+    // If using internal code as barcode, copy the value
+    let isbnVal = (data.isbn ?? "").trim();
+    if (useInternalCodeAsIsbn) {
+      isbnVal = (data.codigo_interno ?? "").trim();
+    }
     if (barcodeRequired && !isbnVal) {
       setError("isbn", { message: "Código de barras requerido" });
       return;
@@ -424,8 +434,22 @@ export function ProductForm({
             {...register("isbn")}
             placeholder="7501234567890"
             aria-invalid={!!errors.isbn}
+            disabled={useInternalCodeAsIsbn}
+            value={useInternalCodeAsIsbn ? watch("codigo_interno") ?? "" : watch("isbn") ?? ""}
           />
         </FormField>
+        {internalCodeEnabled && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="use-internal-as-isbn"
+              checked={useInternalCodeAsIsbn}
+              onCheckedChange={(checked) => setUseInternalCodeAsIsbn(!!checked)}
+            />
+            <label htmlFor="use-internal-as-isbn" className="text-sm text-muted-foreground cursor-pointer">
+              Usar código interno como código de barras
+            </label>
+          </div>
+        )}
         <FormField label="Nombre" required error={errors.name?.message}>
           <Input {...register("name")} />
         </FormField>
@@ -440,18 +464,30 @@ export function ProductForm({
           required
           error={errors.category_id?.message}
         >
-          <Controller
-            control={control}
-            name="category_id"
-            render={({ field }) => (
-              <TreeSelector
-                categories={(categories ?? []).filter((c) => !c.is_default)}
-                value={field.value as number | null}
-                onChange={field.onChange}
-                leafOnly
-              />
-            )}
-          />
+          <div className="space-y-3">
+            <Controller
+              control={control}
+              name="category_id"
+              render={({ field }) => (
+                <TreeSelector
+                  categories={(categories ?? []).filter((c) => !c.is_default)}
+                  value={field.value as number | null}
+                  onChange={field.onChange}
+                  leafOnly
+                />
+              )}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCategoryForm(true)}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Crear nueva categoría
+            </Button>
+          </div>
         </FormField>
       </Section>
 
@@ -587,6 +623,16 @@ export function ProductForm({
     />
   );
 
+  const handleCategoryCreated = (category: Category) => {
+    setShowCategoryForm(false);
+    setValue("category_id", category.id);
+    toast({
+      variant: "success",
+      title: "Categoría creada",
+      description: `"${category.name}" creada correctamente.`,
+    });
+  };
+
   if (layout === "modal") {
     return (
       <>
@@ -595,6 +641,13 @@ export function ProductForm({
           <DialogFooter>{footer}</DialogFooter>
         </form>
         {orphanDialog}
+        {showCategoryForm && (
+          <CategoryFormModal
+            allCategories={categories ?? []}
+            onClose={() => setShowCategoryForm(false)}
+            onSuccess={handleCategoryCreated}
+          />
+        )}
       </>
     );
   }
@@ -606,6 +659,13 @@ export function ProductForm({
         <div className="flex justify-end gap-3">{footer}</div>
       </form>
       {orphanDialog}
+      {showCategoryForm && (
+        <CategoryFormModal
+          allCategories={categories ?? []}
+          onClose={() => setShowCategoryForm(false)}
+          onSuccess={handleCategoryCreated}
+        />
+      )}
     </>
   );
 }

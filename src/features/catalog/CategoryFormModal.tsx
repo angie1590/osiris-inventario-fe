@@ -33,9 +33,10 @@ interface Props {
   category?: Category;
   allCategories: Category[];
   onClose: () => void;
+  onSuccess?: (category: Category) => void;
 }
 
-export function CategoryFormModal({ category, allCategories, onClose }: Props) {
+export function CategoryFormModal({ category, allCategories, onClose, onSuccess }: Props) {
   const create = useCreateCategory();
   const update = useUpdateCategory();
   const { toast } = useToast();
@@ -104,6 +105,9 @@ export function CategoryFormModal({ category, allCategories, onClose }: Props) {
               ? `"${data.name}" creada. ${moved} producto(s) movido(s) a "Sin clasificar".`
               : `"${data.name}" creada.`,
         });
+        if (onSuccess) {
+          onSuccess(result);
+        }
       }
       onClose();
     } catch (err: unknown) {
