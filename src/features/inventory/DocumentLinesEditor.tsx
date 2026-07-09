@@ -345,8 +345,10 @@ export function DocumentLinesEditor({
                           type="number"
                           min={integerMode ? "1" : "0.0001"}
                           step={integerMode ? "1" : "0.0001"}
+                          disabled={!line.product_id}
                           className={cn(
                             "h-8 w-28",
+                            !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
                             exceedsStock &&
                               "border-destructive bg-rose-50 text-destructive focus-visible:border-destructive focus-visible:ring-destructive",
                           )}
@@ -425,8 +427,10 @@ export function DocumentLinesEditor({
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
+                                disabled={!line.product_id}
                                 className={cn(
                                   "h-8 rounded-l-md border px-2 text-xs font-semibold transition-colors",
+                                  !line.product_id && "opacity-50 cursor-not-allowed",
                                   discType === "percent"
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-input bg-background text-muted-foreground hover:bg-accent",
@@ -451,8 +455,10 @@ export function DocumentLinesEditor({
                               </button>
                               <button
                                 type="button"
+                                disabled={!line.product_id}
                                 className={cn(
                                   "h-8 rounded-r-md border-y border-r px-2 text-xs font-semibold transition-colors",
+                                  !line.product_id && "opacity-50 cursor-not-allowed",
                                   discType === "fixed"
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-input bg-background text-muted-foreground hover:bg-accent",
@@ -480,8 +486,10 @@ export function DocumentLinesEditor({
                                 min="0"
                                 max={discType === "percent" ? "100" : undefined}
                                 step="0.01"
+                                disabled={!line.product_id}
                                 className={cn(
                                   "h-8 w-20",
+                                  !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
                                   discountExceedsPvp &&
                                     "border-destructive bg-rose-50 text-destructive",
                                 )}
