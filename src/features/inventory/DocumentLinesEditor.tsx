@@ -347,7 +347,7 @@ export function DocumentLinesEditor({
                           step={integerMode ? "1" : "0.0001"}
                           disabled={!line.product_id}
                           className={cn(
-                            "h-8 w-28",
+                            "h-8 w-20",
                             !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
                             exceedsStock &&
                               "border-destructive bg-rose-50 text-destructive focus-visible:border-destructive focus-visible:ring-destructive",
@@ -488,7 +488,7 @@ export function DocumentLinesEditor({
                                 step="0.01"
                                 disabled={!line.product_id}
                                 className={cn(
-                                  "h-8 w-20",
+                                  "h-8 w-28",
                                   !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
                                   discountExceedsPvp &&
                                     "border-destructive bg-rose-50 text-destructive",
