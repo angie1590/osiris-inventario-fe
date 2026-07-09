@@ -573,11 +573,13 @@ function MovementReport({
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => setViewDocumentId(r.id)}
+                        title="Ver documento"
+                        aria-label="Ver documento"
                       >
-                        <Eye className="mr-1 h-3.5 w-3.5" />
-                        Ver
+                        <Eye className="h-4 w-4 text-primary" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -1530,11 +1532,13 @@ function MovimientosPorUsuarioReport({
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => setViewDocumentId(r.id)}
+                        title="Ver documento"
+                        aria-label="Ver documento"
                       >
-                        <Eye className="mr-1 h-3.5 w-3.5" />
-                        Ver
+                        <Eye className="h-4 w-4 text-primary" />
                       </Button>
                     </TableCell>
                   </TableRow>

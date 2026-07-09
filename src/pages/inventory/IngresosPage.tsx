@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,8 +103,15 @@ export default function IngresosPage() {
       className: "text-right",
       cell: (d) => (
         <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setViewDoc(d)}>
-            Ver
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setViewDoc(d)}
+            title="Ver documento"
+            aria-label="Ver documento"
+          >
+            <Eye className="h-4 w-4 text-primary" />
           </Button>
         </div>
       ),

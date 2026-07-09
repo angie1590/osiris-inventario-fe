@@ -1,11 +1,6 @@
 import { useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import {
-  Check,
-  ChevronsUpDown,
-  Download,
-  Search,
-} from "lucide-react";
+import { Check, ChevronsUpDown, Download, Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -292,7 +287,10 @@ export default function AuditPage() {
       sortable: true,
       sortAccessor: (l) => ACTION_LABELS[l.action] ?? l.action,
       cell: (l) => (
-        <Badge variant={ACTION_VARIANTS[l.action] ?? "secondary"} className="text-xs">
+        <Badge
+          variant={ACTION_VARIANTS[l.action] ?? "secondary"}
+          className="text-xs"
+        >
           {ACTION_LABELS[l.action] ?? l.action}
         </Badge>
       ),
@@ -302,14 +300,20 @@ export default function AuditPage() {
       header: "Entidad",
       sortable: true,
       sortAccessor: (l) => l.entity_type ?? "",
-      cell: (l) => <span className="text-sm">{localizeEntityType(l.entity_type)}</span>,
+      cell: (l) => (
+        <span className="text-sm">{localizeEntityType(l.entity_type)}</span>
+      ),
     },
     {
       key: "ip_address",
       header: "IP",
       sortable: true,
       sortAccessor: (l) => l.ip_address ?? "",
-      cell: (l) => <span className="text-xs text-muted-foreground">{l.ip_address ?? "—"}</span>,
+      cell: (l) => (
+        <span className="text-xs text-muted-foreground">
+          {l.ip_address ?? "—"}
+        </span>
+      ),
     },
     {
       key: "description",
@@ -330,8 +334,15 @@ export default function AuditPage() {
       header: "",
       className: "text-right",
       cell: (l) => (
-        <Button variant="ghost" size="sm" onClick={() => setViewLog(l)}>
-          Ver
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setViewLog(l)}
+          title="Ver detalle"
+          aria-label="Ver detalle"
+        >
+          <Eye className="h-4 w-4 text-primary" />
         </Button>
       ),
     },
@@ -644,15 +655,23 @@ export default function AuditPage() {
                 {
                   label: "Acción",
                   value: (
-                    <Badge variant={ACTION_VARIANTS[viewLog.action] ?? "secondary"}>
+                    <Badge
+                      variant={ACTION_VARIANTS[viewLog.action] ?? "secondary"}
+                    >
                       {viewLog.action}
                     </Badge>
                   ),
                 },
-                { label: "Entidad", value: localizeEntityType(viewLog.entity_type) },
+                {
+                  label: "Entidad",
+                  value: localizeEntityType(viewLog.entity_type),
+                },
                 { label: "ID entidad", value: viewLog.entity_id ?? "—" },
                 { label: "IP", value: viewLog.ip_address ?? "—" },
-                { label: "Fecha", value: new Date(viewLog.timestamp).toLocaleString("es-EC") },
+                {
+                  label: "Fecha",
+                  value: new Date(viewLog.timestamp).toLocaleString("es-EC"),
+                },
                 {
                   label: "Descripción",
                   value: localizeDescription(viewLog.description),

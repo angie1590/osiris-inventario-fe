@@ -118,6 +118,10 @@ export default function EgresoNewPage() {
             lines={lines}
             onChange={setLines}
             showUnitPrice
+            prioritizeInStock
+            enforceStockLimit
+            lockUnitPrice
+            autoFillUnitPriceFromProduct
           />
         </Section>
 

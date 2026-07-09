@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Plus, Trash2 } from "lucide-react";
@@ -32,13 +32,18 @@ interface Props {
   showUnitCost?: boolean;
   showUnitPrice?: boolean;
   enforceStockLimit?: boolean;
+  prioritizeInStock?: boolean;
+  lockUnitPrice?: boolean;
+  autoFillUnitPriceFromProduct?: boolean;
 }
 
 function ProductCombobox({
   onChange,
+  prioritizeInStock = false,
 }: {
   value: number | null;
   onChange: (p: Product) => void;
+  prioritizeInStock?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -83,7 +88,19 @@ function ProductCombobox({
     };
   }, [open]);
 
-  const productItems = products ?? [];
+  const productItems = useMemo(() => {
+    const list = [...(products ?? [])];
+    if (prioritizeInStock && !search.trim()) {
+      // For outbound docs, show products with stock first in the default list.
+      list.sort((a, b) => {
+        const aHasStock = Number(a.stock_actual) > 0 ? 1 : 0;
+        const bHasStock = Number(b.stock_actual) > 0 ? 1 : 0;
+        if (aHasStock !== bHasStock) return bHasStock - aHasStock;
+        return a.name.localeCompare(b.name, "es-EC", { sensitivity: "base" });
+      });
+    }
+    return list;
+  }, [products, prioritizeInStock, search]);
 
   return (
     <div className="relative" ref={rootRef}>
@@ -92,7 +109,7 @@ function ProductCombobox({
         <input
           ref={inputRef}
           className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          placeholder="Buscar producto..."
+          placeholder="Buscar por nombre o código de barras..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -137,8 +154,13 @@ function ProductCombobox({
                   setOpen(false);
                 }}
               >
-                <span>{p.name}</span>
-                <span className="text-xs text-muted-foreground">
+                <div className="min-w-0 text-left">
+                  <p className="truncate">{p.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Código de barras: {p.isbn || "—"}
+                  </p>
+                </div>
+                <span className="ml-3 shrink-0 text-xs text-muted-foreground">
                   Stock: {p.stock_actual}
                 </span>
               </button>
@@ -156,13 +178,19 @@ export function DocumentLinesEditor({
   showUnitCost = false,
   showUnitPrice = false,
   enforceStockLimit = false,
+  prioritizeInStock = false,
+  lockUnitPrice = false,
+  autoFillUnitPriceFromProduct = false,
 }: Props) {
-  const { data: settings } = useQuery<{ stock_quantity_mode: "integer" | "decimal" }>({
+  const { data: settings } = useQuery<{
+    stock_quantity_mode: "integer" | "decimal";
+  }>({
     queryKey: ["reports", "settings"],
     queryFn: async () => (await api.get("/reports/settings")).data,
     staleTime: 5 * 60 * 1000,
   });
-  const integerMode = (settings?.stock_quantity_mode ?? "integer") === "integer";
+  const integerMode =
+    (settings?.stock_quantity_mode ?? "integer") === "integer";
 
   const addLine = () => {
     onChange([
@@ -218,11 +246,15 @@ export function DocumentLinesEditor({
                 <TableCell>
                   <ProductCombobox
                     value={line.product_id || null}
+                    prioritizeInStock={prioritizeInStock}
                     onChange={(p) =>
                       updateLine(i, {
                         product_id: p.id,
                         product_name: p.name,
                         product_stock: Number(p.stock_actual),
+                        ...(autoFillUnitPriceFromProduct
+                          ? { unit_price: String(p.pvp ?? "") }
+                          : {}),
                       })
                     }
                   />
@@ -251,7 +283,8 @@ export function DocumentLinesEditor({
                           onChange={(e) => {
                             let v = e.target.value;
                             // Integer stock mode: strip any decimal part.
-                            if (integerMode) v = v.replace(/[.,].*$/, "").replace(/\D/g, "");
+                            if (integerMode)
+                              v = v.replace(/[.,].*$/, "").replace(/\D/g, "");
                             updateLine(i, { quantity: v });
                           }}
                           aria-invalid={exceedsStock || undefined}
@@ -291,11 +324,21 @@ export function DocumentLinesEditor({
                       type="number"
                       min="0"
                       step="0.01"
-                      className="h-8 w-28"
+                      className={cn(
+                        "h-8 w-28",
+                        lockUnitPrice && "bg-muted text-muted-foreground",
+                      )}
                       placeholder="0.00"
                       value={line.unit_price ?? ""}
-                      onChange={(e) =>
-                        updateLine(i, { unit_price: e.target.value })
+                      onChange={(e) => {
+                        if (lockUnitPrice) return;
+                        updateLine(i, { unit_price: e.target.value });
+                      }}
+                      readOnly={lockUnitPrice}
+                      title={
+                        lockUnitPrice
+                          ? "Precio unitario tomado del producto"
+                          : undefined
                       }
                     />
                   </TableCell>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -129,19 +129,35 @@ export default function AdminUsersPage() {
       className: "text-right",
       cell: (u) => (
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setViewUser(u)}>
-            Ver
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setEditUser(u)}>
-            Editar
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setViewUser(u)}
+            title="Ver usuario"
+            aria-label="Ver usuario"
+          >
+            <Eye className="h-4 w-4 text-primary" />
           </Button>
           <Button
             variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setDeleteTarget(u)}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setEditUser(u)}
+            title="Editar usuario"
+            aria-label="Editar usuario"
           >
-            Eliminar
+            <Pencil className="h-4 w-4 text-primary" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => setDeleteTarget(u)}
+            title="Eliminar usuario"
+            aria-label="Eliminar usuario"
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),

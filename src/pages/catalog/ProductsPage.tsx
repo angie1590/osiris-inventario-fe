@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, AlertTriangle, BookOpen, X } from "lucide-react";
+import {
+  Plus,
+  AlertTriangle,
+  BookOpen,
+  Eye,
+  Pencil,
+  Power,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -203,22 +211,46 @@ export default function ProductsPage() {
       className: "text-right",
       cell: (p) => (
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setViewProduct(p)}>
-            Ver
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setViewProduct(p)}
+            title="Ver producto"
+            aria-label="Ver producto"
+          >
+            <Eye className="h-4 w-4 text-primary" />
           </Button>
           {canEdit && (
-            <Button variant="ghost" size="sm" onClick={() => setEditProduct(p)}>
-              Editar
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setEditProduct(p)}
+              title="Editar producto"
+              aria-label="Editar producto"
+            >
+              <Pencil className="h-4 w-4 text-primary" />
             </Button>
           )}
           {canEdit && (
             <Button
               variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
               onClick={() => handleStatusClick(p)}
+              title={
+                p.status === "active"
+                  ? "Desactivar producto"
+                  : "Activar producto"
+              }
+              aria-label={
+                p.status === "active"
+                  ? "Desactivar producto"
+                  : "Activar producto"
+              }
             >
-              {p.status === "active" ? "Desactivar" : "Activar"}
+              <Power className="h-4 w-4 text-destructive" />
             </Button>
           )}
         </div>

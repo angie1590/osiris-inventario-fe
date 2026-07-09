@@ -292,6 +292,8 @@ export default function AdminParamsPage() {
                               (p.key === "kardex_method" &&
                                 isKardexMethodLocked)
                             }
+                            title="Guardar"
+                            aria-label="Guardar"
                           >
                             <Check className="h-3.5 w-3.5 text-green-600" />
                           </Button>
@@ -300,6 +302,8 @@ export default function AdminParamsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={cancelEdit}
+                            title="Cancelar"
+                            aria-label="Cancelar"
                           >
                             <X className="h-3.5 w-3.5 text-muted-foreground" />
                           </Button>
@@ -316,8 +320,9 @@ export default function AdminParamsPage() {
                           title={
                             p.key === "kardex_method" && isKardexMethodLocked
                               ? "Bloqueado: existen movimientos en el año fiscal vigente"
-                              : undefined
+                              : "Editar parámetro"
                           }
+                          aria-label="Editar parámetro"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
