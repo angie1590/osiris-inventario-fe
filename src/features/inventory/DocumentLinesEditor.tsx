@@ -313,7 +313,7 @@ export function DocumentLinesEditor({
             )}
             {lines.map((line, i) => (
               <TableRow key={i}>
-                <TableCell>
+                <TableCell className="align-top">
                   <ProductCombobox
                     value={line.product_id || null}
                     prioritizeInStock={prioritizeInStock}
@@ -330,7 +330,7 @@ export function DocumentLinesEditor({
                     }
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top">
                   {(() => {
                     const quantityNumber = Number(line.quantity);
                     const exceedsStock =
@@ -340,7 +340,7 @@ export function DocumentLinesEditor({
                       quantityNumber > line.product_stock;
 
                     return (
-                      <div className="space-y-1">
+                      <div className="relative">
                         <Input
                           type="number"
                           min={integerMode ? "1" : "0.0001"}
@@ -375,7 +375,7 @@ export function DocumentLinesEditor({
                   })()}
                 </TableCell>
                 {showUnitCost && (
-                  <TableCell>
+                  <TableCell className="align-top">
                     <Input
                       type="number"
                       min="0"
@@ -408,7 +408,7 @@ export function DocumentLinesEditor({
                     return (
                       <>
                         {/* PVP locked */}
-                        <TableCell>
+                        <TableCell className="align-top">
                           <Input
                             type="number"
                             className="h-8 w-24 bg-muted text-muted-foreground"
@@ -420,8 +420,8 @@ export function DocumentLinesEditor({
                         </TableCell>
 
                         {/* Descuento: toggle tipo + valor */}
-                        <TableCell>
-                          <div className="space-y-1">
+                        <TableCell className="align-top">
+                          <div className="relative">
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
@@ -520,7 +520,7 @@ export function DocumentLinesEditor({
                         </TableCell>
 
                         {/* Precio final calculado */}
-                        <TableCell>
+                        <TableCell className="align-top">
                           <Input
                             type="number"
                             className="h-8 w-28 bg-muted font-medium text-foreground"
@@ -535,7 +535,7 @@ export function DocumentLinesEditor({
                   })()}
 
                 {showUnitPrice && !showDiscount && (
-                  <TableCell>
+                  <TableCell className="align-top">
                     <Input
                       type="number"
                       min="0"
@@ -559,7 +559,7 @@ export function DocumentLinesEditor({
                     />
                   </TableCell>
                 )}
-                <TableCell>
+                <TableCell className="align-top">
                   <Button
                     type="button"
                     variant="ghost"
