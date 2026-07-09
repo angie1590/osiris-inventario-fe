@@ -104,24 +104,53 @@
     background-color: hsl(var(--content-bg));
     color: hsl(var(--foreground));
     margin: 0;
-    font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family:
+      "IBM Plex Sans",
+      "Segoe UI",
+      system-ui,
+      -apple-system,
+      sans-serif;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
 }
 
 @layer utilities {
-  .z-base { z-index: var(--z-base); }
-  .z-sticky { z-index: var(--z-sticky); }
-  .z-topbar { z-index: var(--z-topbar); }
-  .z-dropdown { z-index: var(--z-dropdown); }
-  .z-drawer { z-index: var(--z-drawer); }
-  .z-modal-overlay { z-index: var(--z-modal-overlay); }
-  .z-modal-content { z-index: var(--z-modal-content); }
-  .z-toast { z-index: var(--z-toast); }
-  .z-critical { z-index: var(--z-critical); }
+  .z-base {
+    z-index: var(--z-base);
+  }
+  .z-sticky {
+    z-index: var(--z-sticky);
+  }
+  .z-topbar {
+    z-index: var(--z-topbar);
+  }
+  .z-dropdown {
+    z-index: var(--z-dropdown);
+  }
+  .z-drawer {
+    z-index: var(--z-drawer);
+  }
+  .z-modal-overlay {
+    z-index: var(--z-modal-overlay);
+  }
+  .z-modal-content {
+    z-index: var(--z-modal-content);
+  }
+  .z-toast {
+    z-index: var(--z-toast);
+  }
+  .z-critical {
+    z-index: var(--z-critical);
+  }
 
-  .shadow-token-sm { box-shadow: var(--shadow-sm); }
-  .shadow-token-md { box-shadow: var(--shadow-md); }
-  .shadow-token-lg { box-shadow: var(--shadow-lg); }
+  .shadow-token-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  .shadow-token-md {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-token-lg {
+    box-shadow: var(--shadow-lg);
+  }
 }

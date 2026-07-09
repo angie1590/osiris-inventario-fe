@@ -19,7 +19,9 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryDocument } from "@/types/api";
 
 const approveSchema = z.object({
-  authorization_code: z.string().regex(/^\d{4}$/, "El PIN debe tener 4 dígitos"),
+  authorization_code: z
+    .string()
+    .regex(/^\d{4}$/, "El PIN debe tener 4 dígitos"),
 });
 
 interface Props {
@@ -172,8 +174,8 @@ export function ApprovalActions({ doc }: Props) {
               <DialogTitle>Configurar código de aprobación</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Define tu PIN personal (4 dígitos). Se usará
-              para aprobar bajas y ajustes.
+              Define tu PIN personal (4 dígitos). Se usará para aprobar bajas y
+              ajustes.
             </p>
             <form
               onSubmit={handleSubmitCode(handleSetCode)}
@@ -184,7 +186,10 @@ export function ApprovalActions({ doc }: Props) {
                 <Input
                   {...registerCode("approval_code", {
                     required: "PIN requerido",
-                    pattern: { value: /^\d{4}$/, message: "Debe tener 4 dígitos" },
+                    pattern: {
+                      value: /^\d{4}$/,
+                      message: "Debe tener 4 dígitos",
+                    },
                   })}
                   placeholder="Ej. 1234"
                   maxLength={4}
@@ -192,7 +197,9 @@ export function ApprovalActions({ doc }: Props) {
                   autoComplete="one-time-code"
                   className="h-11 text-center text-lg font-mono tracking-[0.25em]"
                   onChange={(e) => {
-                    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    e.target.value = e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 4);
                   }}
                 />
                 {codeErrors.approval_code && (
@@ -249,7 +256,9 @@ export function ApprovalActions({ doc }: Props) {
                   autoComplete="one-time-code"
                   className="h-11 text-center text-lg font-mono tracking-[0.25em]"
                   onChange={(e) => {
-                    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    e.target.value = e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 4);
                   }}
                 />
                 {errors.authorization_code && (

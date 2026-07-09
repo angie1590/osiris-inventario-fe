@@ -111,9 +111,7 @@ export function Topbar({
   };
 
   const handleSavePin = async () => {
-    const normalized = approvalCode
-      .replace(/\D/g, "")
-      .slice(0, 4);
+    const normalized = approvalCode.replace(/\D/g, "").slice(0, 4);
     if (normalized.length !== 4) {
       toast({
         variant: "destructive",
@@ -334,9 +332,7 @@ export function Topbar({
                         value={approvalCode}
                         onChange={(e) =>
                           setApprovalCode(
-                            e.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, 4),
+                            e.target.value.replace(/\D/g, "").slice(0, 4),
                           )
                         }
                         maxLength={4}

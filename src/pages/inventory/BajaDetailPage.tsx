@@ -1,11 +1,11 @@
-import { useParams } from 'react-router-dom'
-import { useDocument } from '@/features/inventory/hooks'
-import { DocumentDetail } from '@/features/inventory/DocumentDetail'
-import { ApprovalActions } from '@/features/inventory/ApprovalActions'
+import { useParams } from "react-router-dom";
+import { useDocument } from "@/features/inventory/hooks";
+import { DocumentDetail } from "@/features/inventory/DocumentDetail";
+import { ApprovalActions } from "@/features/inventory/ApprovalActions";
 
 export default function BajaDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const { data: doc } = useDocument(Number(id), 'BI')
+  const { id } = useParams<{ id: string }>();
+  const { data: doc } = useDocument(Number(id), "BI");
 
   return (
     <DocumentDetail
@@ -13,5 +13,5 @@ export default function BajaDetailPage() {
       docType="BI"
       extraActions={doc ? <ApprovalActions doc={doc} /> : undefined}
     />
-  )
+  );
 }
