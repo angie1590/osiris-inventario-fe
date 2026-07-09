@@ -173,9 +173,10 @@ export default function ProductsPage() {
     {
       key: "stock_actual",
       header: "Stock",
-      align: "right",
+      align: "center",
       sortable: true,
       sortAccessor: (p) => p.stock_actual,
+      className: "text-center",
       cell: (p) => (
         <span className={p.bajo_stock ? "font-medium text-destructive" : ""}>
           {fmtQty(p.stock_actual)}
@@ -185,9 +186,10 @@ export default function ProductsPage() {
     {
       key: "stock_minimo",
       header: "Stock mín.",
-      align: "right",
+      align: "center",
       sortable: true,
       sortAccessor: (p) => p.stock_minimo,
+      className: "text-center",
       cell: (p) => fmtQty(p.stock_minimo),
     },
     {
@@ -196,6 +198,7 @@ export default function ProductsPage() {
       align: "right",
       sortable: true,
       sortAccessor: (p) => p.pvp,
+      className: "text-right",
       cell: (p) => fmtCurrency(p.pvp),
     },
     {

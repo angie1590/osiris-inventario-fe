@@ -43,7 +43,7 @@ const schema = z.object({
   codigo_interno: z.string().max(50, "Máximo 50 caracteres").optional(),
   name: z.string().min(1, "Requerido"),
   description: z.string().optional(),
-  category_id: z.number({ error: "Requerido" }).min(1, "Requerido"),
+  category_id: z.number({ error: "Categoría requerida" }).min(1, "Categoría requerida"),
   stock_minimo: z.string().optional(),
   pvp: z.string().min(1, "Requerido"),
 });
@@ -317,6 +317,13 @@ export function ProductForm({
 
   const onSubmit = async (data: FormData) => {
     setFormError(null);
+
+    // Validate category is selected
+    if (!data.category_id || data.category_id < 1) {
+      setError("category_id", { message: "Categoría requerida" });
+      setFormError("Selecciona una categoría para continuar.");
+      return;
+    }
 
     // Barcode: required is parametrizable; length only enforced when provided.
     const isbnVal = (data.isbn ?? "").trim();
