@@ -68,20 +68,20 @@ export default function ProductDetailPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Información general</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between gap-4"><span className="text-muted-foreground">Categoría</span><span className="text-right">{buildCategoryPath(categories ?? [], product.category_id)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Descripción</span><span>{product.description || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">PVP</span><span>${Number(product.pvp).toFixed(2)}</span></div>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex justify-between items-center"><span className="text-muted-foreground">Categoría</span><span className="text-right font-medium">{buildCategoryPath(categories ?? [], product.category_id)}</span></div>
+            <div className="flex justify-between items-center"><span className="text-muted-foreground">Descripción</span><span className="text-right font-medium">{product.description || '—'}</span></div>
+            <div className="flex justify-between items-center"><span className="text-muted-foreground">PVP</span><span className="text-right font-medium">${Number(product.pvp).toFixed(2)}</span></div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>Stock</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Stock actual</span>
-              <span className={product.bajo_stock ? 'text-destructive font-bold' : 'font-bold'}>{formatQuantity(product.stock_actual, integerMode)}</span>
+              <span className={product.bajo_stock ? 'text-destructive font-bold text-right' : 'font-bold text-right'}>{formatQuantity(product.stock_actual, integerMode)}</span>
             </div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Stock mínimo</span><span>{formatQuantity(product.stock_minimo, integerMode)}</span></div>
+            <div className="flex justify-between items-center"><span className="text-muted-foreground">Stock mínimo</span><span className="text-right font-medium">{formatQuantity(product.stock_minimo, integerMode)}</span></div>
           </CardContent>
         </Card>
       </div>

@@ -464,28 +464,30 @@ export function ProductForm({
           required
           error={errors.category_id?.message}
         >
-          <div className="space-y-3">
-            <Controller
-              control={control}
-              name="category_id"
-              render={({ field }) => (
-                <TreeSelector
-                  categories={(categories ?? []).filter((c) => !c.is_default)}
-                  value={field.value as number | null}
-                  onChange={field.onChange}
-                  leafOnly
-                />
-              )}
-            />
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Controller
+                control={control}
+                name="category_id"
+                render={({ field }) => (
+                  <TreeSelector
+                    categories={(categories ?? []).filter((c) => !c.is_default)}
+                    value={field.value as number | null}
+                    onChange={field.onChange}
+                    leafOnly
+                  />
+                )}
+              />
+            </div>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 mb-1"
               onClick={() => setShowCategoryForm(true)}
-              className="w-full"
+              title="Crear nueva categoría"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Crear nueva categoría
+              <Plus className="h-4 w-4" />
             </Button>
           </div>
         </FormField>
