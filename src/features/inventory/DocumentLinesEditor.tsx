@@ -58,6 +58,40 @@ export function applyDiscount(
   return Math.max(0, pvp - d);
 }
 
+/** Convierte el valor de descuento de un tipo a otro. */
+export function convertDiscountValue(
+  value: string,
+  fromType: DiscountType,
+  toType: DiscountType,
+  pvp: number,
+): string {
+  if (fromType === toType || pvp <= 0) return value;
+  const v = parseFloat(value) || 0;
+  if (v === 0) return "";
+  if (fromType === "percent" && toType === "fixed") {
+    // % -> $: 10% de 1000 = 100
+    return ((pvp * v) / 100).toFixed(2);
+  } else if (fromType === "fixed" && toType === "percent") {
+    // $ -> %: 100 de 1000 = 10%
+    return ((v / pvp) * 100).toFixed(2);
+  }
+  return value;
+}
+
+/** Obtiene el equivalente del descuento en la otra unidad. */
+export function getEquivalentDiscount(
+  value: string,
+  discType: DiscountType,
+  pvp: number,
+): string {
+  const v = parseFloat(value) || 0;
+  if (v === 0 || pvp <= 0) return "0";
+  if (discType === "percent") {
+    return ((pvp * v) / 100).toFixed(2);
+  }
+  return ((v / pvp) * 100).toFixed(2);
+}
+
 function ProductCombobox({
   onChange,
   prioritizeInStock = false,
@@ -387,63 +421,102 @@ export function DocumentLinesEditor({
 
                         {/* Descuento: toggle tipo + valor */}
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              className={cn(
-                                "h-8 rounded-l-md border px-2 text-xs font-semibold transition-colors",
-                                discType === "percent"
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-input bg-background text-muted-foreground hover:bg-accent",
-                              )}
-                              onClick={() =>
-                                updateLine(i, { discount_type: "percent" })
-                              }
-                              title="Descuento en porcentaje"
-                            >
-                              %
-                            </button>
-                            <button
-                              type="button"
-                              className={cn(
-                                "h-8 rounded-r-md border-y border-r px-2 text-xs font-semibold transition-colors",
-                                discType === "fixed"
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-input bg-background text-muted-foreground hover:bg-accent",
-                              )}
-                              onClick={() =>
-                                updateLine(i, { discount_type: "fixed" })
-                              }
-                              title="Descuento en valor fijo"
-                            >
-                              $
-                            </button>
-                            <Input
-                              type="number"
-                              min="0"
-                              max={discType === "percent" ? "100" : undefined}
-                              step="0.01"
-                              className={cn(
-                                "h-8 w-20",
-                                discountExceedsPvp &&
-                                  "border-destructive bg-rose-50 text-destructive",
-                              )}
-                              placeholder={
-                                discType === "percent" ? "0 %" : "0.00"
-                              }
-                              value={line.discount_value ?? ""}
-                              onChange={(e) =>
-                                updateLine(i, {
-                                  discount_value: e.target.value,
-                                })
-                              }
-                            />
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "h-8 rounded-l-md border px-2 text-xs font-semibold transition-colors",
+                                  discType === "percent"
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-input bg-background text-muted-foreground hover:bg-accent",
+                                )}
+                                onClick={() => {
+                                  if (discType !== "percent") {
+                                    const converted = convertDiscountValue(
+                                      line.discount_value ?? "",
+                                      discType,
+                                      "percent",
+                                      pvp,
+                                    );
+                                    updateLine(i, {
+                                      discount_type: "percent",
+                                      discount_value: converted,
+                                    });
+                                  }
+                                }}
+                                title="Descuento en porcentaje"
+                              >
+                                %
+                              </button>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "h-8 rounded-r-md border-y border-r px-2 text-xs font-semibold transition-colors",
+                                  discType === "fixed"
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-input bg-background text-muted-foreground hover:bg-accent",
+                                )}
+                                onClick={() => {
+                                  if (discType !== "fixed") {
+                                    const converted = convertDiscountValue(
+                                      line.discount_value ?? "",
+                                      discType,
+                                      "fixed",
+                                      pvp,
+                                    );
+                                    updateLine(i, {
+                                      discount_type: "fixed",
+                                      discount_value: converted,
+                                    });
+                                  }
+                                }}
+                                title="Descuento en valor fijo"
+                              >
+                                $
+                              </button>
+                              <Input
+                                type="number"
+                                min="0"
+                                max={discType === "percent" ? "100" : undefined}
+                                step="0.01"
+                                className={cn(
+                                  "h-8 w-20",
+                                  discountExceedsPvp &&
+                                    "border-destructive bg-rose-50 text-destructive",
+                                )}
+                                placeholder={
+                                  discType === "percent" ? "0 %" : "0.00"
+                                }
+                                value={line.discount_value ?? ""}
+                                onChange={(e) =>
+                                  updateLine(i, {
+                                    discount_value: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            {(line.discount_value ?? "") !== "" && pvp > 0 && (
+                              <p className="text-[11px] text-muted-foreground">
+                                {discType === "percent"
+                                  ? `≈ $${getEquivalentDiscount(
+                                      line.discount_value ?? "",
+                                      discType,
+                                      pvp,
+                                    )}`
+                                  : `≈ ${getEquivalentDiscount(
+                                      line.discount_value ?? "",
+                                      discType,
+                                      pvp,
+                                    )}%`}
+                              </p>
+                            )}
+                            {discountExceedsPvp && (
+                              <p className="text-[11px] font-medium text-destructive">
+                                Descuento supera el PVP.
+                              </p>
+                            )}
                           </div>
-                          {discountExceedsPvp && (
-                            <p className="mt-0.5 text-[11px] font-medium text-destructive">
-                              Descuento supera el PVP.
-                            </p>
-                          )}
                         </TableCell>
 
                         {/* Precio final calculado */}
