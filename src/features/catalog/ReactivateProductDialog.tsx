@@ -42,13 +42,12 @@ export function ReactivateProductDialog({ product, onClose }: { product: Product
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose() }}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Reactivar producto</DialogTitle></DialogHeader>
-        <DialogBody className="space-y-4">
+        <DialogBody className="space-y-3">
           {formError && <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>}
           <p className="text-sm text-muted-foreground">
-            La categoría original de <strong>{product.name}</strong> fue eliminada. Asígnale una
-            categoría activa para reactivarlo y evitar datos inconsistentes.
+            La categoría de <strong>{product.name}</strong> fue eliminada. Selecciona una categoría activa para reactivarlo.
           </p>
           <FormField label="Categoría" required>
             <TreeSelector

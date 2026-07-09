@@ -21,7 +21,7 @@ export function ProductFormModal({ product, onClose }: ProductFormModalProps) {
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? "Editar producto" : "Nuevo producto"}
