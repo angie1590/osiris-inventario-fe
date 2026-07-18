@@ -1,54 +1,59 @@
-import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, BookOpen, Pencil, AlertTriangle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { useProduct, useToggleProductStatus, useCategories } from '@/features/catalog/hooks'
-import { buildCategoryPath } from '@/features/catalog/categoryPath'
-import { ReactivateProductDialog } from '@/features/catalog/ReactivateProductDialog'
-import { useStockMode, formatQuantity } from '@/hooks/useStockMode'
-import { useAuth } from '@/contexts/AuthContext'
-import { useToast } from '@/hooks/use-toast'
+import { useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, BookOpen, Pencil, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import {
+  useProduct,
+  useToggleProductStatus,
+  useCategories,
+} from "@/features/catalog/hooks";
+import { buildCategoryPath } from "@/features/catalog/categoryPath";
+import { ReactivateProductDialog } from "@/features/catalog/ReactivateProductDialog";
+import { useStockMode, formatQuantity } from "@/hooks/useStockMode";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ProductDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { user } = useAuth()
-  const { toast } = useToast()
-  const canEdit = user?.role === 'admin' || user?.role === 'operator'
-  const [confirmToggle, setConfirmToggle] = useState(false)
-  const [reactivate, setReactivate] = useState(false)
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const canEdit = user?.role === "admin" || user?.role === "operator";
+  const [confirmToggle, setConfirmToggle] = useState(false);
+  const [reactivate, setReactivate] = useState(false);
 
-  const { data: product, isLoading } = useProduct(Number(id))
-  const { data: categories } = useCategories()
-  const { integerMode } = useStockMode()
-  const toggleStatus = useToggleProductStatus()
+  const { data: product, isLoading } = useProduct(Number(id));
+  const { data: categories } = useCategories();
+  const { integerMode } = useStockMode();
+  const toggleStatus = useToggleProductStatus();
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />
-  if (!product) return <p>Producto no encontrado</p>
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (!product) return <p>Producto no encontrado</p>;
 
   const handleToggle = async () => {
-    const newStatus = product.status === 'active' ? 'inactive' : 'active'
+    const newStatus = product.status === "active" ? "inactive" : "active";
     try {
-      await toggleStatus.mutateAsync({ id: product.id, status: newStatus })
+      await toggleStatus.mutateAsync({ id: product.id, status: newStatus });
       toast({
-        variant: 'success',
-        title: newStatus === 'active' ? 'Producto activado' : 'Producto desactivado',
-        description: `"${product.name}" ${newStatus === 'active' ? 'activado' : 'desactivado'} correctamente.`,
-      })
+        variant: "success",
+        title:
+          newStatus === "active" ? "Producto activado" : "Producto desactivado",
+        description: `"${product.name}" ${newStatus === "active" ? "activado" : "desactivado"} correctamente.`,
+      });
     } catch {
       toast({
-        variant: 'destructive',
-        title: 'Error al cambiar estado',
+        variant: "destructive",
+        title: "Error al cambiar estado",
         description: `No se pudo actualizar "${product.name}". Intenta nuevamente.`,
-      })
-      throw new Error('toggle failed')
+      });
+      throw new Error("toggle failed");
     }
-  }
+  };
 
   return (
     <div className="space-y-4">
@@ -56,45 +61,111 @@ export default function ProductDetailPage() {
         title={product.name}
         actions={
           <div className="flex items-center gap-2">
-            <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
-              {product.status === 'active' ? 'Activo' : 'Inactivo'}
+            <Badge
+              variant={product.status === "active" ? "default" : "secondary"}
+            >
+              {product.status === "active" ? "Activo" : "Inactivo"}
             </Badge>
-            {product.bajo_stock && <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3" />Bajo Stock</Badge>}
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /></Button>
+            {product.bajo_stock && (
+              <Badge variant="destructive">
+                <AlertTriangle className="mr-1 h-3 w-3" />
+                Bajo Stock
+              </Badge>
+            )}
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
           </div>
         }
       />
 
       <div className="grid gap-4 md:grid-cols-2">
+        {product.photo && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle>Foto</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <img
+                src={product.photo}
+                alt={product.name}
+                className="max-h-72 w-full rounded-md border object-contain"
+              />
+            </CardContent>
+          </Card>
+        )}
         <Card>
-          <CardHeader><CardTitle>Información general</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Información general</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between items-center"><span className="text-muted-foreground">Categoría</span><span className="text-right font-medium">{buildCategoryPath(categories ?? [], product.category_id)}</span></div>
-            <div className="flex justify-between items-center"><span className="text-muted-foreground">Descripción</span><span className="text-right font-medium">{product.description || '—'}</span></div>
-            <div className="flex justify-between items-center"><span className="text-muted-foreground">PVP</span><span className="text-right font-medium">${Number(product.pvp).toFixed(2)}</span></div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Código de barras</span>
+              <span className="text-right font-medium">{product.isbn}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Categoría</span>
+              <span className="text-right font-medium">
+                {buildCategoryPath(categories ?? [], product.category_id)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Descripción</span>
+              <span className="text-right font-medium">
+                {product.description || "—"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">PVP</span>
+              <span className="text-right font-medium">
+                ${Number(product.pvp).toFixed(2)}
+              </span>
+            </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Stock</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Stock</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Stock actual</span>
-              <span className={product.bajo_stock ? 'text-destructive font-bold text-right' : 'font-bold text-right'}>{formatQuantity(product.stock_actual, integerMode)}</span>
+              <span
+                className={
+                  product.bajo_stock
+                    ? "text-destructive font-bold text-right"
+                    : "font-bold text-right"
+                }
+              >
+                {formatQuantity(product.stock_actual, integerMode)}
+              </span>
             </div>
-            <div className="flex justify-between items-center"><span className="text-muted-foreground">Stock mínimo</span><span className="text-right font-medium">{formatQuantity(product.stock_minimo, integerMode)}</span></div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Stock mínimo</span>
+              <span className="text-right font-medium">
+                {formatQuantity(product.stock_minimo, integerMode)}
+              </span>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {Object.keys(product.custom_attributes ?? {}).length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Atributos personalizados</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Atributos personalizados</CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="grid gap-2 text-sm md:grid-cols-2">
               {Object.entries(product.custom_attributes).map(([k, v]) => (
-                <div key={k} className="flex justify-between rounded bg-muted/50 px-3 py-1">
+                <div
+                  key={k}
+                  className="flex justify-between rounded bg-muted/50 px-3 py-1"
+                >
                   <span className="text-muted-foreground">{k}</span>
-                  <span>{typeof v === 'boolean' ? (v ? 'Sí' : 'No') : String(v)}</span>
+                  <span>
+                    {typeof v === "boolean" ? (v ? "Sí" : "No") : String(v)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -105,23 +176,30 @@ export default function ProductDetailPage() {
       <div className="flex gap-2">
         {canEdit && (
           <Button onClick={() => navigate(`/products/${product.id}/edit`)}>
-            <Pencil className="mr-2 h-4 w-4" />Editar
+            <Pencil className="mr-2 h-4 w-4" />
+            Editar
           </Button>
         )}
         {canEdit && (
           <Button
             variant="outline"
             onClick={() => {
-              const categoryAlive = (categories ?? []).some((c) => c.id === product.category_id)
-              if (product.status === 'inactive' && !categoryAlive) setReactivate(true)
-              else setConfirmToggle(true)
+              const categoryAlive = (categories ?? []).some(
+                (c) => c.id === product.category_id,
+              );
+              if (product.status === "inactive" && !categoryAlive)
+                setReactivate(true);
+              else setConfirmToggle(true);
             }}
           >
-            {product.status === 'active' ? 'Desactivar' : 'Activar'}
+            {product.status === "active" ? "Desactivar" : "Activar"}
           </Button>
         )}
         <Button variant="outline" asChild>
-          <Link to={`/kardex/${product.id}`}><BookOpen className="mr-2 h-4 w-4" />Ver Kardex</Link>
+          <Link to={`/kardex/${product.id}`}>
+            <BookOpen className="mr-2 h-4 w-4" />
+            Ver Kardex
+          </Link>
         </Button>
       </div>
 
@@ -129,17 +207,29 @@ export default function ProductDetailPage() {
         <ConfirmDialog
           open
           onClose={() => setConfirmToggle(false)}
-          title={product.status === 'active' ? 'Desactivar producto' : 'Activar producto'}
-          description={<>¿{product.status === 'active' ? 'Desactivar' : 'Activar'} el producto <strong>{product.name}</strong>?</>}
-          confirmLabel={product.status === 'active' ? 'Desactivar' : 'Activar'}
-          variant={product.status === 'active' ? 'danger' : 'default'}
+          title={
+            product.status === "active"
+              ? "Desactivar producto"
+              : "Activar producto"
+          }
+          description={
+            <>
+              ¿{product.status === "active" ? "Desactivar" : "Activar"} el
+              producto <strong>{product.name}</strong>?
+            </>
+          }
+          confirmLabel={product.status === "active" ? "Desactivar" : "Activar"}
+          variant={product.status === "active" ? "danger" : "default"}
           onConfirm={handleToggle}
         />
       )}
 
       {reactivate && (
-        <ReactivateProductDialog product={product} onClose={() => setReactivate(false)} />
+        <ReactivateProductDialog
+          product={product}
+          onClose={() => setReactivate(false)}
+        />
       )}
     </div>
-  )
+  );
 }

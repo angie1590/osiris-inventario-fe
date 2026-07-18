@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus } from "lucide-react";
+import { ImagePlus, Link2, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DialogBody, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormField } from "@/components/shared/FormField";
 import { Section } from "@/components/shared/Section";
 import { TreeSelector } from "@/components/shared/TreeSelector";
@@ -36,8 +38,17 @@ import {
 import { useCatalogValues } from "@/features/catalog/catalogHooks";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { CategoryFormModal } from "@/features/catalog/CategoryFormModal";
+import {
+  isAllowedProductPhotoFile,
+  isAllowedProductPhotoUrl,
+  PRODUCT_PHOTO_ACCEPT,
+  readFileAsDataUrl,
+} from "@/features/catalog/productPhoto";
 import { useToast } from "@/hooks/use-toast";
 import type { CategoryAttribute, Product, Category } from "@/types/api";
+
+const PHOTO_HELP =
+  "PNG, JPG, JPEG o HEIC. También puedes usar una URL directa a la imagen.";
 
 const schema = z.object({
   // Barcode length/required validated in onSubmit (depends on the system param).
@@ -45,7 +56,9 @@ const schema = z.object({
   codigo_interno: z.string().max(50, "Máximo 50 caracteres").optional(),
   name: z.string().min(1, "Requerido"),
   description: z.string().optional(),
-  category_id: z.number({ error: "Categoría requerida" }).min(1, "Categoría requerida"),
+  category_id: z
+    .number({ error: "Categoría requerida" })
+    .min(1, "Categoría requerida"),
   stock_minimo: z.string().optional(),
   pvp: z.string().min(1, "Requerido"),
 });
@@ -152,6 +165,13 @@ function AttributeField({
                   ? "date"
                   : "text"
             }
+            step={
+              attr.data_type === "decimal"
+                ? "0.01"
+                : attr.data_type === "integer"
+                  ? "1"
+                  : undefined
+            }
             min={
               (attr.data_type === "integer" || attr.data_type === "decimal") &&
               !attr.allow_negative
@@ -203,6 +223,19 @@ export function ProductForm({
   const [useInternalCodeAsIsbn, setUseInternalCodeAsIsbn] = useState(false);
   // Modal to create new category
   const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(product?.photo ?? null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(
+    product?.photo ?? null,
+  );
+  const [photoUrl, setPhotoUrl] = useState(
+    product?.photo?.startsWith("http") ? product.photo : "",
+  );
+  const [photoTab, setPhotoTab] = useState<"file" | "url">(
+    product?.photo?.startsWith("http") ? "url" : "file",
+  );
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -238,13 +271,32 @@ export function ProductForm({
       });
       setCustomAttrs({ ...(product.custom_attributes ?? {}) });
       confirmedCategoryRef.current = product.category_id;
+      setPhoto(product.photo ?? null);
+      setPhotoPreview(product.photo ?? null);
+      setPhotoUrl(product.photo?.startsWith("http") ? product.photo : "");
+      setPhotoTab(product.photo?.startsWith("http") ? "url" : "file");
+      setPhotoRemoved(false);
+      setPhotoError(null);
+    } else {
+      setPhoto(null);
+      setPhotoPreview(null);
+      setPhotoUrl("");
+      setPhotoTab("file");
+      setPhotoRemoved(false);
+      setPhotoError(null);
     }
   }, [product, reset, integerMode]);
 
   const categoryId = watch("category_id");
+  const internalCodeValue = watch("codigo_interno");
   const { data: attrs, isLoading: attrsLoading } = useCategoryAttributes(
     categoryId ?? 0,
   );
+
+  useEffect(() => {
+    if (!useInternalCodeAsIsbn) return;
+    setValue("isbn", internalCodeValue ?? "", { shouldValidate: true });
+  }, [internalCodeValue, setValue, useInternalCodeAsIsbn]);
 
   // On category change: create → just clear; edit → warn before dropping values
   // of attributes that no longer apply, then clean them on confirm.
@@ -323,6 +375,7 @@ export function ProductForm({
 
   const onSubmit = async (data: FormData) => {
     setFormError(null);
+    setPhotoError(null);
 
     // Validate category is selected
     if (!data.category_id || data.category_id < 1) {
@@ -346,6 +399,24 @@ export function ProductForm({
       return;
     }
 
+    let photoValue: string | null | undefined;
+    const normalizedUrl = photoUrl.trim();
+    if (photoRemoved) {
+      photoValue = null;
+    } else if (normalizedUrl) {
+      if (!isAllowedProductPhotoUrl(normalizedUrl)) {
+        setPhotoError(
+          "La URL debe apuntar directamente a una imagen PNG, JPG, JPEG o HEIC.",
+        );
+        return;
+      }
+      photoValue = normalizedUrl;
+    } else if (photo) {
+      photoValue = photo;
+    } else if (!isEdit) {
+      photoValue = undefined;
+    }
+
     // Validate custom attributes inline (required + numeric/negative).
     if (!validateCustomAttrs()) {
       setFormError("Revisa los atributos marcados en rojo.");
@@ -353,10 +424,11 @@ export function ProductForm({
     }
 
     const payload = {
-      isbn: data.isbn || undefined,
+      isbn: isbnVal || undefined,
       ...(internalCodeEnabled
         ? { codigo_interno: data.codigo_interno?.trim() || null }
         : {}),
+      ...(photoValue !== undefined ? { photo: photoValue } : {}),
       name: data.name,
       description: data.description || undefined,
       category_id: data.category_id,
@@ -435,7 +507,6 @@ export function ProductForm({
             placeholder="7501234567890"
             aria-invalid={!!errors.isbn}
             disabled={useInternalCodeAsIsbn}
-            value={useInternalCodeAsIsbn ? watch("codigo_interno") ?? "" : watch("isbn") ?? ""}
           />
         </FormField>
         {internalCodeEnabled && (
@@ -445,7 +516,10 @@ export function ProductForm({
               checked={useInternalCodeAsIsbn}
               onCheckedChange={(checked) => setUseInternalCodeAsIsbn(!!checked)}
             />
-            <label htmlFor="use-internal-as-isbn" className="text-sm text-muted-foreground cursor-pointer">
+            <label
+              htmlFor="use-internal-as-isbn"
+              className="text-sm text-muted-foreground cursor-pointer"
+            >
               Usar código interno como código de barras
             </label>
           </div>
@@ -455,6 +529,117 @@ export function ProductForm({
         </FormField>
         <FormField label="Descripción" error={errors.description?.message}>
           <Input {...register("description")} />
+        </FormField>
+        <FormField
+          label="Foto"
+          error={photoError ?? undefined}
+          hint={PHOTO_HELP}
+        >
+          <div className="space-y-3">
+            {photoPreview && (
+              <div className="flex items-start gap-3 rounded-md border p-3">
+                <img
+                  src={photoPreview}
+                  alt="Foto del producto"
+                  className="h-24 w-24 rounded-md border object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPhoto(null);
+                    setPhotoPreview(null);
+                    setPhotoUrl("");
+                    setPhotoRemoved(true);
+                    setPhotoError(null);
+                    if (photoInputRef.current) photoInputRef.current.value = "";
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Quitar foto
+                </Button>
+              </div>
+            )}
+
+            <Tabs
+              value={photoTab}
+              onValueChange={(value) => {
+                setPhotoTab(value as "file" | "url");
+                setPhotoError(null);
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="file">
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  Subir archivo
+                </TabsTrigger>
+                <TabsTrigger value="url">
+                  <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                  URL directa
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="file" className="space-y-2 pt-2">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept={PRODUCT_PHOTO_ACCEPT}
+                  onChange={async (e: ChangeEvent<HTMLInputElement>) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!isAllowedProductPhotoFile(file)) {
+                      setPhotoError(
+                        "El archivo debe ser PNG, JPG, JPEG o HEIC.",
+                      );
+                      e.target.value = "";
+                      return;
+                    }
+                    try {
+                      const result = await readFileAsDataUrl(file);
+                      setPhoto(result);
+                      setPhotoPreview(result);
+                      setPhotoUrl("");
+                      setPhotoRemoved(false);
+                      setPhotoError(null);
+                    } catch {
+                      setPhotoError("No se pudo leer la imagen seleccionada.");
+                    }
+                  }}
+                  className="cursor-pointer text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted/80"
+                />
+              </TabsContent>
+
+              <TabsContent value="url" className="space-y-2 pt-2">
+                <Input
+                  placeholder="https://ejemplo.com/producto.jpg"
+                  value={photoUrl}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setPhotoUrl(value);
+                    setPhotoRemoved(false);
+                    setPhotoError(null);
+                    if (
+                      value.trim() &&
+                      isAllowedProductPhotoUrl(value.trim())
+                    ) {
+                      setPhotoPreview(value.trim());
+                      setPhoto(null);
+                    } else if (!value.trim()) {
+                      setPhotoPreview(product?.photo ?? null);
+                    }
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
+
+            {!photoPreview && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ImagePlus className="h-4 w-4" />
+                Sin foto cargada
+              </div>
+            )}
+          </div>
         </FormField>
       </Section>
 

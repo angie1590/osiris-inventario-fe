@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -91,6 +92,7 @@ export default function ProductsPage() {
   >();
   const [showCreate, setShowCreate] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | undefined>();
+  const [photoZoomOpen, setPhotoZoomOpen] = useState(false);
 
   const {
     data: products,
@@ -113,6 +115,10 @@ export default function ProductsPage() {
   const categoryPath = (id: number) => buildCategoryPath(categories ?? [], id);
   const categoryAlive = (p: Product) =>
     (categories ?? []).some((c) => c.id === p.category_id);
+  const modalSizeForProduct = (p: Product): "md" | "lg" => {
+    const barcodeLen = p.isbn?.length ?? 0;
+    return barcodeLen > 30 ? "lg" : "md";
+  };
 
   // Reactivating a product whose category was deleted must force picking a new
   // active category; otherwise use the normal activate/deactivate confirmation.
@@ -372,7 +378,31 @@ export default function ProductsPage() {
           onClose={() => setViewProduct(undefined)}
           title={viewProduct.name}
           subtitle={viewProduct.bajo_stock ? "Bajo stock" : undefined}
+          size={modalSizeForProduct(viewProduct)}
           sections={[
+            ...(viewProduct.photo
+              ? [
+                  {
+                    content: (
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setPhotoZoomOpen(true)}
+                          className="rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          title="Ampliar foto"
+                          aria-label="Ampliar foto"
+                        >
+                          <img
+                            src={viewProduct.photo}
+                            alt={viewProduct.name}
+                            className="h-36 max-w-full cursor-zoom-in rounded-md border object-contain"
+                          />
+                        </button>
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
             {
               title: "Información general",
               fields: [
@@ -385,6 +415,15 @@ export default function ProductsPage() {
                     ]
                   : []),
                 {
+                  label: "Código de barras",
+                  value: (
+                    <span className="inline-block whitespace-nowrap">
+                      {viewProduct.isbn || "—"}
+                    </span>
+                  ),
+                  oneLine: true,
+                },
+                {
                   label: "Descripción",
                   value: viewProduct.description || "—",
                   full: true,
@@ -392,6 +431,7 @@ export default function ProductsPage() {
                 {
                   label: "Categoría",
                   value: categoryPath(viewProduct.category_id),
+                  full: true,
                 },
                 { label: "PVP", value: fmtCurrency(viewProduct.pvp) },
                 {
@@ -458,6 +498,20 @@ export default function ProductsPage() {
             </>
           }
         />
+      )}
+
+      {viewProduct?.photo && (
+        <Dialog open={photoZoomOpen} onOpenChange={setPhotoZoomOpen}>
+          <DialogContent className="max-w-5xl p-3 sm:p-4">
+            <div className="flex items-center justify-center">
+              <img
+                src={viewProduct.photo}
+                alt={viewProduct.name}
+                className="max-h-[80vh] w-auto max-w-full rounded-md object-contain"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showCreate && <ProductFormModal onClose={() => setShowCreate(false)} />}

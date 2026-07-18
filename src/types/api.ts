@@ -148,6 +148,7 @@ export interface Product {
   codigo_interno: string | null;
   name: string;
   description: string | null;
+  photo: string | null;
   category_id: number;
   stock_minimo: number;
   stock_actual: number;
@@ -164,6 +165,7 @@ export interface CreateProductPayload {
   codigo_interno?: string | null;
   name: string;
   description?: string;
+  photo?: string | null;
   category_id: number;
   stock_minimo?: number;
   pvp: string | number;
@@ -175,6 +177,7 @@ export interface UpdateProductPayload {
   codigo_interno?: string | null;
   name?: string;
   description?: string;
+  photo?: string | null;
   category_id?: number;
   stock_minimo?: number;
   pvp?: string | number;
