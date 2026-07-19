@@ -45,7 +45,12 @@ import {
   readFileAsDataUrl,
 } from "@/features/catalog/productPhoto";
 import { useToast } from "@/hooks/use-toast";
-import type { CategoryAttribute, Product, Category, ProductImage } from "@/types/api";
+import type {
+  CategoryAttribute,
+  Product,
+  Category,
+  ProductImage,
+} from "@/types/api";
 
 const PHOTO_HELP =
   "PNG, JPG, JPEG o HEIC. Puedes agregar varias imágenes por archivo o URL y marcar una como portada.";
@@ -333,9 +338,7 @@ export function ProductForm({
     initialProductPhotos(product),
   );
   const [photoUrl, setPhotoUrl] = useState("");
-  const [photoTab, setPhotoTab] = useState<"file" | "url">(
-    "file",
-  );
+  const [photoTab, setPhotoTab] = useState<"file" | "url">("file");
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoWarnings, setPhotoWarnings] = useState<PhotoWarning[]>([]);
   const [showPhotoWarningDialog, setShowPhotoWarningDialog] =
@@ -542,15 +545,15 @@ export function ProductForm({
     }
 
     const normalizedPhotos = normalizeCover(
-      photos.map((item) => ({
-        url: item.url.trim(),
-        is_cover: !!item.is_cover,
-      })).filter((item) => item.url),
+      photos
+        .map((item) => ({
+          url: item.url.trim(),
+          is_cover: !!item.is_cover,
+        }))
+        .filter((item) => item.url),
     );
 
-    const validation = await validateProductPhotosForSave(
-      normalizedPhotos,
-    );
+    const validation = await validateProductPhotosForSave(normalizedPhotos);
 
     if (validation.blocking.length > 0) {
       setPhotoWarnings([...validation.blocking, ...validation.warnings]);
@@ -674,14 +677,21 @@ export function ProductForm({
             {photos.length > 0 && (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {photos.map((item, idx) => (
-                  <div key={`${item.url}-${idx}`} className="flex items-start gap-3 rounded-md border p-3">
+                  <div
+                    key={`${item.url}-${idx}`}
+                    className="flex items-start gap-3 rounded-md border p-3"
+                  >
                     <img
                       src={item.url}
                       alt={`Foto ${idx + 1}`}
                       className="h-20 w-20 rounded-md border object-cover"
                     />
                     <div className="flex flex-1 flex-col gap-2">
-                      <span className="line-clamp-2 break-all text-xs text-muted-foreground">{item.url.startsWith("data:") ? "Imagen cargada" : item.url}</span>
+                      <span className="line-clamp-2 break-all text-xs text-muted-foreground">
+                        {item.url.startsWith("data:")
+                          ? "Imagen cargada"
+                          : item.url}
+                      </span>
                       {photoWarnings
                         .find((w) => w.index === idx)
                         ?.messages.map((msg) => (
@@ -689,7 +699,8 @@ export function ProductForm({
                             key={`${idx}-${msg}`}
                             className={`rounded px-2 py-1 text-xs ${msg.includes("2 MB") ? "bg-destructive/10 text-destructive" : "bg-amber-50 text-amber-800"}`}
                           >
-                            {msg.includes("2 MB") ? "Error:" : "Advertencia:"} {msg}
+                            {msg.includes("2 MB") ? "Error:" : "Advertencia:"}{" "}
+                            {msg}
                           </span>
                         ))}
                       <div className="flex flex-wrap gap-2">
@@ -699,7 +710,10 @@ export function ProductForm({
                           size="sm"
                           onClick={() => {
                             setPhotos((prev) =>
-                              prev.map((p, i) => ({ ...p, is_cover: i === idx })),
+                              prev.map((p, i) => ({
+                                ...p,
+                                is_cover: i === idx,
+                              })),
                             );
                             setPhotoWarnings([]);
                           }}
@@ -756,14 +770,20 @@ export function ProductForm({
                   onChange={async (e: ChangeEvent<HTMLInputElement>) => {
                     const files = Array.from(e.target.files ?? []);
                     if (files.length === 0) return;
-                    const invalid = files.find((file) => !isAllowedProductPhotoFile(file));
+                    const invalid = files.find(
+                      (file) => !isAllowedProductPhotoFile(file),
+                    );
                     if (invalid) {
-                      setPhotoError("Los archivos deben ser PNG, JPG, JPEG o HEIC.");
+                      setPhotoError(
+                        "Los archivos deben ser PNG, JPG, JPEG o HEIC.",
+                      );
                       e.target.value = "";
                       return;
                     }
                     try {
-                      const uploaded = await Promise.all(files.map((file) => readFileAsDataUrl(file)));
+                      const uploaded = await Promise.all(
+                        files.map((file) => readFileAsDataUrl(file)),
+                      );
                       setPhotos((prev) =>
                         normalizeCover([
                           ...prev,
@@ -774,7 +794,9 @@ export function ProductForm({
                       setPhotoError(null);
                       e.target.value = "";
                     } catch {
-                      setPhotoError("No se pudieron leer una o más imágenes seleccionadas.");
+                      setPhotoError(
+                        "No se pudieron leer una o más imágenes seleccionadas.",
+                      );
                     }
                   }}
                   className="cursor-pointer text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted/80"
@@ -799,7 +821,9 @@ export function ProductForm({
                     const normalizedUrl = photoUrl.trim();
                     if (!normalizedUrl) return;
                     if (!isAllowedProductPhotoUrl(normalizedUrl)) {
-                      setPhotoError("La URL debe ser válida y usar http o https.");
+                      setPhotoError(
+                        "La URL debe ser válida y usar http o https.",
+                      );
                       return;
                     }
                     setPhotos((prev) =>
@@ -1006,7 +1030,8 @@ export function ProductForm({
       description={
         <>
           Se detectaron imágenes con resolución por debajo de lo recomendado.
-          Puedes continuar y guardar de todas formas o revisar las imágenes marcadas.
+          Puedes continuar y guardar de todas formas o revisar las imágenes
+          marcadas.
         </>
       }
       confirmLabel="Continuar y guardar"

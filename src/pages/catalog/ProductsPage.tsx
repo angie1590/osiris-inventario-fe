@@ -651,14 +651,16 @@ export default function ProductsPage() {
 
                 {lowResForGallery && (
                   <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm">
-                    Esta imagen tiene menor resolución que el visor ({GALLERY_TARGET_WIDTH}x{GALLERY_TARGET_HEIGHT}) y puede pixelarse al ampliarse.
+                    Esta imagen tiene menor resolución que el visor (
+                    {GALLERY_TARGET_WIDTH}x{GALLERY_TARGET_HEIGHT}) y puede
+                    pixelarse al ampliarse.
                   </div>
                 )}
               </div>
 
               {productImages(viewProduct).length > 1 && (
                 <div className="absolute bottom-4 right-6 rounded-md bg-background/80 px-2 py-1 text-xs text-muted-foreground">
-                    {photoIndex + 1} / {productImages(viewProduct).length}
+                  {photoIndex + 1} / {productImages(viewProduct).length}
                 </div>
               )}
             </div>
