@@ -1,9 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, BookOpen, Pencil, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -19,6 +27,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ProductDetailPage() {
+  const GALLERY_TARGET_WIDTH = 800;
+  const GALLERY_TARGET_HEIGHT = 450;
+
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -26,6 +37,11 @@ export default function ProductDetailPage() {
   const canEdit = user?.role === "admin" || user?.role === "operator";
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [reactivate, setReactivate] = useState(false);
+  const [photoZoomOpen, setPhotoZoomOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [imageDimensions, setImageDimensions] = useState<
+    Record<string, { width: number; height: number }>
+  >({});
 
   const { data: product, isLoading } = useProduct(Number(id));
   const { data: categories } = useCategories();
@@ -34,6 +50,59 @@ export default function ProductDetailPage() {
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!product) return <p>Producto no encontrado</p>;
+
+  const gallery = (product.photos ?? []).filter((img) => !!img?.url);
+  const images = gallery.length > 0 ? gallery : product.photo ? [{ url: product.photo, is_cover: true }] : [];
+  const coverIndex = Math.max(0, images.findIndex((img) => img.is_cover));
+  const cover = images[coverIndex]?.url;
+  const activeImageUrl = images[photoIndex]?.url;
+  const activeImageDimensions = activeImageUrl
+    ? imageDimensions[activeImageUrl]
+    : undefined;
+  const lowResForGallery =
+    !!activeImageDimensions &&
+    (activeImageDimensions.width < GALLERY_TARGET_WIDTH ||
+      activeImageDimensions.height < GALLERY_TARGET_HEIGHT);
+
+  useEffect(() => {
+    if (!photoZoomOpen || images.length <= 1) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setPhotoIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setPhotoIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [photoZoomOpen, images.length]);
+
+  useEffect(() => {
+    if (!photoZoomOpen || images.length === 0) return;
+    let disposed = false;
+    images.forEach((item) => {
+      if (imageDimensions[item.url]) return;
+      const img = new Image();
+      img.onload = () => {
+        if (disposed) return;
+        setImageDimensions((prev) => ({
+          ...prev,
+          [item.url]: {
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          },
+        }));
+      };
+      img.src = item.url;
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [photoZoomOpen, images, imageDimensions]);
 
   const handleToggle = async () => {
     const newStatus = product.status === "active" ? "inactive" : "active";
@@ -80,17 +149,26 @@ export default function ProductDetailPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        {product.photo && (
+        {cover && (
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>Foto</CardTitle>
             </CardHeader>
             <CardContent>
-              <img
-                src={product.photo}
-                alt={product.name}
-                className="max-h-72 w-full rounded-md border object-contain"
-              />
+              <button
+                type="button"
+                className="w-full rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                onClick={() => {
+                  setPhotoIndex(coverIndex);
+                  setPhotoZoomOpen(true);
+                }}
+              >
+                <img
+                  src={cover}
+                  alt={product.name}
+                  className="max-h-72 w-full cursor-zoom-in rounded-md border object-contain"
+                />
+              </button>
             </CardContent>
           </Card>
         )}
@@ -229,6 +307,89 @@ export default function ProductDetailPage() {
           product={product}
           onClose={() => setReactivate(false)}
         />
+      )}
+
+      {images.length > 0 && (
+        <Dialog open={photoZoomOpen} onOpenChange={setPhotoZoomOpen}>
+          <DialogContent className="w-[min(96vw,1240px)] max-w-none p-3 sm:p-4">
+            <div className="flex gap-4">
+              <div className="w-28 shrink-0 overflow-y-auto pr-1 max-h-[75vh]">
+                <div className="flex flex-col gap-2">
+                  {images.map((img, idx) => (
+                    <button
+                      key={`${img.url}-${idx}`}
+                      type="button"
+                      onClick={() => setPhotoIndex(idx)}
+                      className={`overflow-hidden rounded-md border transition ${
+                        idx === photoIndex
+                          ? "border-primary ring-2 ring-primary/30"
+                          : "border-border opacity-70 hover:opacity-100"
+                      }`}
+                    >
+                      <img
+                        src={img.url}
+                        alt={`Miniatura ${idx + 1}`}
+                        className="h-16 w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative flex h-[620px] flex-1 items-center justify-center rounded-md bg-muted/20 p-4">
+                {images.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute left-3 h-9 w-9 rounded-full"
+                    onClick={() =>
+                      setPhotoIndex((prev) =>
+                        prev === 0 ? images.length - 1 : prev - 1,
+                      )
+                    }
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                )}
+
+                <img
+                  src={images[photoIndex]?.url}
+                  alt={`${product.name} - imagen ${photoIndex + 1}`}
+                  className="h-full w-full rounded-md object-contain"
+                />
+
+                {images.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute right-3 h-9 w-9 rounded-full"
+                    onClick={() =>
+                      setPhotoIndex((prev) =>
+                        prev === images.length - 1 ? 0 : prev + 1,
+                      )
+                    }
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                )}
+
+                {lowResForGallery && (
+                  <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm">
+                    Esta imagen tiene menor resolución que el visor ({GALLERY_TARGET_WIDTH}x{GALLERY_TARGET_HEIGHT}) y puede pixelarse al ampliarse.
+                  </div>
+                )}
+              </div>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-4 right-6 rounded-md bg-background/80 px-2 py-1 text-xs text-muted-foreground">
+                    {photoIndex + 1} / {images.length}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

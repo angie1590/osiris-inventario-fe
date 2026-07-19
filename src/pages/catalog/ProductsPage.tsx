@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Plus,
   AlertTriangle,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   Pencil,
   Power,
@@ -64,6 +66,9 @@ function StatusBadge({ status }: { status: ProductStatus }) {
 }
 
 export default function ProductsPage() {
+  const GALLERY_TARGET_WIDTH = 800;
+  const GALLERY_TARGET_HEIGHT = 450;
+
   const { user } = useAuth();
   const { toast } = useToast();
   const canEdit = user?.role === "admin" || user?.role === "operator";
@@ -93,6 +98,10 @@ export default function ProductsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | undefined>();
   const [photoZoomOpen, setPhotoZoomOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [imageDimensions, setImageDimensions] = useState<
+    Record<string, { width: number; height: number }>
+  >({});
 
   const {
     data: products,
@@ -119,6 +128,68 @@ export default function ProductsPage() {
     const barcodeLen = p.isbn?.length ?? 0;
     return barcodeLen > 30 ? "lg" : "md";
   };
+  const productImages = (p: Product): { url: string; is_cover: boolean }[] => {
+    const fromGallery = (p.photos ?? []).filter((img) => !!img?.url);
+    if (fromGallery.length > 0) return fromGallery;
+    return p.photo ? [{ url: p.photo, is_cover: true }] : [];
+  };
+  const coverImage = (p: Product): string | null => {
+    const gallery = productImages(p);
+    const cover = gallery.find((img) => img.is_cover);
+    return cover?.url ?? gallery[0]?.url ?? null;
+  };
+
+  const activeGallery = viewProduct ? productImages(viewProduct) : [];
+  const activeImageUrl = activeGallery[photoIndex]?.url;
+  const activeImageDimensions = activeImageUrl
+    ? imageDimensions[activeImageUrl]
+    : undefined;
+  const lowResForGallery =
+    !!activeImageDimensions &&
+    (activeImageDimensions.width < GALLERY_TARGET_WIDTH ||
+      activeImageDimensions.height < GALLERY_TARGET_HEIGHT);
+
+  useEffect(() => {
+    if (!photoZoomOpen || !viewProduct) return;
+    const gallery = productImages(viewProduct);
+    if (gallery.length <= 1) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setPhotoIndex((prev) => (prev === 0 ? gallery.length - 1 : prev - 1));
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setPhotoIndex((prev) => (prev === gallery.length - 1 ? 0 : prev + 1));
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [photoZoomOpen, viewProduct]);
+
+  useEffect(() => {
+    if (!photoZoomOpen || activeGallery.length === 0) return;
+    let disposed = false;
+    activeGallery.forEach((item) => {
+      if (imageDimensions[item.url]) return;
+      const img = new Image();
+      img.onload = () => {
+        if (disposed) return;
+        setImageDimensions((prev) => ({
+          ...prev,
+          [item.url]: {
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          },
+        }));
+      };
+      img.src = item.url;
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [photoZoomOpen, activeGallery, imageDimensions]);
 
   // Reactivating a product whose category was deleted must force picking a new
   // active category; otherwise use the normal activate/deactivate confirmation.
@@ -380,20 +451,28 @@ export default function ProductsPage() {
           subtitle={viewProduct.bajo_stock ? "Bajo stock" : undefined}
           size={modalSizeForProduct(viewProduct)}
           sections={[
-            ...(viewProduct.photo
+            ...(coverImage(viewProduct)
               ? [
                   {
                     content: (
                       <div className="flex justify-center">
                         <button
                           type="button"
-                          onClick={() => setPhotoZoomOpen(true)}
+                          onClick={() => {
+                            const gallery = productImages(viewProduct);
+                            const coverIdx = Math.max(
+                              0,
+                              gallery.findIndex((img) => img.is_cover),
+                            );
+                            setPhotoIndex(coverIdx);
+                            setPhotoZoomOpen(true);
+                          }}
                           className="rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                           title="Ampliar foto"
                           aria-label="Ampliar foto"
                         >
                           <img
-                            src={viewProduct.photo}
+                            src={coverImage(viewProduct) ?? undefined}
                             alt={viewProduct.name}
                             className="h-36 max-w-full cursor-zoom-in rounded-md border object-contain"
                           />
@@ -500,15 +579,88 @@ export default function ProductsPage() {
         />
       )}
 
-      {viewProduct?.photo && (
+      {viewProduct && productImages(viewProduct).length > 0 && (
         <Dialog open={photoZoomOpen} onOpenChange={setPhotoZoomOpen}>
-          <DialogContent className="max-w-5xl p-3 sm:p-4">
-            <div className="flex items-center justify-center">
-              <img
-                src={viewProduct.photo}
-                alt={viewProduct.name}
-                className="max-h-[80vh] w-auto max-w-full rounded-md object-contain"
-              />
+          <DialogContent className="w-[min(96vw,1240px)] max-w-none p-3 sm:p-4">
+            <div className="flex gap-4">
+              <div className="w-28 shrink-0 overflow-y-auto pr-1 max-h-[75vh]">
+                <div className="flex flex-col gap-2">
+                  {productImages(viewProduct).map((img, idx) => (
+                    <button
+                      key={`${img.url}-${idx}`}
+                      type="button"
+                      onClick={() => setPhotoIndex(idx)}
+                      className={`overflow-hidden rounded-md border transition ${
+                        idx === photoIndex
+                          ? "border-primary ring-2 ring-primary/30"
+                          : "border-border opacity-70 hover:opacity-100"
+                      }`}
+                    >
+                      <img
+                        src={img.url}
+                        alt={`Miniatura ${idx + 1}`}
+                        className="h-16 w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative flex h-[620px] flex-1 items-center justify-center rounded-md bg-muted/20 p-4">
+                {productImages(viewProduct).length > 1 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute left-3 h-9 w-9 rounded-full"
+                    onClick={() =>
+                      setPhotoIndex((prev) =>
+                        prev === 0
+                          ? productImages(viewProduct).length - 1
+                          : prev - 1,
+                      )
+                    }
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                )}
+
+                <img
+                  src={productImages(viewProduct)[photoIndex]?.url}
+                  alt={`${viewProduct.name} - imagen ${photoIndex + 1}`}
+                  className="h-full w-full rounded-md object-contain"
+                />
+
+                {productImages(viewProduct).length > 1 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute right-3 h-9 w-9 rounded-full"
+                    onClick={() =>
+                      setPhotoIndex((prev) =>
+                        prev === productImages(viewProduct).length - 1
+                          ? 0
+                          : prev + 1,
+                      )
+                    }
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                )}
+
+                {lowResForGallery && (
+                  <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm">
+                    Esta imagen tiene menor resolución que el visor ({GALLERY_TARGET_WIDTH}x{GALLERY_TARGET_HEIGHT}) y puede pixelarse al ampliarse.
+                  </div>
+                )}
+              </div>
+
+              {productImages(viewProduct).length > 1 && (
+                <div className="absolute bottom-4 right-6 rounded-md bg-background/80 px-2 py-1 text-xs text-muted-foreground">
+                    {photoIndex + 1} / {productImages(viewProduct).length}
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

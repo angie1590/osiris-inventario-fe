@@ -3,7 +3,7 @@ import type { ChangeEvent } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ImagePlus, Link2, Plus, Trash2, Upload } from "lucide-react";
+import { ImagePlus, Link2, Plus, Star, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,10 +45,104 @@ import {
   readFileAsDataUrl,
 } from "@/features/catalog/productPhoto";
 import { useToast } from "@/hooks/use-toast";
-import type { CategoryAttribute, Product, Category } from "@/types/api";
+import type { CategoryAttribute, Product, Category, ProductImage } from "@/types/api";
 
 const PHOTO_HELP =
-  "PNG, JPG, JPEG o HEIC. También puedes usar una URL directa a la imagen.";
+  "PNG, JPG, JPEG o HEIC. Puedes agregar varias imágenes por archivo o URL y marcar una como portada.";
+const PHOTO_MIN_WIDTH = 800;
+const PHOTO_MIN_HEIGHT = 450;
+const PHOTO_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+
+type PhotoWarning = {
+  index: number;
+  messages: string[];
+};
+
+type PhotoValidationResult = {
+  blocking: PhotoWarning[];
+  warnings: PhotoWarning[];
+};
+
+function normalizeCover(images: ProductImage[]): ProductImage[] {
+  if (images.length === 0) return [];
+  let coverIdx = images.findIndex((item) => item.is_cover);
+  if (coverIdx < 0) coverIdx = 0;
+  return images.map((item, idx) => ({ ...item, is_cover: idx === coverIdx }));
+}
+
+function initialProductPhotos(product?: Product): ProductImage[] {
+  if (!product) return [];
+  if (product.photos && product.photos.length > 0) {
+    return normalizeCover(
+      product.photos
+        .map((item) => ({
+          url: String(item.url ?? "").trim(),
+          is_cover: !!item.is_cover,
+        }))
+        .filter((item) => item.url),
+    );
+  }
+  return product.photo ? [{ url: product.photo, is_cover: true }] : [];
+}
+
+function estimateDataUrlBytes(value: string): number {
+  if (!value.startsWith("data:")) return 0;
+  const comma = value.indexOf(",");
+  if (comma < 0) return 0;
+  const base64 = value.slice(comma + 1);
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+function loadImageDimensions(
+  url: string,
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () =>
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error("No se pudo cargar la imagen"));
+    image.src = url;
+  });
+}
+
+async function validateProductPhotosForSave(
+  photos: ProductImage[],
+): Promise<PhotoValidationResult> {
+  const blocking: PhotoWarning[] = [];
+  const warnings: PhotoWarning[] = [];
+  for (let index = 0; index < photos.length; index += 1) {
+    const item = photos[index];
+    const blockingMessages: string[] = [];
+    const messages: string[] = [];
+
+    if (item.url.startsWith("data:")) {
+      const bytes = estimateDataUrlBytes(item.url);
+      if (bytes > PHOTO_MAX_UPLOAD_BYTES) {
+        blockingMessages.push("Pesa más de 2 MB.");
+      }
+    }
+
+    try {
+      const { width, height } = await loadImageDimensions(item.url);
+      if (width < PHOTO_MIN_WIDTH || height < PHOTO_MIN_HEIGHT) {
+        messages.push(
+          `Resolución menor a ${PHOTO_MIN_WIDTH}x${PHOTO_MIN_HEIGHT}.`,
+        );
+      }
+    } catch {
+      messages.push("No se pudo validar la resolución.");
+    }
+
+    if (blockingMessages.length > 0) {
+      blocking.push({ index, messages: blockingMessages });
+    }
+    if (messages.length > 0) {
+      warnings.push({ index, messages });
+    }
+  }
+  return { blocking, warnings };
+}
 
 const schema = z.object({
   // Barcode length/required validated in onSubmit (depends on the system param).
@@ -72,6 +166,18 @@ type ApiError = {
       errors?: Record<string, string>;
     };
   };
+};
+
+type ProductPayload = {
+  isbn?: string;
+  codigo_interno?: string | null;
+  photos: ProductImage[];
+  name: string;
+  description?: string;
+  category_id: number;
+  stock_minimo: number;
+  pvp: string;
+  custom_attributes: Record<string, unknown>;
 };
 
 function CatalogAttributeField({
@@ -223,18 +329,20 @@ export function ProductForm({
   const [useInternalCodeAsIsbn, setUseInternalCodeAsIsbn] = useState(false);
   // Modal to create new category
   const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(product?.photo ?? null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(
-    product?.photo ?? null,
+  const [photos, setPhotos] = useState<ProductImage[]>(
+    initialProductPhotos(product),
   );
-  const [photoUrl, setPhotoUrl] = useState(
-    product?.photo?.startsWith("http") ? product.photo : "",
-  );
+  const [photoUrl, setPhotoUrl] = useState("");
   const [photoTab, setPhotoTab] = useState<"file" | "url">(
-    product?.photo?.startsWith("http") ? "url" : "file",
+    "file",
   );
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const [photoWarnings, setPhotoWarnings] = useState<PhotoWarning[]>([]);
+  const [showPhotoWarningDialog, setShowPhotoWarningDialog] =
+    useState<boolean>(false);
+  const [pendingPayload, setPendingPayload] = useState<ProductPayload | null>(
+    null,
+  );
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -271,18 +379,14 @@ export function ProductForm({
       });
       setCustomAttrs({ ...(product.custom_attributes ?? {}) });
       confirmedCategoryRef.current = product.category_id;
-      setPhoto(product.photo ?? null);
-      setPhotoPreview(product.photo ?? null);
-      setPhotoUrl(product.photo?.startsWith("http") ? product.photo : "");
-      setPhotoTab(product.photo?.startsWith("http") ? "url" : "file");
-      setPhotoRemoved(false);
-      setPhotoError(null);
-    } else {
-      setPhoto(null);
-      setPhotoPreview(null);
+      setPhotos(initialProductPhotos(product));
       setPhotoUrl("");
       setPhotoTab("file");
-      setPhotoRemoved(false);
+      setPhotoError(null);
+    } else {
+      setPhotos([]);
+      setPhotoUrl("");
+      setPhotoTab("file");
       setPhotoError(null);
     }
   }, [product, reset, integerMode]);
@@ -373,70 +477,7 @@ export function ProductForm({
     setFormError("Revisa los campos marcados en rojo.");
   };
 
-  const onSubmit = async (data: FormData) => {
-    setFormError(null);
-    setPhotoError(null);
-
-    // Validate category is selected
-    if (!data.category_id || data.category_id < 1) {
-      setError("category_id", { message: "Categoría requerida" });
-      setFormError("Selecciona una categoría para continuar.");
-      return;
-    }
-
-    // Barcode: required is parametrizable; length only enforced when provided.
-    // If using internal code as barcode, copy the value
-    let isbnVal = (data.isbn ?? "").trim();
-    if (useInternalCodeAsIsbn) {
-      isbnVal = (data.codigo_interno ?? "").trim();
-    }
-    if (barcodeRequired && !isbnVal) {
-      setError("isbn", { message: "Código de barras requerido" });
-      return;
-    }
-    if (isbnVal && (isbnVal.length < 10 || isbnVal.length > 32)) {
-      setError("isbn", { message: "Debe tener entre 10 y 32 caracteres" });
-      return;
-    }
-
-    let photoValue: string | null | undefined;
-    const normalizedUrl = photoUrl.trim();
-    if (photoRemoved) {
-      photoValue = null;
-    } else if (normalizedUrl) {
-      if (!isAllowedProductPhotoUrl(normalizedUrl)) {
-        setPhotoError(
-          "La URL debe apuntar directamente a una imagen PNG, JPG, JPEG o HEIC.",
-        );
-        return;
-      }
-      photoValue = normalizedUrl;
-    } else if (photo) {
-      photoValue = photo;
-    } else if (!isEdit) {
-      photoValue = undefined;
-    }
-
-    // Validate custom attributes inline (required + numeric/negative).
-    if (!validateCustomAttrs()) {
-      setFormError("Revisa los atributos marcados en rojo.");
-      return;
-    }
-
-    const payload = {
-      isbn: isbnVal || undefined,
-      ...(internalCodeEnabled
-        ? { codigo_interno: data.codigo_interno?.trim() || null }
-        : {}),
-      ...(photoValue !== undefined ? { photo: photoValue } : {}),
-      name: data.name,
-      description: data.description || undefined,
-      category_id: data.category_id,
-      stock_minimo: Number(data.stock_minimo ?? 0),
-      pvp: data.pvp,
-      custom_attributes: customAttrs,
-    };
-
+  const savePayload = async (payload: ProductPayload) => {
     try {
       const saved = isEdit
         ? await update.mutateAsync({ id: product!.id, payload })
@@ -472,6 +513,100 @@ export function ProductForm({
 
       setFormError(msg);
     }
+  };
+
+  const onSubmit = async (data: FormData) => {
+    setFormError(null);
+    setPhotoError(null);
+
+    // Validate category is selected
+    if (!data.category_id || data.category_id < 1) {
+      setError("category_id", { message: "Categoría requerida" });
+      setFormError("Selecciona una categoría para continuar.");
+      return;
+    }
+
+    // Barcode: required is parametrizable; length only enforced when provided.
+    // If using internal code as barcode, copy the value
+    let isbnVal = (data.isbn ?? "").trim();
+    if (useInternalCodeAsIsbn) {
+      isbnVal = (data.codigo_interno ?? "").trim();
+    }
+    if (barcodeRequired && !isbnVal) {
+      setError("isbn", { message: "Código de barras requerido" });
+      return;
+    }
+    if (isbnVal && (isbnVal.length < 10 || isbnVal.length > 32)) {
+      setError("isbn", { message: "Debe tener entre 10 y 32 caracteres" });
+      return;
+    }
+
+    const normalizedPhotos = normalizeCover(
+      photos.map((item) => ({
+        url: item.url.trim(),
+        is_cover: !!item.is_cover,
+      })).filter((item) => item.url),
+    );
+
+    const validation = await validateProductPhotosForSave(
+      normalizedPhotos,
+    );
+
+    if (validation.blocking.length > 0) {
+      setPhotoWarnings([...validation.blocking, ...validation.warnings]);
+      setPhotoError(
+        "Hay imágenes que exceden 2 MB. Debes reemplazarlas para poder guardar.",
+      );
+      setShowPhotoWarningDialog(false);
+      setPendingPayload(null);
+      return;
+    }
+
+    if (validation.warnings.length > 0) {
+      setPhotoWarnings(validation.warnings);
+      setPhotoError(
+        "Hay imágenes con advertencias de resolución. Revisa o continúa bajo tu responsabilidad.",
+      );
+      setShowPhotoWarningDialog(true);
+      setPendingPayload({
+        isbn: isbnVal || undefined,
+        ...(internalCodeEnabled
+          ? { codigo_interno: data.codigo_interno?.trim() || null }
+          : {}),
+        photos: normalizedPhotos,
+        name: data.name,
+        description: data.description || undefined,
+        category_id: data.category_id,
+        stock_minimo: Number(data.stock_minimo ?? 0),
+        pvp: data.pvp,
+        custom_attributes: customAttrs,
+      });
+      return;
+    }
+
+    setPhotoWarnings([]);
+
+    // Validate custom attributes inline (required + numeric/negative).
+    if (!validateCustomAttrs()) {
+      setFormError("Revisa los atributos marcados en rojo.");
+      return;
+    }
+
+    const payload = {
+      isbn: isbnVal || undefined,
+      ...(internalCodeEnabled
+        ? { codigo_interno: data.codigo_interno?.trim() || null }
+        : {}),
+      photos: normalizedPhotos,
+      name: data.name,
+      description: data.description || undefined,
+      category_id: data.category_id,
+      stock_minimo: Number(data.stock_minimo ?? 0),
+      pvp: data.pvp,
+      custom_attributes: customAttrs,
+    };
+
+    await savePayload(payload);
   };
 
   const body = (
@@ -536,29 +671,61 @@ export function ProductForm({
           hint={PHOTO_HELP}
         >
           <div className="space-y-3">
-            {photoPreview && (
-              <div className="flex items-start gap-3 rounded-md border p-3">
-                <img
-                  src={photoPreview}
-                  alt="Foto del producto"
-                  className="h-24 w-24 rounded-md border object-cover"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPhoto(null);
-                    setPhotoPreview(null);
-                    setPhotoUrl("");
-                    setPhotoRemoved(true);
-                    setPhotoError(null);
-                    if (photoInputRef.current) photoInputRef.current.value = "";
-                  }}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Quitar foto
-                </Button>
+            {photos.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {photos.map((item, idx) => (
+                  <div key={`${item.url}-${idx}`} className="flex items-start gap-3 rounded-md border p-3">
+                    <img
+                      src={item.url}
+                      alt={`Foto ${idx + 1}`}
+                      className="h-20 w-20 rounded-md border object-cover"
+                    />
+                    <div className="flex flex-1 flex-col gap-2">
+                      <span className="line-clamp-2 break-all text-xs text-muted-foreground">{item.url.startsWith("data:") ? "Imagen cargada" : item.url}</span>
+                      {photoWarnings
+                        .find((w) => w.index === idx)
+                        ?.messages.map((msg) => (
+                          <span
+                            key={`${idx}-${msg}`}
+                            className={`rounded px-2 py-1 text-xs ${msg.includes("2 MB") ? "bg-destructive/10 text-destructive" : "bg-amber-50 text-amber-800"}`}
+                          >
+                            {msg.includes("2 MB") ? "Error:" : "Advertencia:"} {msg}
+                          </span>
+                        ))}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant={item.is_cover ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            setPhotos((prev) =>
+                              prev.map((p, i) => ({ ...p, is_cover: i === idx })),
+                            );
+                            setPhotoWarnings([]);
+                          }}
+                        >
+                          <Star className="mr-1.5 h-3.5 w-3.5" />
+                          {item.is_cover ? "Portada" : "Usar portada"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPhotos((prev) =>
+                              normalizeCover(prev.filter((_, i) => i !== idx)),
+                            );
+                            setPhotoWarnings([]);
+                            setPhotoError(null);
+                          }}
+                        >
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                          Quitar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -585,25 +752,29 @@ export function ProductForm({
                   ref={photoInputRef}
                   type="file"
                   accept={PRODUCT_PHOTO_ACCEPT}
+                  multiple
                   onChange={async (e: ChangeEvent<HTMLInputElement>) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (!isAllowedProductPhotoFile(file)) {
-                      setPhotoError(
-                        "El archivo debe ser PNG, JPG, JPEG o HEIC.",
-                      );
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length === 0) return;
+                    const invalid = files.find((file) => !isAllowedProductPhotoFile(file));
+                    if (invalid) {
+                      setPhotoError("Los archivos deben ser PNG, JPG, JPEG o HEIC.");
                       e.target.value = "";
                       return;
                     }
                     try {
-                      const result = await readFileAsDataUrl(file);
-                      setPhoto(result);
-                      setPhotoPreview(result);
-                      setPhotoUrl("");
-                      setPhotoRemoved(false);
+                      const uploaded = await Promise.all(files.map((file) => readFileAsDataUrl(file)));
+                      setPhotos((prev) =>
+                        normalizeCover([
+                          ...prev,
+                          ...uploaded.map((url) => ({ url, is_cover: false })),
+                        ]),
+                      );
+                      setPhotoWarnings([]);
                       setPhotoError(null);
+                      e.target.value = "";
                     } catch {
-                      setPhotoError("No se pudo leer la imagen seleccionada.");
+                      setPhotoError("No se pudieron leer una o más imágenes seleccionadas.");
                     }
                   }}
                   className="cursor-pointer text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted/80"
@@ -617,26 +788,40 @@ export function ProductForm({
                   onChange={(e) => {
                     const value = e.target.value;
                     setPhotoUrl(value);
-                    setPhotoRemoved(false);
                     setPhotoError(null);
-                    if (
-                      value.trim() &&
-                      isAllowedProductPhotoUrl(value.trim())
-                    ) {
-                      setPhotoPreview(value.trim());
-                      setPhoto(null);
-                    } else if (!value.trim()) {
-                      setPhotoPreview(product?.photo ?? null);
-                    }
                   }}
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const normalizedUrl = photoUrl.trim();
+                    if (!normalizedUrl) return;
+                    if (!isAllowedProductPhotoUrl(normalizedUrl)) {
+                      setPhotoError("La URL debe ser válida y usar http o https.");
+                      return;
+                    }
+                    setPhotos((prev) =>
+                      normalizeCover([
+                        ...prev,
+                        { url: normalizedUrl, is_cover: false },
+                      ]),
+                    );
+                    setPhotoWarnings([]);
+                    setPhotoUrl("");
+                    setPhotoError(null);
+                  }}
+                >
+                  Agregar URL
+                </Button>
               </TabsContent>
             </Tabs>
 
-            {!photoPreview && (
+            {photos.length === 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <ImagePlus className="h-4 w-4" />
-                Sin foto cargada
+                Sin imágenes cargadas
               </div>
             )}
           </div>
@@ -810,6 +995,32 @@ export function ProductForm({
     />
   );
 
+  const photoWarningDialog = showPhotoWarningDialog && (
+    <ConfirmDialog
+      open
+      onClose={() => {
+        setShowPhotoWarningDialog(false);
+        setFormError("Revisa las imágenes marcadas antes de guardar.");
+      }}
+      title="Advertencia de resolución"
+      description={
+        <>
+          Se detectaron imágenes con resolución por debajo de lo recomendado.
+          Puedes continuar y guardar de todas formas o revisar las imágenes marcadas.
+        </>
+      }
+      confirmLabel="Continuar y guardar"
+      cancelLabel="Revisar imágenes"
+      onConfirm={async () => {
+        if (!pendingPayload) return;
+        setShowPhotoWarningDialog(false);
+        await savePayload(pendingPayload);
+        setPendingPayload(null);
+      }}
+      variant="default"
+    />
+  );
+
   const handleCategoryCreated = (category: Category) => {
     setShowCategoryForm(false);
     setValue("category_id", category.id);
@@ -828,6 +1039,7 @@ export function ProductForm({
           <DialogFooter>{footer}</DialogFooter>
         </form>
         {orphanDialog}
+        {photoWarningDialog}
         {showCategoryForm && (
           <CategoryFormModal
             allCategories={categories ?? []}
@@ -846,6 +1058,7 @@ export function ProductForm({
         <div className="flex justify-end gap-3">{footer}</div>
       </form>
       {orphanDialog}
+      {photoWarningDialog}
       {showCategoryForm && (
         <CategoryFormModal
           allCategories={categories ?? []}

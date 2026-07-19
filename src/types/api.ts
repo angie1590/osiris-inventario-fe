@@ -142,6 +142,11 @@ export interface CreateAttributePayload {
 }
 
 // Products
+export interface ProductImage {
+  url: string;
+  is_cover: boolean;
+}
+
 export interface Product {
   id: number;
   isbn: string;
@@ -149,6 +154,7 @@ export interface Product {
   name: string;
   description: string | null;
   photo: string | null;
+  photos: ProductImage[] | null;
   category_id: number;
   stock_minimo: number;
   stock_actual: number;
@@ -166,6 +172,7 @@ export interface CreateProductPayload {
   name: string;
   description?: string;
   photo?: string | null;
+  photos?: ProductImage[];
   category_id: number;
   stock_minimo?: number;
   pvp: string | number;
@@ -178,6 +185,7 @@ export interface UpdateProductPayload {
   name?: string;
   description?: string;
   photo?: string | null;
+  photos?: ProductImage[];
   category_id?: number;
   stock_minimo?: number;
   pvp?: string | number;
