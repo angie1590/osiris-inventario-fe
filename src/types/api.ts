@@ -30,6 +30,7 @@ export type DocumentType = "IN" | "EG" | "BI" | "AI";
 export type DocumentStatus = "pending" | "approved" | "cancelled" | "voided";
 export type AdjustType = "increment" | "decrement";
 export type KardexEntryType = "IN" | "OUT" | "ADJUST";
+export type SupplierIdentificationType = "ruc" | "cedula" | "passport";
 export type AuditAction =
   | "CREATE"
   | "UPDATE"
@@ -205,12 +206,55 @@ export interface InventoryDocumentLine {
   created_at: string;
 }
 
+export interface InventorySupplier {
+  id: number;
+  identification_type: SupplierIdentificationType;
+  identification_number: string;
+  trade_name: string;
+  legal_name: string;
+  address: string | null;
+  phone: string | null;
+  is_active: boolean;
+}
+
+export interface CreateSupplierPayload {
+  identification_type: SupplierIdentificationType;
+  identification_number: string;
+  trade_name: string;
+  legal_name: string;
+  address?: string | null;
+  phone?: string | null;
+}
+
+export interface UpdateSupplierPayload {
+  identification_type?: SupplierIdentificationType;
+  identification_number?: string;
+  trade_name?: string;
+  legal_name?: string;
+  address?: string | null;
+  phone?: string | null;
+  is_active?: boolean;
+}
+
+export interface InventoryDocumentAttachment {
+  id: number;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+}
+
 export interface InventoryDocument {
   id: number;
   number: string;
   doc_type: DocumentType;
   status: DocumentStatus;
   adjust_type: AdjustType | null;
+  ingreso_type?: "purchase" | "initial_inventory" | null;
+  supplier_id?: number | null;
+  purchase_document_type?: "invoice" | "sales_note" | "receipt" | "none" | null;
+  purchase_document_number?: string | null;
+  purchase_document_date?: string | null;
   reference: string | null;
   notes: string | null;
   created_by: number;
@@ -218,10 +262,17 @@ export interface InventoryDocument {
   requested_at: string | null;
   authorized_at: string | null;
   created_at: string;
+  supplier?: InventorySupplier | null;
+  attachments?: InventoryDocumentAttachment[];
   lines: InventoryDocumentLine[];
 }
 
 export interface CreateIngresoPayload {
+  ingreso_type?: "purchase" | "initial_inventory";
+  supplier_id?: number;
+  purchase_document_type?: "invoice" | "sales_note" | "receipt" | "none";
+  purchase_document_number?: string;
+  purchase_document_date?: string;
   reference?: string;
   notes?: string;
   lines: Array<{
@@ -279,6 +330,8 @@ export interface KardexEntry {
   balance_value: number;
   weighted_avg_cost: number;
   lot_id: number | null;
+  document_number?: string | null;
+  document_doc_type?: DocumentType | null;
   created_at: string;
 }
 

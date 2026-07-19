@@ -9,6 +9,10 @@ import type {
   CreateAjustePayload,
   AuthCodeResponse,
   ApprovePayload,
+  InventorySupplier,
+  CreateSupplierPayload,
+  UpdateSupplierPayload,
+  InventoryDocumentAttachment,
   SetApprovalCodePayload,
 } from "@/types/api";
 
@@ -128,6 +132,110 @@ export function useCreateIngreso() {
       return res.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory", "IN"] }),
+  });
+}
+
+export function useSuppliers(activeOnly = true) {
+  return useQuery({
+    queryKey: ["inventory", "suppliers", activeOnly],
+    queryFn: async () => {
+      const res = await api.get<InventorySupplier[]>("/inventory/suppliers", {
+        params: { active_only: activeOnly },
+      });
+      return res.data;
+    },
+  });
+}
+
+export function useCreateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateSupplierPayload) => {
+      const res = await api.post<InventorySupplier>(
+        "/inventory/suppliers",
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["inventory", "suppliers"] }),
+  });
+}
+
+export function useUpdateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: UpdateSupplierPayload;
+    }) => {
+      const res = await api.patch<InventorySupplier>(
+        `/inventory/suppliers/${id}`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["inventory", "suppliers"] }),
+  });
+}
+
+export function useDeleteSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/inventory/suppliers/${id}`);
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["inventory", "suppliers"] }),
+  });
+}
+
+export function useIngresoAttachments(documentId: number) {
+  return useQuery({
+    queryKey: ["inventory", "ingreso", documentId, "attachments"],
+    queryFn: async () => {
+      const res = await api.get<InventoryDocumentAttachment[]>(
+        `/inventory/ingresos/${documentId}/attachments`,
+      );
+      return res.data;
+    },
+    enabled: !!documentId,
+  });
+}
+
+export function useUploadIngresoAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      documentId,
+      file,
+    }: {
+      documentId: number;
+      file: File;
+    }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await api.post<InventoryDocumentAttachment>(
+        `/inventory/ingresos/${documentId}/attachments`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+      return res.data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["inventory", "ingreso", vars.documentId, "attachments"],
+      });
+      qc.invalidateQueries({
+        queryKey: ["inventory", "document", "IN", vars.documentId],
+      });
+    },
   });
 }
 

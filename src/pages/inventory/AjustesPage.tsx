@@ -77,7 +77,7 @@ export default function AjustesPage() {
     },
     {
       key: "lines",
-      header: "Líneas",
+      header: "Ítems",
       align: "right",
       sortable: true,
       sortAccessor: (d) => d.lines.length,

@@ -61,6 +61,23 @@ export default function IngresosPage() {
       cell: (d) => <span className="font-mono text-sm">{d.number}</span>,
     },
     {
+      key: "ingreso_type",
+      header: "Tipo de ingreso",
+      sortable: true,
+      sortAccessor: (d) => d.ingreso_type ?? "purchase",
+      cell: (d) =>
+        d.ingreso_type === "initial_inventory"
+          ? "Inventario inicial"
+          : "Compra",
+    },
+    {
+      key: "supplier",
+      header: "Proveedor",
+      sortable: true,
+      sortAccessor: (d) => d.supplier?.trade_name ?? "",
+      cell: (d) => d.supplier?.trade_name || "—",
+    },
+    {
       key: "reference",
       header: "Referencia",
       sortable: true,
@@ -69,8 +86,8 @@ export default function IngresosPage() {
     },
     {
       key: "lines",
-      header: "Líneas",
-      align: "right",
+      header: "Ítems",
+      align: "center",
       sortable: true,
       sortAccessor: (d) => d.lines.length,
       cell: (d) => d.lines.length,

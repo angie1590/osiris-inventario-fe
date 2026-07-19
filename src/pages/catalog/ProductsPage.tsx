@@ -45,11 +45,8 @@ import {
 } from "@/hooks/useStockMode";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/format";
 import type { Product, ProductStatus } from "@/types/api";
-
-function fmtCurrency(value: number) {
-  return `$${Number(value).toFixed(2)}`;
-}
 
 function fmtAttrValue(v: unknown): string {
   if (typeof v === "boolean") return v ? "Sí" : "No";
@@ -276,7 +273,7 @@ export default function ProductsPage() {
       sortable: true,
       sortAccessor: (p) => p.pvp,
       className: "text-right",
-      cell: (p) => fmtCurrency(p.pvp),
+      cell: (p) => formatCurrency(p.pvp),
     },
     {
       key: "status",
@@ -512,7 +509,7 @@ export default function ProductsPage() {
                   value: categoryPath(viewProduct.category_id),
                   full: true,
                 },
-                { label: "PVP", value: fmtCurrency(viewProduct.pvp) },
+                { label: "PVP", value: formatCurrency(viewProduct.pvp) },
                 {
                   label: "Estado",
                   value: <StatusBadge status={viewProduct.status} />,

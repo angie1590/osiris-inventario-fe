@@ -25,6 +25,7 @@ import { ReactivateProductDialog } from "@/features/catalog/ReactivateProductDia
 import { useStockMode, formatQuantity } from "@/hooks/useStockMode";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/format";
 
 export default function ProductDetailPage() {
   const GALLERY_TARGET_WIDTH = 800;
@@ -204,7 +205,7 @@ export default function ProductDetailPage() {
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">PVP</span>
               <span className="text-right font-medium">
-                ${Number(product.pvp).toFixed(2)}
+                {formatCurrency(product.pvp)}
               </span>
             </div>
           </CardContent>

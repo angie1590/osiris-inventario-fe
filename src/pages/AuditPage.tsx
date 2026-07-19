@@ -77,6 +77,10 @@ const ENTITY_TYPE_OPTIONS = [
   { value: "user", label: "Usuarios (user)" },
   { value: "product", label: "Productos (product)" },
   { value: "category", label: "Categorías (category)" },
+  {
+    value: "inventory_supplier",
+    label: "Proveedores (inventory_supplier)",
+  },
   { value: "inventory", label: "Inventario (inventory)" },
   { value: "kardex", label: "Kardex (kardex)" },
   {
@@ -159,6 +163,12 @@ const FIELD_LABELS: Record<string, string> = {
   photo: "Foto",
   photos: "Fotos",
   custom_attributes: "Atributos personalizados",
+  identification_type: "Tipo de identificación",
+  identification_number: "Identificación",
+  trade_name: "Nombre comercial",
+  legal_name: "Razón social",
+  address: "Dirección",
+  phone: "Teléfono",
   full_name: "Nombre completo",
   role: "Rol",
   is_active: "Estado activo",

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
@@ -22,6 +23,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { useKardex } from "@/features/kardex/hooks";
 import { useProducts } from "@/features/catalog/hooks";
+import { formatCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import type { KardexEntryType } from "@/types/api";
@@ -39,27 +41,6 @@ const ENTRY_TYPE_VARIANTS: Record<
   OUT: "destructive",
   ADJUST: "secondary",
 };
-
-function formatQuantity(value: unknown, mode: "integer" | "decimal") {
-  if (value === null || value === undefined || value === "") return "—";
-  const n = Number(value);
-  if (Number.isNaN(n)) return String(value);
-  if (mode === "integer") {
-    return new Intl.NumberFormat("es-EC", { maximumFractionDigits: 0 }).format(
-      n,
-    );
-  }
-  return new Intl.NumberFormat("es-EC", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  }).format(n);
-}
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("es-EC", {
-    style: "currency",
-    currency: "USD",
-  }).format(n);
-}
 
 function safeNumber(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -102,7 +83,7 @@ function buildPepsLayerSummary(
   if (closingQty <= 0) {
     return {
       label: "Costo unitario saldo",
-      valueText: fmtCurrency(0),
+      valueText: formatCurrency(0),
       helperText: "Sin saldo",
     };
   }
@@ -118,7 +99,7 @@ function buildPepsLayerSummary(
   if (positiveLayers.length === 1) {
     return {
       label: "Costo de capa restante",
-      valueText: fmtCurrency(positiveLayers[0].cost),
+      valueText: formatCurrency(positiveLayers[0].cost),
       helperText: `Capa restante: ${formatQuantity(positiveLayers[0].qty, quantityMode)} u.`,
     };
   }
@@ -128,7 +109,7 @@ function buildPepsLayerSummary(
       .slice(0, 3)
       .map(
         (l) =>
-          `${formatQuantity(l.qty, quantityMode)} u. @ ${fmtCurrency(l.cost)}`,
+          `${formatQuantity(l.qty, quantityMode)} u. @ ${formatCurrency(l.cost)}`,
       )
       .join(" | ");
     const more = positiveLayers.length > 3 ? " | ..." : "";
@@ -186,7 +167,7 @@ export default function KardexPage() {
     if (!kardex) {
       return {
         label: "Costo unitario saldo",
-        valueText: fmtCurrency(0),
+        valueText: formatCurrency(0),
         helperText: "",
       };
     }
@@ -195,7 +176,7 @@ export default function KardexPage() {
     if (method === "WEIGHTED_AVERAGE") {
       return {
         label: "Costo promedio ponderado",
-        valueText: fmtCurrency(safeNumber(kardex.weighted_avg_cost, 0)),
+        valueText: formatCurrency(safeNumber(kardex.weighted_avg_cost, 0)),
         helperText: "",
       };
     }
@@ -351,7 +332,7 @@ export default function KardexPage() {
                 <p className="text-xs text-muted-foreground">
                   Saldo final (cantidad)
                 </p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold text-right tabular-nums">
                   {formatQuantity(
                     kardex.closing_balance_quantity,
                     quantityMode,
@@ -364,8 +345,8 @@ export default function KardexPage() {
                 <p className="text-xs text-muted-foreground">
                   Saldo final (valor)
                 </p>
-                <p className="text-2xl font-bold">
-                  {fmtCurrency(kardex.closing_balance_value)}
+                <p className="text-2xl font-bold text-right tabular-nums">
+                  {formatCurrency(kardex.closing_balance_value)}
                 </p>
               </CardContent>
             </Card>
@@ -374,7 +355,9 @@ export default function KardexPage() {
                 <p className="text-xs text-muted-foreground">
                   {costSummary.label}
                 </p>
-                <p className="text-2xl font-bold">{costSummary.valueText}</p>
+                <p className="text-2xl font-bold text-right tabular-nums">
+                  {costSummary.valueText}
+                </p>
                 {costSummary.helperText ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {costSummary.helperText}
@@ -384,45 +367,53 @@ export default function KardexPage() {
             </Card>
           </div>
 
-          <div className="rounded-lg border bg-card overflow-x-auto">
+          <div className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Cant. entrada</TableHead>
-                  <TableHead className="text-right">Costo entrada</TableHead>
-                  <TableHead className="text-right">Cant. salida</TableHead>
-                  <TableHead className="text-right">Costo salida</TableHead>
-                  <TableHead className="text-right">Saldo cant.</TableHead>
-                  <TableHead className="text-right">Saldo valor</TableHead>
+                  <TableHead className="text-center">Fecha</TableHead>
+                  <TableHead className="text-center">Documento</TableHead>
+                  <TableHead className="text-center">Tipo</TableHead>
+                  <TableHead className="text-center">Cant. entrada</TableHead>
+                  <TableHead className="text-center">Costo unitario</TableHead>
+                  <TableHead className="text-center">Valor entrada</TableHead>
+                  <TableHead className="text-center">Cant. salida</TableHead>
+                  <TableHead className="text-center">Costo unitario</TableHead>
+                  <TableHead className="text-center">Valor salida</TableHead>
+                  <TableHead className="text-center">Saldo cant.</TableHead>
+                  <TableHead className="text-center">Saldo valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {kardex.opening_balance_quantity > 0 && (
                   <TableRow className="bg-muted/30 italic">
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell>
+                    <TableCell className="text-left text-muted-foreground">
+                      —
+                    </TableCell>
+                    <TableCell />
+                    <TableCell className="text-left">
                       <Badge variant="secondary">Saldo inicial</Badge>
                     </TableCell>
                     <TableCell />
                     <TableCell />
                     <TableCell />
                     <TableCell />
-                    <TableCell className="text-right font-medium">
+                    <TableCell />
+                    <TableCell />
+                    <TableCell className="text-center font-medium">
                       {formatQuantity(
                         kardex.opening_balance_quantity,
                         quantityMode,
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {fmtCurrency(kardex.opening_balance_value)}
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrency(kardex.opening_balance_value)}
                     </TableCell>
                   </TableRow>
                 )}
                 {kardex.entries.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="p-0">
+                    <TableCell colSpan={11} className="p-0">
                       <EmptyState
                         className="py-10"
                         heading="Sin movimientos en el periodo"
@@ -433,35 +424,67 @@ export default function KardexPage() {
                 )}
                 {kardex.entries.map((e) => (
                   <TableRow key={e.id}>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-left text-sm text-muted-foreground">
                       {new Date(e.created_at).toLocaleDateString("es-EC")}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-left whitespace-nowrap">
+                      {e.document_number && e.document_id ? (
+                        <Link
+                          className="inline-block whitespace-nowrap font-mono text-sm text-primary underline"
+                          to={
+                            e.document_doc_type === "IN"
+                              ? `/inventory/ingresos/${e.document_id}`
+                              : e.document_doc_type === "EG"
+                                ? `/inventory/egresos/${e.document_id}`
+                                : e.document_doc_type === "BI"
+                                  ? `/inventory/bajas/${e.document_id}`
+                                  : e.document_doc_type === "AI"
+                                    ? `/inventory/ajustes/${e.document_id}`
+                                    : "#"
+                          }
+                        >
+                          {e.document_number}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-left">
                       <Badge variant={ENTRY_TYPE_VARIANTS[e.entry_type]}>
                         {ENTRY_TYPE_LABELS[e.entry_type]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       {e.quantity_in > 0
                         ? formatQuantity(e.quantity_in, quantityMode)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {e.cost_in > 0 ? fmtCurrency(e.cost_in) : "—"}
+                    <TableCell className="text-right tabular-nums">
+                      {e.cost_in > 0 ? formatCurrency(e.cost_in) : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right tabular-nums">
+                      {e.quantity_in > 0 && e.cost_in > 0
+                        ? formatCurrency(e.quantity_in * e.cost_in)
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-center">
                       {e.quantity_out > 0
                         ? formatQuantity(e.quantity_out, quantityMode)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {e.cost_out > 0 ? fmtCurrency(e.cost_out) : "—"}
+                    <TableCell className="text-right tabular-nums">
+                      {e.cost_out > 0 ? formatCurrency(e.cost_out) : "—"}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className="text-right tabular-nums">
+                      {e.quantity_out > 0 && e.cost_out > 0
+                        ? formatCurrency(e.quantity_out * e.cost_out)
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-center font-medium">
                       {formatQuantity(e.balance_quantity, quantityMode)}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {fmtCurrency(e.balance_value)}
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrency(e.balance_value)}
                     </TableCell>
                   </TableRow>
                 ))}

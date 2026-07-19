@@ -67,29 +67,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { downloadBlob } from "@/lib/download";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency as fmtCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("es-EC", {
-    style: "currency",
-    currency: "USD",
-  }).format(n);
-}
-
-function formatQuantity(value: unknown, mode: "integer" | "decimal") {
-  if (value === null || value === undefined || value === "") return "—";
-  const n = Number(value);
-  if (Number.isNaN(n)) return String(value);
-  if (mode === "integer") {
-    return new Intl.NumberFormat("es-EC", { maximumFractionDigits: 0 }).format(
-      n,
-    );
-  }
-  return new Intl.NumberFormat("es-EC", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  }).format(n);
-}
 
 type SortDirection = "asc" | "desc";
 

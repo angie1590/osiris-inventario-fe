@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useProducts } from "@/features/catalog/hooks";
+import { formatCurrency, formatQuantity as formatQty } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types/api";
 
@@ -41,6 +42,9 @@ interface Props {
   prioritizeInStock?: boolean;
   lockUnitPrice?: boolean;
   autoFillUnitPriceFromProduct?: boolean;
+  showSubtotal?: boolean;
+  showTotals?: boolean;
+  readOnly?: boolean;
 }
 
 /** Calcula el precio final aplicando el descuento al pvp. */
@@ -237,6 +241,9 @@ export function DocumentLinesEditor({
   prioritizeInStock = false,
   lockUnitPrice = false,
   autoFillUnitPriceFromProduct = false,
+  showSubtotal = false,
+  showTotals = false,
+  readOnly = false,
 }: Props) {
   const { data: settings } = useQuery<{
     stock_quantity_mode: "integer" | "decimal";
@@ -271,6 +278,20 @@ export function DocumentLinesEditor({
     onChange(lines.map((l, idx) => (idx === i ? { ...l, ...partial } : l)));
   };
 
+  const totals = useMemo(() => {
+    const totalUnits = lines.reduce((acc, line) => {
+      const qty = Number(line.quantity || 0);
+      return acc + (Number.isFinite(qty) ? qty : 0);
+    }, 0);
+    const totalAmount = lines.reduce((acc, line) => {
+      const qty = Number(line.quantity || 0);
+      const cost = Number(line.unit_cost || 0);
+      if (!Number.isFinite(qty) || !Number.isFinite(cost)) return acc;
+      return acc + qty * cost;
+    }, 0);
+    return { totalUnits, totalAmount };
+  }, [lines]);
+
   return (
     <div className="space-y-2">
       <div className="rounded-md border">
@@ -278,9 +299,14 @@ export function DocumentLinesEditor({
           <TableHeader>
             <TableRow>
               <TableHead className="w-[35%]">Producto</TableHead>
-              <TableHead className="w-24">Cantidad</TableHead>
+              <TableHead className="w-24 text-right">Cantidad</TableHead>
               {showUnitCost && (
-                <TableHead className="w-28">Costo unit.</TableHead>
+                <TableHead className="w-28 text-right">
+                  Costo unitario
+                </TableHead>
+              )}
+              {showSubtotal && (
+                <TableHead className="w-28 text-right">Subtotal</TableHead>
               )}
               {showDiscount && <TableHead className="w-24">PVP</TableHead>}
               {showDiscount && (
@@ -302,12 +328,13 @@ export function DocumentLinesEditor({
                   colSpan={
                     3 +
                     (showUnitCost ? 1 : 0) +
+                    (showSubtotal ? 1 : 0) +
                     (showDiscount ? 3 : 0) +
                     (showUnitPrice && !showDiscount ? 1 : 0)
                   }
                   className="text-center text-sm text-muted-foreground py-4"
                 >
-                  Sin líneas. Haz clic en "Agregar línea".
+                  Sin líneas. Haz clic en "Agregar ítem".
                 </TableCell>
               </TableRow>
             )}
@@ -330,7 +357,7 @@ export function DocumentLinesEditor({
                     }
                   />
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell className="align-middle text-right">
                   {(() => {
                     const quantityNumber = Number(line.quantity);
                     const exceedsStock =
@@ -340,15 +367,16 @@ export function DocumentLinesEditor({
                       quantityNumber > line.product_stock;
 
                     return (
-                      <div className="relative">
+                      <div className="relative flex flex-col items-end">
                         <Input
                           type="number"
                           min={integerMode ? "1" : "0.0001"}
                           step={integerMode ? "1" : "0.0001"}
-                          disabled={!line.product_id}
+                          disabled={!line.product_id || readOnly}
                           className={cn(
-                            "h-8 w-20 text-center px-1 py-0",
-                            !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
+                            "h-8 w-20 text-right px-1 py-0",
+                            !line.product_id &&
+                              "bg-muted text-muted-foreground cursor-not-allowed",
                             exceedsStock &&
                               "border-destructive bg-rose-50 text-destructive focus-visible:border-destructive focus-visible:ring-destructive",
                           )}
@@ -377,18 +405,28 @@ export function DocumentLinesEditor({
                   })()}
                 </TableCell>
                 {showUnitCost && (
-                  <TableCell className="align-top">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="h-8 w-28 text-right pl-1 pr-2"
-                      placeholder="0.00"
-                      value={line.unit_cost ?? ""}
-                      onChange={(e) =>
-                        updateLine(i, { unit_cost: e.target.value })
-                      }
-                    />
+                  <TableCell className="align-middle text-right">
+                    <div className="flex justify-end">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="h-8 w-28 text-right pl-1 pr-2"
+                        placeholder="0.00"
+                        disabled={readOnly}
+                        value={line.unit_cost ?? ""}
+                        onChange={(e) =>
+                          updateLine(i, { unit_cost: e.target.value })
+                        }
+                      />
+                    </div>
+                  </TableCell>
+                )}
+                {showSubtotal && (
+                  <TableCell className="align-middle text-right font-medium tabular-nums">
+                    {formatCurrency(
+                      Number(line.quantity || 0) * Number(line.unit_cost || 0),
+                    )}
                   </TableCell>
                 )}
                 {showDiscount &&
@@ -427,10 +465,11 @@ export function DocumentLinesEditor({
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
-                                disabled={!line.product_id}
+                                disabled={!line.product_id || readOnly}
                                 className={cn(
                                   "h-8 rounded-l-md border px-2 text-xs font-semibold transition-colors",
-                                  !line.product_id && "opacity-50 cursor-not-allowed",
+                                  !line.product_id &&
+                                    "opacity-50 cursor-not-allowed",
                                   discType === "percent"
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-input bg-background text-muted-foreground hover:bg-accent",
@@ -455,10 +494,11 @@ export function DocumentLinesEditor({
                               </button>
                               <button
                                 type="button"
-                                disabled={!line.product_id}
+                                disabled={!line.product_id || readOnly}
                                 className={cn(
                                   "h-8 rounded-r-md border-y border-r px-2 text-xs font-semibold transition-colors",
-                                  !line.product_id && "opacity-50 cursor-not-allowed",
+                                  !line.product_id &&
+                                    "opacity-50 cursor-not-allowed",
                                   discType === "fixed"
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-input bg-background text-muted-foreground hover:bg-accent",
@@ -487,9 +527,11 @@ export function DocumentLinesEditor({
                                 max={discType === "percent" ? "100" : undefined}
                                 step="0.01"
                                 disabled={!line.product_id}
+                                readOnly={readOnly}
                                 className={cn(
                                   "h-8 w-28 text-right pl-1 pr-2",
-                                  !line.product_id && "bg-muted text-muted-foreground cursor-not-allowed",
+                                  !line.product_id &&
+                                    "bg-muted text-muted-foreground cursor-not-allowed",
                                   discountExceedsPvp &&
                                     "border-destructive bg-rose-50 text-destructive",
                                 )}
@@ -558,7 +600,7 @@ export function DocumentLinesEditor({
                         if (lockUnitPrice) return;
                         updateLine(i, { unit_price: e.target.value });
                       }}
-                      readOnly={lockUnitPrice}
+                      readOnly={lockUnitPrice || readOnly}
                       title={
                         lockUnitPrice
                           ? "Precio unitario tomado del producto"
@@ -567,23 +609,51 @@ export function DocumentLinesEditor({
                     />
                   </TableCell>
                 )}
-                <TableCell className="align-top">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => removeLine(i)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
+                <TableCell className="align-middle text-right">
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={readOnly}
+                      onClick={() => removeLine(i)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={addLine}>
+      {showTotals && (
+        <div className="flex flex-wrap items-center justify-end gap-6 rounded-md border bg-muted/20 px-3 py-2 text-sm">
+          <p>
+            Total de unidades:{" "}
+            <span className="font-semibold">
+              {formatQty(
+                totals.totalUnits,
+                integerMode ? "integer" : "decimal",
+              )}
+            </span>
+          </p>
+          <p>
+            Total del ingreso:{" "}
+            <span className="font-semibold tabular-nums">
+              {formatCurrency(totals.totalAmount)}
+            </span>
+          </p>
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addLine}
+        disabled={readOnly}
+      >
         <Plus className="mr-1.5 h-3.5 w-3.5" />
         Agregar ítem
       </Button>

@@ -18,6 +18,7 @@ import { VoidDialog } from "./VoidDialog";
 import { useDocument, useCancelDocument } from "./hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency, formatQuantity } from "@/lib/format";
 import type { DocumentStatus, DocumentType } from "@/types/api";
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
@@ -118,8 +119,42 @@ export function DocumentDetail({
             <CardTitle>Cabecera</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            {doc.doc_type === "IN" && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tipo de ingreso</span>
+                  <span>
+                    {doc.ingreso_type === "initial_inventory"
+                      ? "Inventario inicial"
+                      : "Compra"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Proveedor</span>
+                  <span>{doc.supplier?.trade_name || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tipo documento</span>
+                  <span>
+                    {doc.purchase_document_type === "invoice"
+                      ? "Factura"
+                      : doc.purchase_document_type === "sales_note"
+                        ? "Nota de venta"
+                        : doc.purchase_document_type === "receipt"
+                          ? "Recibo"
+                          : doc.purchase_document_type === "none"
+                            ? "Sin documento"
+                            : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nro. documento</span>
+                  <span>{doc.purchase_document_number || "—"}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Referencia</span>
+              <span className="text-muted-foreground">Referencia interna</span>
               <span>{doc.reference || "—"}</span>
             </div>
             <div className="flex justify-between">
@@ -148,20 +183,27 @@ export function DocumentDetail({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Producto</TableHead>
-              <TableHead>Cantidad</TableHead>
-              {showCost && <TableHead>Costo unit.</TableHead>}
-              {showPrice && <TableHead>Precio unit.</TableHead>}
+              <TableHead className="text-center">Producto</TableHead>
+              <TableHead className="text-center">Cantidad</TableHead>
+              {showCost && (
+                <TableHead className="text-center">Costo unitario</TableHead>
+              )}
+              {showCost && (
+                <TableHead className="text-center">Subtotal</TableHead>
+              )}
+              {showPrice && (
+                <TableHead className="text-center">Precio unit.</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {doc.lines.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={showCost || showPrice ? 3 : 2}
+                  colSpan={2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0)}
                   className="text-center text-muted-foreground"
                 >
-                  Sin líneas
+                  Sin ítems
                 </TableCell>
               </TableRow>
             ) : (
@@ -172,19 +214,24 @@ export function DocumentDetail({
                       ? `${l.product_name}${l.product_isbn ? ` (${l.product_isbn})` : ""}`
                       : `#${l.product_id}`}
                   </TableCell>
-                  <TableCell>{l.quantity}</TableCell>
+                  <TableCell className="text-center">
+                    {formatQuantity(l.quantity, "integer")}
+                  </TableCell>
                   {showCost && (
-                    <TableCell>
-                      {l.unit_cost != null
-                        ? `$${Number(l.unit_cost).toFixed(2)}`
-                        : "—"}
+                    <TableCell className="text-right tabular-nums">
+                      {formatCurrency(l.unit_cost)}
+                    </TableCell>
+                  )}
+                  {showCost && (
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {formatCurrency(
+                        Number(l.quantity) * Number(l.unit_cost || 0),
+                      )}
                     </TableCell>
                   )}
                   {showPrice && (
-                    <TableCell>
-                      {l.unit_price != null
-                        ? `$${Number(l.unit_price).toFixed(2)}`
-                        : "—"}
+                    <TableCell className="text-right tabular-nums">
+                      {formatCurrency(l.unit_price)}
                     </TableCell>
                   )}
                 </TableRow>
@@ -193,6 +240,53 @@ export function DocumentDetail({
           </TableBody>
         </Table>
       </div>
+
+      <div className="flex items-center justify-end gap-6 rounded-md border bg-muted/20 px-3 py-2 text-sm">
+        <p>
+          Total de unidades:{" "}
+          <span className="font-semibold">
+            {formatQuantity(
+              doc.lines.reduce((acc, l) => acc + Number(l.quantity || 0), 0),
+              "integer",
+            )}
+          </span>
+        </p>
+        {showCost && (
+          <p>
+            Total del ingreso:{" "}
+            <span className="font-semibold tabular-nums">
+              {formatCurrency(
+                doc.lines.reduce(
+                  (acc, l) =>
+                    acc + Number(l.quantity || 0) * Number(l.unit_cost || 0),
+                  0,
+                ),
+              )}
+            </span>
+          </p>
+        )}
+      </div>
+
+      {doc.doc_type === "IN" &&
+        doc.attachments &&
+        doc.attachments.length > 0 && (
+          <div className="rounded-md border p-3">
+            <p className="mb-2 text-sm font-semibold">Documento de compra</p>
+            <div className="space-y-1">
+              {doc.attachments.map((a) => (
+                <a
+                  key={a.id}
+                  href={`/api/v1/inventory/ingresos/${doc.id}/attachments/${a.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-sm text-primary underline"
+                >
+                  {a.original_name}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
       <div className="flex gap-2">
         {extraActions}

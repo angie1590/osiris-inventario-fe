@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ListChecks,
+  Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,6 +60,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Catálogos",
     icon: ListChecks,
     roles: ["admin", "supervisor"],
+    section: "catalogo",
+  },
+  {
+    to: "/suppliers",
+    label: "Proveedores",
+    icon: Truck,
+    roles: ["admin", "operator", "supervisor"],
     section: "catalogo",
   },
   {
