@@ -25,6 +25,8 @@ import {
   useAuditUsers,
   type AuditFilters,
 } from "@/features/audit/hooks";
+import { useCategories } from "@/features/catalog/hooks";
+import { buildCategoryPath } from "@/features/catalog/categoryPath";
 import { downloadBlob } from "@/lib/download";
 import { differenceInDays, parseISO } from "date-fns";
 import api from "@/lib/api";
@@ -146,6 +148,17 @@ function localizeEntityType(entityType: string | null): string {
 }
 
 const FIELD_LABELS: Record<string, string> = {
+  isbn: "Código de barras",
+  codigo_interno: "Código interno",
+  name: "Nombre",
+  description: "Descripción",
+  pvp: "PVP",
+  stock_minimo: "Stock mínimo",
+  category_id: "Categoría",
+  category_name: "Categoría",
+  photo: "Foto",
+  photos: "Fotos",
+  custom_attributes: "Atributos personalizados",
   full_name: "Nombre completo",
   role: "Rol",
   is_active: "Estado activo",
@@ -162,21 +175,80 @@ const FIELD_VALUE_LABELS: Record<string, Record<string, string>> = {
   },
 };
 
+const PHOTO_FIELDS = new Set(["photo", "photos", "logo"]);
+const MAX_AUDIT_VALUE_LENGTH = 220;
+
+type AttrChange = {
+  key: string;
+  before: unknown;
+  after: unknown;
+};
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function getCustomAttributeChanges(
+  before: unknown,
+  after: unknown,
+): AttrChange[] {
+  const beforeObj = toRecord(before);
+  const afterObj = toRecord(after);
+  const keys = Array.from(
+    new Set([...Object.keys(beforeObj), ...Object.keys(afterObj)]),
+  );
+  return keys
+    .filter(
+      (key) => JSON.stringify(beforeObj[key]) !== JSON.stringify(afterObj[key]),
+    )
+    .map((key) => ({ key, before: beforeObj[key], after: afterObj[key] }));
+}
+
+function truncateAuditValue(value: string): string {
+  if (value.length <= MAX_AUDIT_VALUE_LENGTH) return value;
+  return `${value.slice(0, MAX_AUDIT_VALUE_LENGTH)}...`;
+}
+
 function toDisplayValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? "Sí" : "No";
-  if (typeof value === "string") {
-    return FIELD_VALUE_LABELS[key]?.[value] ?? value;
+  if (PHOTO_FIELDS.has(key) && typeof value === "string") {
+    if (value.startsWith("data:image/")) {
+      return `Imagen embebida base64 (${value.length} caracteres)`;
+    }
+    return truncateAuditValue(value);
   }
-  if (typeof value === "object") return JSON.stringify(value);
+  if (PHOTO_FIELDS.has(key) && Array.isArray(value)) {
+    return `${value.length} imagen(es)`;
+  }
+  if (typeof value === "string") {
+    return truncateAuditValue(FIELD_VALUE_LABELS[key]?.[value] ?? value);
+  }
+  if (typeof value === "object") {
+    const serialized = JSON.stringify(value);
+    return truncateAuditValue(serialized);
+  }
   return String(value);
 }
 
-function AuditChanges({ log }: { log: AuditLog }) {
+function AuditChanges({
+  log,
+  categoryById,
+}: {
+  log: AuditLog;
+  categoryById: (id: unknown) => string;
+}) {
+  const [attrModalOpen, setAttrModalOpen] = useState(false);
   const before = log.previous_values ?? {};
   const after = log.new_values ?? {};
-  const keys = Array.from(
+  const allKeys = Array.from(
     new Set([...Object.keys(before), ...Object.keys(after)]),
+  );
+  const keys = allKeys.filter((key) => key !== "category_name");
+  const customAttrChanges = getCustomAttributeChanges(
+    before.custom_attributes,
+    after.custom_attributes,
   );
 
   if (keys.length === 0) {
@@ -203,14 +275,94 @@ function AuditChanges({ log }: { log: AuditLog }) {
               <td className="px-2 py-1.5 font-medium">
                 {FIELD_LABELS[key] ?? key}
               </td>
-              <td className="px-2 py-1.5 text-muted-foreground">
-                {toDisplayValue(key, before[key])}
+              <td className="max-w-[360px] break-all px-2 py-1.5 text-muted-foreground">
+                {key === "category_id"
+                  ? categoryById(before[key])
+                  : key === "custom_attributes"
+                    ? customAttrChanges.length > 0
+                      ? `${customAttrChanges.length} atributo(s) modificado(s)`
+                      : "Sin cambios"
+                    : toDisplayValue(key, before[key])}
               </td>
-              <td className="px-2 py-1.5">{toDisplayValue(key, after[key])}</td>
+              <td className="max-w-[360px] break-all px-2 py-1.5">
+                {key === "category_id" ? (
+                  categoryById(after[key])
+                ) : key === "custom_attributes" ? (
+                  customAttrChanges.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span>{customAttrChanges.length} cambio(s)</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[11px]"
+                        onClick={() => setAttrModalOpen(true)}
+                      >
+                        Ver cambios
+                      </Button>
+                    </div>
+                  ) : (
+                    "Sin cambios"
+                  )
+                ) : (
+                  toDisplayValue(key, after[key])
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {attrModalOpen && (
+        <DetailModal
+          open
+          onClose={() => setAttrModalOpen(false)}
+          title="Cambios en atributos personalizados"
+          subtitle={`${customAttrChanges.length} atributo(s) modificado(s)`}
+          size="lg"
+          sections={[
+            {
+              content: (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full min-w-130 text-xs">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-semibold">
+                          Atributo
+                        </th>
+                        <th className="px-2 py-1.5 text-left font-semibold">
+                          Anterior
+                        </th>
+                        <th className="px-2 py-1.5 text-left font-semibold">
+                          Nuevo
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customAttrChanges.map((change) => (
+                        <tr
+                          key={`${log.id}-attr-${change.key}`}
+                          className="border-t"
+                        >
+                          <td className="px-2 py-1.5 font-medium">
+                            {change.key}
+                          </td>
+                          <td className="max-w-[360px] break-all px-2 py-1.5 text-muted-foreground">
+                            {toDisplayValue("attr_before", change.before)}
+                          </td>
+                          <td className="max-w-[360px] break-all px-2 py-1.5">
+                            {toDisplayValue("attr_after", change.after)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -232,6 +384,12 @@ export default function AuditPage() {
   const { data: users, isLoading: usersLoading } = useAuditUsers(
     userQuery || undefined,
   );
+  const { data: categories } = useCategories();
+  const categoryById = (id: unknown): string => {
+    const n = typeof id === "string" ? Number(id) : id;
+    if (typeof n !== "number" || Number.isNaN(n)) return "—";
+    return buildCategoryPath(categories ?? [], n);
+  };
   const currentUserLabel = userId
     ? users?.find((u) => u.id === userId)
       ? `${users.find((u) => u.id === userId)!.full_name} (${users.find((u) => u.id === userId)!.username})`
@@ -681,7 +839,9 @@ export default function AuditPage() {
             },
             {
               title: "Detalle de cambios",
-              content: <AuditChanges log={viewLog} />,
+              content: (
+                <AuditChanges log={viewLog} categoryById={categoryById} />
+              ),
             },
           ]}
         />
