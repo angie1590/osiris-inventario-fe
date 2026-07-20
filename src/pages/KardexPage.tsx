@@ -26,7 +26,7 @@ import { useProducts } from "@/features/catalog/hooks";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
-import type { KardexEntryType } from "@/types/api";
+import type { KardexEntry, KardexEntryType } from "@/types/api";
 
 const ENTRY_TYPE_LABELS: Record<KardexEntryType, string> = {
   IN: "Ingreso",
@@ -41,6 +41,13 @@ const ENTRY_TYPE_VARIANTS: Record<
   OUT: "destructive",
   ADJUST: "secondary",
 };
+
+function getEntryDisplayType(entry: KardexEntry): "IN" | "OUT" {
+  if (entry.entry_type === "ADJUST") {
+    return entry.quantity_in > 0 ? "IN" : "OUT";
+  }
+  return entry.entry_type;
+}
 
 function safeNumber(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -450,8 +457,10 @@ export default function KardexPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-left">
-                      <Badge variant={ENTRY_TYPE_VARIANTS[e.entry_type]}>
-                        {ENTRY_TYPE_LABELS[e.entry_type]}
+                      <Badge
+                        variant={ENTRY_TYPE_VARIANTS[getEntryDisplayType(e)]}
+                      >
+                        {ENTRY_TYPE_LABELS[getEntryDisplayType(e)]}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">

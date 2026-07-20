@@ -32,20 +32,74 @@ export function SearchableSelect({
 }: Props) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
+  const [activeIndex, setActiveIndex] = React.useState(0)
   const searchRef = React.useRef<HTMLInputElement>(null)
+  const optionRefs = React.useRef<Array<HTMLDivElement | null>>([])
 
-  const normalized: SearchableSelectOption[] = options.map((o) =>
-    typeof o === 'string' ? { value: o, label: o } : o,
+  const normalized: SearchableSelectOption[] = React.useMemo(
+    () =>
+      options.map((o) =>
+        typeof o === 'string' ? { value: o, label: o } : o,
+      ),
+    [options],
   )
   const selected = normalized.find((o) => o.value === value)
-  const filtered = query
-    ? normalized.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
-    : normalized
+  const filtered = React.useMemo(
+    () =>
+      query
+        ? normalized.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+        : normalized,
+    [normalized, query],
+  )
+
+  React.useEffect(() => {
+    if (!open) return
+    setActiveIndex((current) => {
+      if (filtered.length === 0) return 0
+      const selectedIndex = filtered.findIndex((o) => o.value === value)
+      if (selectedIndex >= 0) return selectedIndex
+      if (current < 0) return 0
+      if (current >= filtered.length) return filtered.length - 1
+      return current
+    })
+  }, [open, value, query, filtered.length])
 
   React.useEffect(() => {
     if (open) setTimeout(() => searchRef.current?.focus(), 40)
     else setQuery('')
   }, [open])
+
+  React.useEffect(() => {
+    const active = optionRefs.current[activeIndex]
+    active?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
+
+  const moveActive = (direction: 1 | -1) => {
+    if (filtered.length === 0) return
+    setActiveIndex((current) => {
+      const next = (current + direction + filtered.length) % filtered.length
+      return next
+    })
+  }
+
+  const openFromTrigger = (direction?: 1 | -1) => {
+    if (open) {
+      if (direction) moveActive(direction)
+      return
+    }
+    setOpen(true)
+    if (!direction || filtered.length === 0) return
+    const selectedIndex = filtered.findIndex((o) => o.value === value)
+    const base = selectedIndex >= 0 ? selectedIndex : direction === 1 ? -1 : 0
+    setActiveIndex((base + direction + filtered.length) % filtered.length)
+  }
+
+  const commitActive = () => {
+    const option = filtered[activeIndex]
+    if (!option) return
+    onChange(option.value)
+    setOpen(false)
+  }
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -57,6 +111,16 @@ export function SearchableSelect({
           aria-expanded={open}
           disabled={disabled}
           className={cn('w-full justify-between font-normal', !selected && 'text-muted-foreground', className)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              openFromTrigger(1)
+            }
+            if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              openFromTrigger(-1)
+            }
+          }}
         >
           <span className="truncate">{selected?.label ?? placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -68,15 +132,40 @@ export function SearchableSelect({
           style={{ zIndex: 350 }}
           align="start"
           sideOffset={4}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            searchRef.current?.focus()
+          }}
         >
           <div className="flex items-center gap-2 border-b px-3 py-2">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <Input
               ref={searchRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setActiveIndex(0)
+              }}
               placeholder="Buscar…"
               className="h-7 border-none p-0 text-sm shadow-none focus-visible:ring-0"
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  moveActive(1)
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  moveActive(-1)
+                }
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitActive()
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setOpen(false)
+                }
+              }}
             />
           </div>
           <div
@@ -103,10 +192,15 @@ export function SearchableSelect({
                   key={o.value}
                   role="option"
                   aria-selected={o.value === value}
+                  ref={(node) => {
+                    optionRefs.current[filtered.indexOf(o)] = node
+                  }}
                   className={cn(
                     'flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm select-none hover:bg-accent',
-                    o.value === value && 'bg-primary/10 font-medium',
+                    filtered[activeIndex]?.value === o.value && 'bg-accent',
+                    o.value === value && 'font-medium',
                   )}
+                  onMouseEnter={() => setActiveIndex(filtered.indexOf(o))}
                   onClick={() => { onChange(o.value); setOpen(false) }}
                 >
                   <span className="flex-1 truncate">{o.label}</span>

@@ -8,6 +8,7 @@ interface ApiErrorShape {
     data?: {
       code?: string;
       message?: string;
+      errors?: Record<string, string>;
       detail?: string | { code?: string; message?: string };
     };
   };
@@ -36,9 +37,13 @@ export function getApiErrorMessage(
   fallback: string,
   codeMessages: Record<string, string> = {},
 ): string {
+  const data = (err as ApiErrorShape)?.response?.data;
+  const firstFieldError = data?.errors
+    ? Object.values(data.errors).find(Boolean)
+    : undefined;
   const parsed = parseApiError(err);
   if (parsed.code && codeMessages[parsed.code]) {
     return codeMessages[parsed.code];
   }
-  return parsed.message ?? fallback;
+  return parsed.message ?? firstFieldError ?? fallback;
 }

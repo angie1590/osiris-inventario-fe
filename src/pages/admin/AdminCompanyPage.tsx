@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/shared/FormField";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Section } from "@/components/shared/Section";
@@ -17,8 +18,101 @@ import {
   useUpdateCompany,
 } from "@/features/admin/hooks";
 import { useToast } from "@/hooks/use-toast";
+import type { BajaReason, EgresoType, IngresoType } from "@/types/api";
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const DEFAULT_INGRESO_TYPES: IngresoType[] = [
+  "purchase",
+  "initial_inventory",
+  "adjustment_positive",
+  "customer_return",
+  "production",
+  "transfer_received",
+  "other",
+];
+const DEFAULT_EGRESO_TYPES: EgresoType[] = [
+  "sale",
+  "baja",
+  "adjustment_negative",
+  "supplier_return",
+  "internal_consumption",
+  "transfer_sent",
+  "other",
+];
+const DEFAULT_BAJA_REASONS: BajaReason[] = [
+  "damage",
+  "expiration",
+  "loss",
+  "theft",
+  "donation",
+  "gift",
+  "destruction",
+  "sample",
+  "other",
+];
+const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
+  purchase: "Compra",
+  initial_inventory: "Inventario inicial",
+  adjustment_positive: "Ajuste positivo",
+  customer_return: "Devolución de cliente",
+  production: "Producción",
+  transfer_received: "Transferencia recibida",
+  other: "Otro",
+};
+const INGRESO_TYPE_DESCRIPTIONS: Record<IngresoType, string> = {
+  purchase: "Registra mercancía adquirida a un proveedor.",
+  initial_inventory: "Registra las existencias con las que inicia la operación del sistema.",
+  adjustment_positive: "Corrige el inventario cuando el stock físico es mayor al registrado.",
+  customer_return: "Reingresa productos devueltos por un cliente.",
+  production: "Incorpora productos fabricados o ensamblados por la empresa.",
+  transfer_received: "Recibe productos provenientes de otra bodega o sucursal.",
+  other: "Registra cualquier ingreso que no corresponda a los tipos anteriores.",
+};
+const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
+  sale: "Venta",
+  baja: "Baja",
+  adjustment_negative: "Ajuste negativo",
+  supplier_return: "Devolución a proveedor",
+  internal_consumption: "Consumo interno",
+  transfer_sent: "Transferencia enviada",
+  other: "Otro",
+};
+const EGRESO_TYPE_DESCRIPTIONS: Record<EgresoType, string> = {
+  sale: "Utilice esta opción para registrar productos vendidos a un cliente.",
+  baja: "Utilice esta opción para retirar productos del inventario por baja.",
+  adjustment_negative:
+    "Utilice esta opción cuando el conteo físico sea menor al registrado en el sistema.",
+  supplier_return:
+    "Utilice esta opción para devolver productos previamente adquiridos a un proveedor.",
+  internal_consumption:
+    "Utilice esta opción para registrar productos utilizados por la empresa y que no serán comercializados.",
+  transfer_sent:
+    "Utilice esta opción para enviar productos a otra bodega o sucursal.",
+  other:
+    "Utilice esta opción para registrar salidas no contempladas en las demás categorías.",
+};
+const BAJA_REASON_LABELS: Record<BajaReason, string> = {
+  damage: "Daño",
+  expiration: "Caducidad",
+  loss: "Pérdida",
+  theft: "Robo",
+  donation: "Donación",
+  gift: "Obsequio",
+  destruction: "Destrucción",
+  sample: "Muestra",
+  other: "Otro",
+};
+const BAJA_REASON_DESCRIPTIONS: Record<BajaReason, string> = {
+  damage: "Retiro de productos dañados o inutilizables.",
+  expiration: "Retiro de productos vencidos o fuera de vida útil.",
+  loss: "Retiro por extravío o pérdida.",
+  theft: "Retiro por sustracción o robo.",
+  donation: "Retiro por entrega gratuita a terceros.",
+  gift: "Retiro por obsequio.",
+  destruction: "Retiro por destrucción controlada.",
+  sample: "Retiro por uso como muestra.",
+  other: "Otro motivo no contemplado.",
+};
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 const toUpper = (value: string) => value.toUpperCase();
@@ -104,6 +198,47 @@ const schema = z.object({
       (value) => !value || /^\d+$/.test(value),
       "Teléfono debe contener solo dígitos",
     ),
+  enabled_ingreso_types: z
+    .array(
+      z.enum([
+        "purchase",
+        "initial_inventory",
+        "adjustment_positive",
+        "customer_return",
+        "production",
+        "transfer_received",
+        "other",
+      ]),
+    )
+    .min(1, "Selecciona al menos un tipo de ingreso"),
+  enabled_egreso_types: z
+    .array(
+      z.enum([
+        "sale",
+        "baja",
+        "adjustment_negative",
+        "supplier_return",
+        "internal_consumption",
+        "transfer_sent",
+        "other",
+      ]),
+    )
+    .min(1, "Selecciona al menos un tipo de egreso"),
+  enabled_baja_reasons: z
+    .array(
+      z.enum([
+        "damage",
+        "expiration",
+        "loss",
+        "theft",
+        "donation",
+        "gift",
+        "destruction",
+        "sample",
+        "other",
+      ]),
+    )
+    .min(1, "Selecciona al menos un motivo de baja"),
 });
 
 type FormInput = z.input<typeof schema>;
@@ -147,6 +282,12 @@ export default function AdminCompanyPage() {
 
   const isEdit = !!company;
   const showForm = !company || editing;
+  const persistedIngresoTypes = company?.enabled_ingreso_types ?? [];
+  const persistedEgresoTypes = company?.enabled_egreso_types ?? [];
+  const persistedBajaReasons = company?.enabled_baja_reasons ?? [];
+  const editableIngresoTypes = persistedIngresoTypes;
+  const editableEgresoTypes = persistedEgresoTypes;
+  const editableBajaReasons = persistedBajaReasons;
 
   const {
     register,
@@ -154,6 +295,8 @@ export default function AdminCompanyPage() {
     formState: { errors, isSubmitting },
     reset,
     setError,
+    setValue,
+    watch,
   } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
     mode: "onBlur",
@@ -166,8 +309,16 @@ export default function AdminCompanyPage() {
           nombre_comercial: company.nombre_comercial ?? "",
           direccion: company.direccion ?? "",
           telefono: company.telefono ?? "",
+          enabled_ingreso_types: editableIngresoTypes,
+          enabled_egreso_types: editableEgresoTypes,
+          enabled_baja_reasons: editableBajaReasons,
         }
       : undefined,
+    defaultValues: {
+      enabled_ingreso_types: DEFAULT_INGRESO_TYPES,
+      enabled_egreso_types: DEFAULT_EGRESO_TYPES,
+      enabled_baja_reasons: DEFAULT_BAJA_REASONS,
+    },
   });
 
   const currentLogoSrc = logoPreview ?? company?.logo ?? null;
@@ -194,6 +345,9 @@ export default function AdminCompanyPage() {
         nombre_comercial: company.nombre_comercial ?? "",
         direccion: company.direccion ?? "",
         telefono: company.telefono ?? "",
+        enabled_ingreso_types: editableIngresoTypes,
+        enabled_egreso_types: editableEgresoTypes,
+        enabled_baja_reasons: editableBajaReasons,
       });
     }
     setEditing(false);
@@ -226,6 +380,9 @@ export default function AdminCompanyPage() {
       nombre_comercial: data.nombre_comercial || undefined,
       direccion: data.direccion || undefined,
       telefono: data.telefono || undefined,
+      enabled_ingreso_types: data.enabled_ingreso_types,
+      enabled_egreso_types: data.enabled_egreso_types,
+      enabled_baja_reasons: data.enabled_baja_reasons,
       ...(logoValue !== undefined && { logo: logoValue }),
     };
 
@@ -255,6 +412,9 @@ export default function AdminCompanyPage() {
           "nombre_comercial",
           "direccion",
           "telefono",
+          "enabled_ingreso_types",
+          "enabled_egreso_types",
+          "enabled_baja_reasons",
         ];
         knownFields.forEach((field) => {
           if (fieldErrors[field]) {
@@ -269,7 +429,7 @@ export default function AdminCompanyPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="mx-auto max-w-6xl space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96" />
       </div>
@@ -278,7 +438,7 @@ export default function AdminCompanyPage() {
 
   if (!showForm && company) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <PageHeader
           title="Configuración de Empresa"
           actions={
@@ -304,6 +464,42 @@ export default function AdminCompanyPage() {
             <div className="sm:col-span-2">
               <ViewField label="Dirección" value={company.direccion} />
             </div>
+            <div className="sm:col-span-2 space-y-0.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tipos de ingreso habilitados
+              </p>
+              <p className="text-sm">
+                {persistedIngresoTypes.length
+                  ? persistedIngresoTypes
+                      .map((type) => INGRESO_TYPE_LABELS[type])
+                      .join(", ")
+                  : "—"}
+              </p>
+            </div>
+            <div className="sm:col-span-2 space-y-0.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tipos de egreso habilitados
+              </p>
+              <p className="text-sm">
+                {persistedEgresoTypes.length
+                  ? persistedEgresoTypes
+                      .map((type) => EGRESO_TYPE_LABELS[type])
+                      .join(", ")
+                  : "—"}
+              </p>
+            </div>
+            <div className="sm:col-span-2 space-y-0.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Motivos de baja habilitados
+              </p>
+              <p className="text-sm">
+                {persistedBajaReasons.length
+                  ? persistedBajaReasons
+                      .map((reason) => BAJA_REASON_LABELS[reason])
+                      .join(", ")
+                  : "—"}
+              </p>
+            </div>
           </div>
         </Section>
 
@@ -326,7 +522,7 @@ export default function AdminCompanyPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader title="Configuración de Empresa" />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
@@ -422,6 +618,121 @@ export default function AdminCompanyPage() {
                 })}
               />
             </FormField>
+
+            <div className="col-span-2 space-y-2">
+              <p className="text-sm font-semibold">Tipos de ingreso habilitados</p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {(Object.keys(INGRESO_TYPE_LABELS) as IngresoType[]).map(
+                  (type) => (
+                    <label
+                      key={type}
+                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                    >
+                      <Checkbox
+                        checked={
+                          !!watch("enabled_ingreso_types")?.includes(type)
+                        }
+                        onCheckedChange={(checked) => {
+                          const current = watch("enabled_ingreso_types") ?? [];
+                          const next = checked
+                            ? Array.from(new Set([...current, type]))
+                            : current.filter((item) => item !== type);
+                          setValue("enabled_ingreso_types", next, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                      />
+                      <div className="space-y-1">
+                        <p className="font-medium">{INGRESO_TYPE_LABELS[type]}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {INGRESO_TYPE_DESCRIPTIONS[type]}
+                        </p>
+                      </div>
+                    </label>
+                  ),
+                )}
+              </div>
+              {errors.enabled_ingreso_types?.message && (
+                <p className="text-sm text-destructive">
+                  {errors.enabled_ingreso_types.message}
+                </p>
+              )}
+            </div>
+
+            <div className="col-span-2 space-y-2">
+              <p className="text-sm font-semibold">Tipos de egreso habilitados</p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {(Object.keys(EGRESO_TYPE_LABELS) as EgresoType[]).map((type) => (
+                  <label
+                    key={type}
+                    className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                  >
+                    <Checkbox
+                      checked={!!watch("enabled_egreso_types")?.includes(type)}
+                      onCheckedChange={(checked) => {
+                        const current = watch("enabled_egreso_types") ?? [];
+                        const next = checked
+                          ? Array.from(new Set([...current, type]))
+                          : current.filter((item) => item !== type);
+                        setValue("enabled_egreso_types", next, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                    />
+                    <div className="space-y-1">
+                      <p className="font-medium">{EGRESO_TYPE_LABELS[type]}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {EGRESO_TYPE_DESCRIPTIONS[type]}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {errors.enabled_egreso_types?.message && (
+                <p className="text-sm text-destructive">
+                  {errors.enabled_egreso_types.message}
+                </p>
+              )}
+            </div>
+
+            <div className="col-span-2 space-y-2">
+              <p className="text-sm font-semibold">Motivos de baja habilitados</p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {(Object.keys(BAJA_REASON_LABELS) as BajaReason[]).map((type) => (
+                  <label
+                    key={type}
+                    className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                  >
+                    <Checkbox
+                      checked={!!watch("enabled_baja_reasons")?.includes(type)}
+                      onCheckedChange={(checked) => {
+                        const current = watch("enabled_baja_reasons") ?? [];
+                        const next = checked
+                          ? Array.from(new Set([...current, type]))
+                          : current.filter((item) => item !== type);
+                        setValue("enabled_baja_reasons", next, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                    />
+                    <div className="space-y-1">
+                      <p className="font-medium">{BAJA_REASON_LABELS[type]}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {BAJA_REASON_DESCRIPTIONS[type]}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {errors.enabled_baja_reasons?.message && (
+                <p className="text-sm text-destructive">
+                  {errors.enabled_baja_reasons.message}
+                </p>
+              )}
+            </div>
           </div>
         </Section>
 

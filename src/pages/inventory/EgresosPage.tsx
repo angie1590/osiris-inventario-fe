@@ -9,10 +9,25 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
+import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
 import { useEgresos } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
-import type { DocumentStatus, InventoryDocument } from "@/types/api";
+import type {
+  DocumentStatus,
+  EgresoType,
+  InventoryDocument,
+} from "@/types/api";
+
+const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
+  sale: "Venta",
+  baja: "Baja",
+  adjustment_negative: "Ajuste negativo",
+  supplier_return: "Devolución a proveedor",
+  internal_consumption: "Consumo interno",
+  transfer_sent: "Transferencia enviada",
+  other: "Otro",
+};
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
@@ -66,8 +81,25 @@ export default function EgresosPage() {
       cell: (d) => d.reference || "—",
     },
     {
+      key: "egreso_type",
+      header: "Tipo de egreso",
+      sortable: true,
+      sortAccessor: (d) => d.egreso_type ?? "",
+      cell: (d) => (d.egreso_type ? EGRESO_TYPE_LABELS[d.egreso_type] : "—"),
+    },
+    {
+      key: "purchase_document_type",
+      header: "Tipo documento",
+      sortable: true,
+      sortAccessor: (d) => d.purchase_document_type ?? "",
+      cell: (d) =>
+        d.purchase_document_type
+          ? PURCHASE_DOCUMENT_TYPE_LABELS[d.purchase_document_type]
+          : "—",
+    },
+    {
       key: "lines",
-      header: "Líneas",
+      header: "ítems",
       align: "right",
       sortable: true,
       sortAccessor: (d) => d.lines.length,

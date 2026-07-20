@@ -17,9 +17,49 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { VoidDialog } from "./VoidDialog";
 import { useDocument, useCancelDocument } from "./hooks";
 import { useAuth } from "@/contexts/AuthContext";
+import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatQuantity } from "@/lib/format";
-import type { DocumentStatus, DocumentType } from "@/types/api";
+import api from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
+import type {
+  DocumentStatus,
+  DocumentType,
+  BajaReason,
+  EgresoType,
+  IngresoType,
+  InventoryDocumentAttachment,
+} from "@/types/api";
+
+const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
+  purchase: "Compra",
+  initial_inventory: "Inventario inicial",
+  adjustment_positive: "Ajuste positivo",
+  customer_return: "Devolución de cliente",
+  production: "Producción",
+  transfer_received: "Transferencia recibida",
+  other: "Otro",
+};
+const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
+  sale: "Venta",
+  baja: "Baja",
+  adjustment_negative: "Ajuste negativo",
+  supplier_return: "Devolución a proveedor",
+  internal_consumption: "Consumo interno",
+  transfer_sent: "Transferencia enviada",
+  other: "Otro",
+};
+const BAJA_REASON_LABELS: Record<BajaReason, string> = {
+  damage: "Daño",
+  expiration: "Caducidad",
+  loss: "Pérdida",
+  theft: "Robo",
+  donation: "Donación",
+  gift: "Obsequio",
+  destruction: "Destrucción",
+  sample: "Muestra",
+  other: "Otro",
+};
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
@@ -69,6 +109,58 @@ export function DocumentDetail({
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!doc) return <p>Documento no encontrado</p>;
 
+  const isEgreso = doc.doc_type === "EG";
+  const totalItems = doc.lines.length;
+  const totalUnits = doc.lines.reduce(
+    (acc, l) => acc + Number(l.quantity || 0),
+    0,
+  );
+  const totalCost = doc.lines.reduce(
+    (acc, l) => acc + Number(l.quantity || 0) * Number(l.unit_cost || 0),
+    0,
+  );
+  const totalFinalPrice = doc.lines.reduce(
+    (acc, l) => acc + Number(l.quantity || 0) * Number(l.unit_price || 0),
+    0,
+  );
+  const egresoLineSummaries = doc.lines.map((l) => {
+    const quantity = Number(l.quantity || 0);
+    const finalTotal = quantity * Number(l.unit_price || 0);
+    const hasDiscountData =
+      l.unit_price_base != null ||
+      l.discount_type != null ||
+      l.discount_value != null;
+    if (!hasDiscountData) {
+      return {
+        subtotal: finalTotal,
+        discount: 0,
+        final: finalTotal,
+      };
+    }
+    const unitPriceBase = Number(l.unit_price_base ?? l.unit_price ?? 0);
+    const subtotal = quantity * unitPriceBase;
+    const rawDiscountValue = Math.max(0, Number(l.discount_value || 0));
+    const discount =
+      l.discount_type === "percent"
+        ? (subtotal * Math.min(rawDiscountValue, 100)) / 100
+        : rawDiscountValue;
+    const boundedDiscount = Math.min(subtotal, discount);
+    return {
+      subtotal,
+      discount: boundedDiscount,
+      final: Math.max(0, subtotal - boundedDiscount),
+    };
+  });
+  const egresoSubtotal = egresoLineSummaries.reduce(
+    (acc, l) => acc + l.subtotal,
+    0,
+  );
+  const egresoDiscount = egresoLineSummaries.reduce(
+    (acc, l) => acc + l.discount,
+    0,
+  );
+  const egresoFinal = egresoLineSummaries.reduce((acc, l) => acc + l.final, 0);
+
   const canCancel =
     (doc.doc_type === "BI" || doc.doc_type === "AI") &&
     doc.status === "pending" &&
@@ -79,6 +171,40 @@ export function DocumentDetail({
     (user?.role === "admin" ||
       user?.role === "operator" ||
       user?.role === "supervisor");
+
+  const openAttachment = async (attachment: InventoryDocumentAttachment) => {
+    const newTab = window.open("about:blank", "_blank");
+    if (newTab) {
+      newTab.document.write("<p style=\"font-family:sans-serif\">Cargando adjunto...</p>");
+      newTab.document.close();
+    }
+    try {
+      const response = await api.get(
+        `/inventory/ingresos/${doc.id}/attachments/${attachment.id}`,
+        { responseType: "blob" },
+      );
+      const blob = new Blob([response.data], {
+        type:
+          (response.headers["content-type"] as string | undefined) ||
+          attachment.mime_type ||
+          "application/octet-stream",
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      if (newTab) {
+        newTab.location.href = objectUrl;
+      } else {
+        window.open(objectUrl, "_blank");
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err: unknown) {
+      if (newTab) newTab.close();
+      toast({
+        variant: "destructive",
+        title: "No se pudo abrir el adjunto",
+        description: getApiErrorMessage(err, "Revisa tu sesión e intenta nuevamente."),
+      });
+    }
+  };
 
   const handleCancel = async () => {
     if (doc.doc_type !== "BI" && doc.doc_type !== "AI") return;
@@ -102,7 +228,21 @@ export function DocumentDetail({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            if (doc.doc_type === "IN") {
+              navigate("/inventory/ingresos");
+              return;
+            }
+            if (doc.doc_type === "EG") {
+              navigate("/inventory/egresos");
+              return;
+            }
+            navigate(-1);
+          }}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-2xl font-bold">
@@ -124,9 +264,7 @@ export function DocumentDetail({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tipo de ingreso</span>
                   <span>
-                    {doc.ingreso_type === "initial_inventory"
-                      ? "Inventario inicial"
-                      : "Compra"}
+                    {INGRESO_TYPE_LABELS[doc.ingreso_type ?? "purchase"]}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -136,20 +274,58 @@ export function DocumentDetail({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tipo documento</span>
                   <span>
-                    {doc.purchase_document_type === "invoice"
-                      ? "Factura"
-                      : doc.purchase_document_type === "sales_note"
-                        ? "Nota de venta"
-                        : doc.purchase_document_type === "receipt"
-                          ? "Recibo"
-                          : doc.purchase_document_type === "none"
-                            ? "Sin documento"
-                            : "—"}
+                    {doc.purchase_document_type
+                      ? PURCHASE_DOCUMENT_TYPE_LABELS[doc.purchase_document_type]
+                      : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Nro. documento</span>
                   <span>{doc.purchase_document_number || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Fecha doc. respaldo</span>
+                  <span>
+                    {doc.purchase_document_date
+                      ? new Date(doc.purchase_document_date).toLocaleString("es-EC")
+                      : "—"}
+                  </span>
+                </div>
+              </>
+            )}
+            {doc.doc_type === "EG" && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tipo de egreso</span>
+                  <span>{doc.egreso_type ? EGRESO_TYPE_LABELS[doc.egreso_type] : "—"}</span>
+                </div>
+                {doc.egreso_type === "baja" && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Motivo de la baja</span>
+                    <span>
+                      {doc.baja_reason ? BAJA_REASON_LABELS[doc.baja_reason] : "—"}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tipo documento</span>
+                  <span>
+                    {doc.purchase_document_type
+                      ? PURCHASE_DOCUMENT_TYPE_LABELS[doc.purchase_document_type]
+                      : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nro. documento</span>
+                  <span>{doc.purchase_document_number || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Fecha doc. respaldo</span>
+                  <span>
+                    {doc.purchase_document_date
+                      ? new Date(doc.purchase_document_date).toLocaleString("es-EC")
+                      : "—"}
+                  </span>
                 </div>
               </>
             )}
@@ -162,7 +338,7 @@ export function DocumentDetail({
               <span>{doc.notes || "—"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Fecha</span>
+              <span className="text-muted-foreground">Fecha de registro</span>
               <span>{new Date(doc.created_at).toLocaleString("es-EC")}</span>
             </div>
             {doc.adjust_type && (
@@ -185,14 +361,25 @@ export function DocumentDetail({
             <TableRow>
               <TableHead className="text-center">Producto</TableHead>
               <TableHead className="text-center">Cantidad</TableHead>
-              {showCost && (
-                <TableHead className="text-center">Costo unitario</TableHead>
-              )}
-              {showCost && (
-                <TableHead className="text-center">Subtotal</TableHead>
-              )}
-              {showPrice && (
-                <TableHead className="text-center">Precio unit.</TableHead>
+              {isEgreso ? (
+                <>
+                  <TableHead className="text-center">Precio unit.</TableHead>
+                  <TableHead className="text-center">Subtotal</TableHead>
+                  <TableHead className="text-center">Descuento</TableHead>
+                  <TableHead className="text-center">Precio final</TableHead>
+                </>
+              ) : (
+                <>
+                  {showCost && (
+                    <TableHead className="text-center">Costo unitario</TableHead>
+                  )}
+                  {showCost && (
+                    <TableHead className="text-center">Subtotal</TableHead>
+                  )}
+                  {showPrice && (
+                    <TableHead className="text-center">Precio unit.</TableHead>
+                  )}
+                </>
               )}
             </TableRow>
           </TableHeader>
@@ -200,14 +387,16 @@ export function DocumentDetail({
             {doc.lines.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0)}
+                  colSpan={
+                    isEgreso ? 6 : 2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0)
+                  }
                   className="text-center text-muted-foreground"
                 >
                   Sin ítems
                 </TableCell>
               </TableRow>
             ) : (
-              doc.lines.map((l) => (
+              doc.lines.map((l, idx) => (
                 <TableRow key={l.id}>
                   <TableCell>
                     {l.product_name
@@ -217,22 +406,41 @@ export function DocumentDetail({
                   <TableCell className="text-center">
                     {formatQuantity(l.quantity, "integer")}
                   </TableCell>
-                  {showCost && (
-                    <TableCell className="text-right tabular-nums">
-                      {formatCurrency(l.unit_cost)}
-                    </TableCell>
-                  )}
-                  {showCost && (
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {formatCurrency(
-                        Number(l.quantity) * Number(l.unit_cost || 0),
+                  {isEgreso ? (
+                    <>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(l.unit_price_base ?? l.unit_price)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">
+                        {formatCurrency(egresoLineSummaries[idx]?.subtotal ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(egresoLineSummaries[idx]?.discount ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">
+                        {formatCurrency(egresoLineSummaries[idx]?.final ?? 0)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      {showCost && (
+                        <TableCell className="text-right tabular-nums">
+                          {formatCurrency(l.unit_cost)}
+                        </TableCell>
                       )}
-                    </TableCell>
-                  )}
-                  {showPrice && (
-                    <TableCell className="text-right tabular-nums">
-                      {formatCurrency(l.unit_price)}
-                    </TableCell>
+                      {showCost && (
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {formatCurrency(
+                            Number(l.quantity) * Number(l.unit_cost || 0),
+                          )}
+                        </TableCell>
+                      )}
+                      {showPrice && (
+                        <TableCell className="text-right tabular-nums">
+                          {formatCurrency(l.unit_price)}
+                        </TableCell>
+                      )}
+                    </>
                   )}
                 </TableRow>
               ))
@@ -242,28 +450,65 @@ export function DocumentDetail({
       </div>
 
       <div className="flex items-center justify-end gap-6 rounded-md border bg-muted/20 px-3 py-2 text-sm">
-        <p>
-          Total de unidades:{" "}
-          <span className="font-semibold">
-            {formatQuantity(
-              doc.lines.reduce((acc, l) => acc + Number(l.quantity || 0), 0),
-              "integer",
+        {isEgreso ? (
+          <>
+            <p className="font-semibold">Totales:</p>
+            <p>
+              Ítems: <span className="font-semibold">{totalItems}</span>
+            </p>
+            <p>
+              Total de unidades:{" "}
+              <span className="font-semibold">
+                {formatQuantity(totalUnits, "integer")}
+              </span>
+            </p>
+            <p>
+              Subtotal:{" "}
+              <span className="font-semibold tabular-nums">
+                {formatCurrency(egresoSubtotal)}
+              </span>
+            </p>
+            <p>
+              Descuento:{" "}
+              <span className="font-semibold tabular-nums">
+                {formatCurrency(egresoDiscount)}
+              </span>
+            </p>
+            <p>
+              PVP Final:{" "}
+              <span className="font-semibold tabular-nums">
+                {formatCurrency(egresoFinal)}
+              </span>
+            </p>
+          </>
+        ) : (
+          <>
+            <p>
+              Ítems: <span className="font-semibold">{totalItems}</span>
+            </p>
+            <p>
+              Total de unidades:{" "}
+              <span className="font-semibold">
+                {formatQuantity(totalUnits, "integer")}
+              </span>
+            </p>
+            {showCost && (
+              <p>
+                Total del ingreso:{" "}
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(totalCost)}
+                </span>
+              </p>
             )}
-          </span>
-        </p>
-        {showCost && (
-          <p>
-            Total del ingreso:{" "}
-            <span className="font-semibold tabular-nums">
-              {formatCurrency(
-                doc.lines.reduce(
-                  (acc, l) =>
-                    acc + Number(l.quantity || 0) * Number(l.unit_cost || 0),
-                  0,
-                ),
-              )}
-            </span>
-          </p>
+            {showPrice && (
+              <p>
+                PVP Final:{" "}
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(totalFinalPrice)}
+                </span>
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -271,18 +516,17 @@ export function DocumentDetail({
         doc.attachments &&
         doc.attachments.length > 0 && (
           <div className="rounded-md border p-3">
-            <p className="mb-2 text-sm font-semibold">Documento de compra</p>
+            <p className="mb-2 text-sm font-semibold">Documento de respaldo</p>
             <div className="space-y-1">
               {doc.attachments.map((a) => (
-                <a
+                <button
                   key={a.id}
-                  href={`/api/v1/inventory/ingresos/${doc.id}/attachments/${a.id}`}
-                  target="_blank"
-                  rel="noreferrer"
+                  type="button"
+                  onClick={() => void openAttachment(a)}
                   className="block text-sm text-primary underline"
                 >
                   {a.original_name}
-                </a>
+                </button>
               ))}
             </div>
           </div>

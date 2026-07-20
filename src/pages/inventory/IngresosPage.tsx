@@ -12,7 +12,17 @@ import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useIngresos } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
-import type { DocumentStatus, InventoryDocument } from "@/types/api";
+import type { DocumentStatus, IngresoType, InventoryDocument } from "@/types/api";
+
+const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
+  purchase: "Compra",
+  initial_inventory: "Inventario inicial",
+  adjustment_positive: "Ajuste positivo",
+  customer_return: "Devolución de cliente",
+  production: "Producción",
+  transfer_received: "Transferencia recibida",
+  other: "Otro",
+};
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
@@ -65,10 +75,7 @@ export default function IngresosPage() {
       header: "Tipo de ingreso",
       sortable: true,
       sortAccessor: (d) => d.ingreso_type ?? "purchase",
-      cell: (d) =>
-        d.ingreso_type === "initial_inventory"
-          ? "Inventario inicial"
-          : "Compra",
+      cell: (d) => INGRESO_TYPE_LABELS[d.ingreso_type ?? "purchase"],
     },
     {
       key: "supplier",

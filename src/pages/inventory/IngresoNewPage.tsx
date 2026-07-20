@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -47,16 +47,81 @@ import {
   useSuppliers,
   useUploadIngresoAttachment,
 } from "@/features/inventory/hooks";
+import {
+  INGRESO_DOCUMENT_TYPES,
+  PURCHASE_DOCUMENT_TYPE_LABELS,
+} from "@/features/inventory/documentTypes";
+import { useCompanyConfig } from "@/features/admin/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
-import type { CreateIngresoPayload } from "@/types/api";
+import type {
+  CreateIngresoPayload,
+  IngresoType,
+  PurchaseDocumentType,
+} from "@/types/api";
+
+const ALL_INGRESO_TYPES: IngresoType[] = [
+  "purchase",
+  "initial_inventory",
+  "adjustment_positive",
+  "customer_return",
+  "production",
+  "transfer_received",
+  "other",
+];
+const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
+  purchase: "Compra",
+  initial_inventory: "Inventario inicial",
+  adjustment_positive: "Ajuste positivo",
+  customer_return: "Devolución de cliente",
+  production: "Producción",
+  transfer_received: "Transferencia recibida",
+  other: "Otro",
+};
+const SUPPLIER_IDENTITY_TYPES = [
+  { value: "cedula", label: "CÉDULA" },
+  { value: "passport", label: "PASAPORTE" },
+  { value: "ruc", label: "RUC" },
+] as const;
 
 const schema = z.object({
-  ingreso_type: z.enum(["purchase", "initial_inventory"]),
+  ingreso_type: z.enum([
+    "purchase",
+    "initial_inventory",
+    "adjustment_positive",
+    "customer_return",
+    "production",
+    "transfer_received",
+    "other",
+  ]),
   supplier_id: z.string().optional(),
-  purchase_document_type: z.enum(["invoice", "sales_note", "receipt", "none"]),
+  purchase_document_type: z.enum([
+    "invoice",
+    "sales_note",
+    "liquidation_purchase",
+    "receipt",
+    "other",
+    "inventory_act",
+    "adjustment_act",
+    "credit_note",
+    "production_act",
+    "transfer_note",
+    "delivery_note",
+    "disposal_act",
+    "donation_act",
+    "internal_consumption_act",
+    "supplier_return",
+    "transfer_act",
+    "none",
+  ]),
   purchase_document_number: z.string().optional(),
-  purchase_document_date: z.string().optional(),
+  purchase_document_date: z
+    .string()
+    .optional()
+    .refine(
+      (value) => !value || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value),
+      "Fecha y hora inválida",
+    ),
   notes: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
@@ -72,6 +137,25 @@ type ConfirmRow = {
   avg_after: number;
   value_in: number;
 };
+
+function FieldLabel({
+  label,
+  required,
+}: {
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <p className="text-sm font-semibold">
+      {label}
+      {required && (
+        <span className="ml-0.5 text-destructive" aria-hidden="true">
+          *
+        </span>
+      )}
+    </p>
+  );
+}
 
 function isValidEcuadorRuc(value: string) {
   if (!/^\d{13}$/.test(value)) return false;
@@ -206,11 +290,40 @@ type SupplierApiError = {
   };
 };
 
-function formatDateDisplay(value?: string) {
-  if (!value) return "";
-  const [y, m, d] = value.split("-");
-  if (!y || !m || !d) return value;
-  return `${d}/${m}/${y}`;
+function toIsoDateTime(value?: string) {
+  if (!value) return undefined;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return undefined;
+  const [, y, m, d, hh, mm] = match;
+  const year = Number(y);
+  const month = Number(m);
+  const day = Number(d);
+  const hour = Number(hh);
+  const minute = Number(mm);
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    date.getMinutes() !== minute
+  ) {
+    return undefined;
+  }
+  return date.toISOString();
+}
+
+function getNowDateTimeLocalInput() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const yyyy = now.getFullYear();
+  const mm = pad(now.getMonth() + 1);
+  const dd = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const min = pad(now.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 }
 
 export default function IngresoNewPage() {
@@ -219,6 +332,7 @@ export default function IngresoNewPage() {
   const create = useCreateIngreso();
   const createSupplier = useCreateSupplier();
   const uploadAttachment = useUploadIngresoAttachment();
+  const { data: company } = useCompanyConfig();
   const { data: suppliers } = useSuppliers(true);
 
   const [lines, setLines] = useState<DocumentLine[]>([]);
@@ -245,6 +359,7 @@ export default function IngresoNewPage() {
     defaultValues: {
       ingreso_type: "purchase",
       purchase_document_type: "invoice",
+      purchase_document_date: getNowDateTimeLocalInput(),
     },
   });
 
@@ -272,7 +387,42 @@ export default function IngresoNewPage() {
   };
 
   const ingresoType = watch("ingreso_type");
-  const purchaseDocumentType = watch("purchase_document_type");
+  const purchaseDocumentType = watch(
+    "purchase_document_type",
+  ) as PurchaseDocumentType;
+  const sortWithOtherLast = <T extends string>(
+    items: T[],
+    getLabel: (item: T) => string,
+  ) =>
+    [...items].sort((a, b) => {
+      const aOther = a === "other";
+      const bOther = b === "other";
+      if (aOther && !bOther) return 1;
+      if (!aOther && bOther) return -1;
+      return getLabel(a).localeCompare(getLabel(b), "es-EC", {
+        sensitivity: "base",
+      });
+    });
+
+  const enabledIngresoTypes = company?.enabled_ingreso_types?.length
+    ? company.enabled_ingreso_types
+    : ALL_INGRESO_TYPES;
+  const sortedIngresoTypes = useMemo(
+    () =>
+      sortWithOtherLast(
+        enabledIngresoTypes,
+        (type) => INGRESO_TYPE_LABELS[type],
+      ),
+    [enabledIngresoTypes],
+  );
+  const allowedDocumentTypes = useMemo(
+    () =>
+      sortWithOtherLast(
+        [...INGRESO_DOCUMENT_TYPES[ingresoType]],
+        (type) => PURCHASE_DOCUMENT_TYPE_LABELS[type],
+      ),
+    [ingresoType],
+  );
   const supplierIdentificationType = watchSupplier("identification_type");
   const identificationReg = registerSupplier("identification_number");
   const tradeReg = registerSupplier("trade_name");
@@ -280,7 +430,29 @@ export default function IngresoNewPage() {
   const addressReg = registerSupplier("address");
   const phoneReg = registerSupplier("phone");
 
+  const isPurchase = ingresoType === "purchase";
+  const isOtherDocument = purchaseDocumentType === "other";
   const purchaseDocumentDisabled = purchaseDocumentType === "none";
+  const purchaseDocumentDateRequired =
+    !purchaseDocumentDisabled && !isOtherDocument;
+
+  useEffect(() => {
+    if (allowedDocumentTypes.includes(purchaseDocumentType)) return;
+    setValue("purchase_document_type", allowedDocumentTypes[0], {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [allowedDocumentTypes, purchaseDocumentType, setValue]);
+
+  useEffect(() => {
+    if (enabledIngresoTypes.includes(ingresoType)) return;
+    const nextType = enabledIngresoTypes[0];
+    setValue("ingreso_type", nextType, { shouldDirty: true });
+    if (nextType !== "purchase") {
+      setValue("purchase_document_type", "none", { shouldDirty: true });
+      setValue("supplier_id", "", { shouldDirty: true });
+    }
+  }, [enabledIngresoTypes, ingresoType, setValue]);
 
   const buildConfirmRows = async () => {
     const uniqueProductIds = Array.from(
@@ -332,12 +504,31 @@ export default function IngresoNewPage() {
       (l) => !l.product_id || !l.quantity || Number(l.quantity) <= 0,
     );
     if (invalidLine) {
-      setFormError("Completa todos los campos de las líneas");
+      setFormError("Completa todos los campos de las ítems");
       return;
     }
 
     if (data.ingreso_type === "purchase" && !data.supplier_id) {
       setFormError("Selecciona un proveedor para ingresos por compra");
+      return;
+    }
+
+    const parsedPurchaseDocumentDate =
+      data.purchase_document_type !== "none"
+        ? toIsoDateTime(data.purchase_document_date)
+        : undefined;
+
+    if (
+      data.purchase_document_type !== "none" &&
+      data.purchase_document_date &&
+      !parsedPurchaseDocumentDate
+    ) {
+      setFormError("Fecha y hora del documento inválida");
+      return;
+    }
+
+    if (data.purchase_document_type === "other" && !data.notes?.trim()) {
+      setFormError("Observaciones es obligatorio cuando el documento es Otro");
       return;
     }
 
@@ -349,10 +540,7 @@ export default function IngresoNewPage() {
         data.purchase_document_type !== "none"
           ? data.purchase_document_number || undefined
           : undefined,
-      purchase_document_date:
-        data.purchase_document_type !== "none" && data.purchase_document_date
-          ? `${data.purchase_document_date}T00:00:00`
-          : undefined,
+      purchase_document_date: parsedPurchaseDocumentDate,
       notes: data.notes || undefined,
       lines: lines.map((l) => ({
         product_id: l.product_id,
@@ -393,6 +581,8 @@ export default function IngresoNewPage() {
           PRODUCT_NOT_FOUND: "Uno de los productos no fue encontrado",
           DOCUMENT_REQUIRES_LINES: "Agrega al menos una línea al documento",
           SUPPLIER_NOT_FOUND: "Proveedor inválido o inactivo",
+          INVALID_PURCHASE_DOCUMENT_TYPE:
+            "El tipo de documento no corresponde al tipo de ingreso",
         }),
       );
     } finally {
@@ -484,39 +674,47 @@ export default function IngresoNewPage() {
         <Section title="Cabecera del ingreso">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
-              <p className="text-sm font-semibold">Tipo de ingreso</p>
+              <FieldLabel label="Tipo de ingreso" required />
               <Select
                 value={watch("ingreso_type")}
-                onValueChange={(v) =>
-                  setValue(
-                    "ingreso_type",
-                    v as "purchase" | "initial_inventory",
-                  )
-                }
+                onValueChange={(v) => {
+                  const nextType = v as IngresoType;
+                  setValue("ingreso_type", nextType, { shouldDirty: true });
+                  if (nextType !== "purchase") {
+                    setValue("supplier_id", "", { shouldDirty: true });
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="purchase">Compra</SelectItem>
-                  <SelectItem value="initial_inventory">
-                    Inventario inicial
-                  </SelectItem>
+                  {sortedIngresoTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {INGRESO_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <p className="text-sm font-semibold">Proveedor</p>
+              <FieldLabel label="Proveedor" required={isPurchase} />
               <div className="flex items-end gap-2">
                 <div className="flex-1">
                   <SearchableSelect
                     value={watch("supplier_id") ?? null}
                     onChange={(v) => setValue("supplier_id", v)}
-                    options={(suppliers ?? []).map((s) => ({
-                      value: String(s.id),
-                      label: `${s.identification_number} | ${s.legal_name} | ${s.trade_name}`,
-                    }))}
+                    options={[...(suppliers ?? [])]
+                      .sort((a, b) =>
+                        a.trade_name.localeCompare(b.trade_name, "es-EC", {
+                          sensitivity: "base",
+                        }),
+                      )
+                      .map((s) => ({
+                        value: String(s.id),
+                        label: `${s.identification_number} | ${s.legal_name} | ${s.trade_name}`,
+                      }))}
                     placeholder="Seleccionar proveedor"
                     emptyText="Sin proveedores"
                     disabled={ingresoType !== "purchase"}
@@ -537,24 +735,29 @@ export default function IngresoNewPage() {
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-sm font-semibold">Tipo de documento</p>
+              <FieldLabel
+                label="Tipo de documento"
+                required={purchaseDocumentDateRequired}
+              />
               <Select
                 value={watch("purchase_document_type")}
-                onValueChange={(v) =>
-                  setValue(
-                    "purchase_document_type",
-                    v as "invoice" | "sales_note" | "receipt" | "none",
-                  )
-                }
+                onValueChange={(v) => {
+                  const nextType = v as PurchaseDocumentType;
+                  setValue("purchase_document_type", nextType, {
+                    shouldDirty: true,
+                  });
+                }}
+                disabled={allowedDocumentTypes.length === 0}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="invoice">Factura</SelectItem>
-                  <SelectItem value="sales_note">Nota de venta</SelectItem>
-                  <SelectItem value="receipt">Recibo</SelectItem>
-                  <SelectItem value="none">Sin documento</SelectItem>
+                  {allowedDocumentTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {PURCHASE_DOCUMENT_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -567,34 +770,31 @@ export default function IngresoNewPage() {
               />
             </FormField>
 
-            <FormField label="Fecha del documento">
+            <FormField
+              label="Fecha y hora del documento"
+              required={purchaseDocumentDateRequired}
+            >
               <Controller
                 control={control}
                 name="purchase_document_date"
                 render={({ field }) => (
-                  <div className="relative">
-                    <Input
-                      value={formatDateDisplay(field.value)}
-                      readOnly
-                      disabled={purchaseDocumentDisabled}
-                      placeholder="dd/mm/aaaa"
-                      className="h-10 pr-10 text-sm"
-                    />
-                    <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type="date"
-                      value={field.value || ""}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      onBlur={field.onBlur}
-                      disabled={purchaseDocumentDisabled}
-                      className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                    />
-                  </div>
+                  <Input
+                    type="datetime-local"
+                    value={field.value || ""}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    onBlur={field.onBlur}
+                    disabled={purchaseDocumentDisabled}
+                    className="h-10 text-sm"
+                  />
                 )}
               />
             </FormField>
 
-            <FormField label="Observaciones" className="sm:col-span-2">
+            <FormField
+              label="Observaciones"
+              required={isOtherDocument}
+              className="sm:col-span-2"
+            >
               <Input
                 {...register("notes")}
                 placeholder="Observaciones del ingreso"
@@ -602,7 +802,7 @@ export default function IngresoNewPage() {
             </FormField>
 
             <div className="space-y-1.5">
-              <p className="text-sm font-semibold">Documento de compra</p>
+              <p className="text-sm font-semibold">Documento de respaldo</p>
               <Input
                 type="file"
                 accept="application/pdf,image/png,image/jpeg,image/webp"
@@ -611,7 +811,8 @@ export default function IngresoNewPage() {
                 onChange={(e) => setAttachment(e.target.files?.[0] ?? null)}
               />
               <p className="text-xs text-muted-foreground">
-                Haz clic en "Seleccionar archivo" para adjuntar PDF o imagen.
+                Haz clic en "Seleccionar archivo" para adjuntar PDF o imagen de
+                respaldo.
               </p>
             </div>
           </div>
@@ -684,9 +885,11 @@ export default function IngresoNewPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ruc">RUC</SelectItem>
-                    <SelectItem value="cedula">CÉDULA</SelectItem>
-                    <SelectItem value="passport">PASAPORTE</SelectItem>
+                    {SUPPLIER_IDENTITY_TYPES.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </FormField>

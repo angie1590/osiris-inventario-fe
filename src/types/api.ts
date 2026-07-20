@@ -31,6 +31,52 @@ export type DocumentStatus = "pending" | "approved" | "cancelled" | "voided";
 export type AdjustType = "increment" | "decrement";
 export type KardexEntryType = "IN" | "OUT" | "ADJUST";
 export type SupplierIdentificationType = "ruc" | "cedula" | "passport";
+export const PURCHASE_DOCUMENT_TYPES = [
+  "invoice",
+  "sales_note",
+  "liquidation_purchase",
+  "receipt",
+  "other",
+  "inventory_act",
+  "adjustment_act",
+  "credit_note",
+  "production_act",
+  "transfer_note",
+  "delivery_note",
+  "disposal_act",
+  "donation_act",
+  "internal_consumption_act",
+  "supplier_return",
+  "transfer_act",
+  "none",
+] as const;
+export type PurchaseDocumentType = (typeof PURCHASE_DOCUMENT_TYPES)[number];
+export type IngresoType =
+  | "purchase"
+  | "initial_inventory"
+  | "adjustment_positive"
+  | "customer_return"
+  | "production"
+  | "transfer_received"
+  | "other";
+export type EgresoType =
+  | "sale"
+  | "baja"
+  | "adjustment_negative"
+  | "supplier_return"
+  | "internal_consumption"
+  | "transfer_sent"
+  | "other";
+export type BajaReason =
+  | "damage"
+  | "expiration"
+  | "loss"
+  | "theft"
+  | "donation"
+  | "gift"
+  | "destruction"
+  | "sample"
+  | "other";
 export type AuditAction =
   | "CREATE"
   | "UPDATE"
@@ -203,6 +249,9 @@ export interface InventoryDocumentLine {
   quantity: number;
   unit_cost: number | null;
   unit_price: number | null;
+  unit_price_base?: number | null;
+  discount_type?: "percent" | "fixed" | null;
+  discount_value?: number | null;
   created_at: string;
 }
 
@@ -250,9 +299,11 @@ export interface InventoryDocument {
   doc_type: DocumentType;
   status: DocumentStatus;
   adjust_type: AdjustType | null;
-  ingreso_type?: "purchase" | "initial_inventory" | null;
+  ingreso_type?: IngresoType | null;
+  egreso_type?: EgresoType | null;
+  baja_reason?: BajaReason | null;
   supplier_id?: number | null;
-  purchase_document_type?: "invoice" | "sales_note" | "receipt" | "none" | null;
+  purchase_document_type?: PurchaseDocumentType | null;
   purchase_document_number?: string | null;
   purchase_document_date?: string | null;
   reference: string | null;
@@ -268,9 +319,9 @@ export interface InventoryDocument {
 }
 
 export interface CreateIngresoPayload {
-  ingreso_type?: "purchase" | "initial_inventory";
+  ingreso_type?: IngresoType;
   supplier_id?: number;
-  purchase_document_type?: "invoice" | "sales_note" | "receipt" | "none";
+  purchase_document_type?: PurchaseDocumentType;
   purchase_document_number?: string;
   purchase_document_date?: string;
   reference?: string;
@@ -283,12 +334,20 @@ export interface CreateIngresoPayload {
 }
 
 export interface CreateEgresoPayload {
+  egreso_type?: EgresoType;
+  purchase_document_type?: PurchaseDocumentType;
+  purchase_document_number?: string;
+  purchase_document_date?: string;
+  baja_reason?: BajaReason;
   reference?: string;
   notes?: string;
   lines: Array<{
     product_id: number;
     quantity: string | number;
     unit_price?: string | number;
+    unit_price_base?: string | number;
+    discount_type?: "percent" | "fixed";
+    discount_value?: string | number;
   }>;
 }
 
@@ -404,6 +463,9 @@ export interface CompanyConfig {
   telefono: string | null;
   email: string;
   logo: string | null;
+  enabled_ingreso_types: IngresoType[];
+  enabled_egreso_types: EgresoType[];
+  enabled_baja_reasons: BajaReason[];
   is_complete: boolean;
   created_at: string;
   updated_at: string;
@@ -418,6 +480,9 @@ export interface CreateCompanyPayload {
   direccion?: string;
   telefono?: string;
   logo?: string;
+  enabled_ingreso_types?: IngresoType[];
+  enabled_egreso_types?: EgresoType[];
+  enabled_baja_reasons?: BajaReason[];
 }
 
 export interface UpdateCompanyPayload {
@@ -428,6 +493,9 @@ export interface UpdateCompanyPayload {
   direccion?: string;
   telefono?: string;
   logo?: string;
+  enabled_ingreso_types?: IngresoType[];
+  enabled_egreso_types?: EgresoType[];
+  enabled_baja_reasons?: BajaReason[];
 }
 
 // Pagination helpers
