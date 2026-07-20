@@ -12,7 +12,11 @@ import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useIngresos } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
-import type { DocumentStatus, IngresoType, InventoryDocument } from "@/types/api";
+import type {
+  DocumentStatus,
+  IngresoType,
+  InventoryDocument,
+} from "@/types/api";
 
 const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
   purchase: "Compra",

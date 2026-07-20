@@ -131,45 +131,46 @@ function toIsoDateTime(value?: string) {
   return date.toISOString();
 }
 
-const schema = z.object({
-  egreso_type: z.enum([
-    "sale",
-    "baja",
-    "adjustment_negative",
-    "supplier_return",
-    "internal_consumption",
-    "transfer_sent",
-    "other",
-  ]),
-  purchase_document_type: z.enum([
-    "invoice",
-    "sales_note",
-    "liquidation_purchase",
-    "receipt",
-    "other",
-    "inventory_act",
-    "adjustment_act",
-    "credit_note",
-    "production_act",
-    "transfer_note",
-    "delivery_note",
-    "disposal_act",
-    "donation_act",
-    "internal_consumption_act",
-    "supplier_return",
-    "transfer_act",
-    "none",
-  ]),
-  purchase_document_number: z.string().optional(),
-  purchase_document_date: z
-    .string()
-    .optional()
-    .refine(
-      (value) => !value || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value),
-      "Fecha y hora inválida",
-    ),
-  reference: z.string().optional(),
-  notes: z.string().optional(),
+const schema = z
+  .object({
+    egreso_type: z.enum([
+      "sale",
+      "baja",
+      "adjustment_negative",
+      "supplier_return",
+      "internal_consumption",
+      "transfer_sent",
+      "other",
+    ]),
+    purchase_document_type: z.enum([
+      "invoice",
+      "sales_note",
+      "liquidation_purchase",
+      "receipt",
+      "other",
+      "inventory_act",
+      "adjustment_act",
+      "credit_note",
+      "production_act",
+      "transfer_note",
+      "delivery_note",
+      "disposal_act",
+      "donation_act",
+      "internal_consumption_act",
+      "supplier_return",
+      "transfer_act",
+      "none",
+    ]),
+    purchase_document_number: z.string().optional(),
+    purchase_document_date: z
+      .string()
+      .optional()
+      .refine(
+        (value) => !value || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value),
+        "Fecha y hora inválida",
+      ),
+    reference: z.string().optional(),
+    notes: z.string().optional(),
     baja_reason: z
       .enum([
         "damage",
@@ -183,7 +184,8 @@ const schema = z.object({
         "other",
       ])
       .optional(),
-  }).superRefine((data, ctx) => {
+  })
+  .superRefine((data, ctx) => {
     if (data.egreso_type === "baja" && !data.baja_reason) {
       ctx.addIssue({
         code: "custom",
@@ -191,7 +193,7 @@ const schema = z.object({
         message: "Motivo de la baja es obligatorio",
       });
     }
-});
+  });
 type FormData = z.infer<typeof schema>;
 
 export default function EgresoNewPage() {
@@ -353,7 +355,9 @@ export default function EgresoNewPage() {
           const normalizedDiscount = rawDiscount.replace(",", ".");
           const parsedDiscount = Number(normalizedDiscount);
           const hasDiscount =
-            rawDiscount !== "" && Number.isFinite(parsedDiscount) && parsedDiscount > 0;
+            rawDiscount !== "" &&
+            Number.isFinite(parsedDiscount) &&
+            parsedDiscount > 0;
           const finalLineTotal =
             hasDiscount && subtotal > 0
               ? applyDiscount(
@@ -370,7 +374,9 @@ export default function EgresoNewPage() {
                 ? String(finalLineTotal / quantity)
                 : undefined,
             unit_price_base: pvp > 0 ? String(pvp) : undefined,
-            discount_type: hasDiscount ? (l.discount_type ?? "percent") : undefined,
+            discount_type: hasDiscount
+              ? (l.discount_type ?? "percent")
+              : undefined,
             discount_value: hasDiscount ? String(parsedDiscount) : undefined,
           };
         }),

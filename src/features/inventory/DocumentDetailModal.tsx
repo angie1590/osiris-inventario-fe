@@ -293,7 +293,9 @@ export function DocumentDetailModal({
   const openAttachment = async (attachment: InventoryDocumentAttachment) => {
     const newTab = window.open("about:blank", "_blank");
     if (newTab) {
-      newTab.document.write("<p style=\"font-family:sans-serif\">Cargando adjunto...</p>");
+      newTab.document.write(
+        '<p style="font-family:sans-serif">Cargando adjunto...</p>',
+      );
       newTab.document.close();
     }
     try {
@@ -319,7 +321,10 @@ export function DocumentDetailModal({
       toast({
         variant: "destructive",
         title: "No se pudo abrir el adjunto",
-        description: getApiErrorMessage(err, "Revisa tu sesión e intenta nuevamente."),
+        description: getApiErrorMessage(
+          err,
+          "Revisa tu sesión e intenta nuevamente.",
+        ),
       });
     }
   };
@@ -352,7 +357,8 @@ export function DocumentDetailModal({
                 ? [
                     {
                       label: "Tipo de ingreso",
-                      value: INGRESO_TYPE_LABELS[doc.ingreso_type ?? "purchase"],
+                      value:
+                        INGRESO_TYPE_LABELS[doc.ingreso_type ?? "purchase"],
                     },
                     {
                       label: "Proveedor",
@@ -361,7 +367,9 @@ export function DocumentDetailModal({
                     {
                       label: "Tipo documento",
                       value: doc.purchase_document_type
-                        ? PURCHASE_DOCUMENT_TYPE_LABELS[doc.purchase_document_type]
+                        ? PURCHASE_DOCUMENT_TYPE_LABELS[
+                            doc.purchase_document_type
+                          ]
                         : "—",
                     },
                     {
@@ -371,7 +379,9 @@ export function DocumentDetailModal({
                     {
                       label: "Fecha doc. respaldo",
                       value: doc.purchase_document_date
-                        ? new Date(doc.purchase_document_date).toLocaleString("es-EC")
+                        ? new Date(doc.purchase_document_date).toLocaleString(
+                            "es-EC",
+                          )
                         : "—",
                     },
                   ]
@@ -397,7 +407,9 @@ export function DocumentDetailModal({
                     {
                       label: "Tipo documento",
                       value: doc.purchase_document_type
-                        ? PURCHASE_DOCUMENT_TYPE_LABELS[doc.purchase_document_type]
+                        ? PURCHASE_DOCUMENT_TYPE_LABELS[
+                            doc.purchase_document_type
+                          ]
                         : "—",
                     },
                     {
@@ -407,7 +419,9 @@ export function DocumentDetailModal({
                     {
                       label: "Fecha doc. respaldo",
                       value: doc.purchase_document_date
-                        ? new Date(doc.purchase_document_date).toLocaleString("es-EC")
+                        ? new Date(doc.purchase_document_date).toLocaleString(
+                            "es-EC",
+                          )
                         : "—",
                     },
                   ]
@@ -461,41 +475,41 @@ export function DocumentDetailModal({
                 },
               ]
             : showCost || showPrice
-            ? [
-                {
-                  title: "Totales",
-                  fields: [
-                    {
-                      label: "Ítems",
-                      value: totalItems,
-                    },
-                    {
-                      label: "Total de unidades",
-                      value: formatQuantity(totalUnits, "integer"),
-                    },
-                    ...(showCost
-                      ? [
-                          {
-                            label:
-                              doc.doc_type === "EG"
-                                ? "Total costo"
-                                : "Total del ingreso",
-                            value: formatCurrency(totalCost),
-                          },
-                        ]
-                      : []),
-                    ...(showPrice
-                      ? [
-                          {
-                            label: "PVP Final",
-                            value: formatCurrency(totalFinalPrice),
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-              ]
-            : []),
+              ? [
+                  {
+                    title: "Totales",
+                    fields: [
+                      {
+                        label: "Ítems",
+                        value: totalItems,
+                      },
+                      {
+                        label: "Total de unidades",
+                        value: formatQuantity(totalUnits, "integer"),
+                      },
+                      ...(showCost
+                        ? [
+                            {
+                              label:
+                                doc.doc_type === "EG"
+                                  ? "Total costo"
+                                  : "Total del ingreso",
+                              value: formatCurrency(totalCost),
+                            },
+                          ]
+                        : []),
+                      ...(showPrice
+                        ? [
+                            {
+                              label: "PVP Final",
+                              value: formatCurrency(totalFinalPrice),
+                            },
+                          ]
+                        : []),
+                    ],
+                  },
+                ]
+              : []),
           ...(doc.doc_type === "IN"
             ? [
                 {
@@ -515,7 +529,9 @@ export function DocumentDetailModal({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Sin adjuntos</p>
+                      <p className="text-sm text-muted-foreground">
+                        Sin adjuntos
+                      </p>
                     ),
                 },
               ]

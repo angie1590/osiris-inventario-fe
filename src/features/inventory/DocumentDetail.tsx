@@ -175,7 +175,9 @@ export function DocumentDetail({
   const openAttachment = async (attachment: InventoryDocumentAttachment) => {
     const newTab = window.open("about:blank", "_blank");
     if (newTab) {
-      newTab.document.write("<p style=\"font-family:sans-serif\">Cargando adjunto...</p>");
+      newTab.document.write(
+        '<p style="font-family:sans-serif">Cargando adjunto...</p>',
+      );
       newTab.document.close();
     }
     try {
@@ -201,7 +203,10 @@ export function DocumentDetail({
       toast({
         variant: "destructive",
         title: "No se pudo abrir el adjunto",
-        description: getApiErrorMessage(err, "Revisa tu sesión e intenta nuevamente."),
+        description: getApiErrorMessage(
+          err,
+          "Revisa tu sesión e intenta nuevamente.",
+        ),
       });
     }
   };
@@ -275,7 +280,9 @@ export function DocumentDetail({
                   <span className="text-muted-foreground">Tipo documento</span>
                   <span>
                     {doc.purchase_document_type
-                      ? PURCHASE_DOCUMENT_TYPE_LABELS[doc.purchase_document_type]
+                      ? PURCHASE_DOCUMENT_TYPE_LABELS[
+                          doc.purchase_document_type
+                        ]
                       : "—"}
                   </span>
                 </div>
@@ -284,10 +291,14 @@ export function DocumentDetail({
                   <span>{doc.purchase_document_number || "—"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fecha doc. respaldo</span>
+                  <span className="text-muted-foreground">
+                    Fecha doc. respaldo
+                  </span>
                   <span>
                     {doc.purchase_document_date
-                      ? new Date(doc.purchase_document_date).toLocaleString("es-EC")
+                      ? new Date(doc.purchase_document_date).toLocaleString(
+                          "es-EC",
+                        )
                       : "—"}
                   </span>
                 </div>
@@ -297,13 +308,21 @@ export function DocumentDetail({
               <>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tipo de egreso</span>
-                  <span>{doc.egreso_type ? EGRESO_TYPE_LABELS[doc.egreso_type] : "—"}</span>
+                  <span>
+                    {doc.egreso_type
+                      ? EGRESO_TYPE_LABELS[doc.egreso_type]
+                      : "—"}
+                  </span>
                 </div>
                 {doc.egreso_type === "baja" && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Motivo de la baja</span>
+                    <span className="text-muted-foreground">
+                      Motivo de la baja
+                    </span>
                     <span>
-                      {doc.baja_reason ? BAJA_REASON_LABELS[doc.baja_reason] : "—"}
+                      {doc.baja_reason
+                        ? BAJA_REASON_LABELS[doc.baja_reason]
+                        : "—"}
                     </span>
                   </div>
                 )}
@@ -311,7 +330,9 @@ export function DocumentDetail({
                   <span className="text-muted-foreground">Tipo documento</span>
                   <span>
                     {doc.purchase_document_type
-                      ? PURCHASE_DOCUMENT_TYPE_LABELS[doc.purchase_document_type]
+                      ? PURCHASE_DOCUMENT_TYPE_LABELS[
+                          doc.purchase_document_type
+                        ]
                       : "—"}
                   </span>
                 </div>
@@ -320,10 +341,14 @@ export function DocumentDetail({
                   <span>{doc.purchase_document_number || "—"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fecha doc. respaldo</span>
+                  <span className="text-muted-foreground">
+                    Fecha doc. respaldo
+                  </span>
                   <span>
                     {doc.purchase_document_date
-                      ? new Date(doc.purchase_document_date).toLocaleString("es-EC")
+                      ? new Date(doc.purchase_document_date).toLocaleString(
+                          "es-EC",
+                        )
                       : "—"}
                   </span>
                 </div>
@@ -371,7 +396,9 @@ export function DocumentDetail({
               ) : (
                 <>
                   {showCost && (
-                    <TableHead className="text-center">Costo unitario</TableHead>
+                    <TableHead className="text-center">
+                      Costo unitario
+                    </TableHead>
                   )}
                   {showCost && (
                     <TableHead className="text-center">Subtotal</TableHead>
@@ -412,10 +439,14 @@ export function DocumentDetail({
                         {formatCurrency(l.unit_price_base ?? l.unit_price)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
-                        {formatCurrency(egresoLineSummaries[idx]?.subtotal ?? 0)}
+                        {formatCurrency(
+                          egresoLineSummaries[idx]?.subtotal ?? 0,
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatCurrency(egresoLineSummaries[idx]?.discount ?? 0)}
+                        {formatCurrency(
+                          egresoLineSummaries[idx]?.discount ?? 0,
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatCurrency(egresoLineSummaries[idx]?.final ?? 0)}

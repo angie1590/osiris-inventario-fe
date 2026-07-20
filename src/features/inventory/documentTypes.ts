@@ -5,8 +5,17 @@ import type {
   PurchaseDocumentType,
 } from "@/types/api";
 
-export const INGRESO_DOCUMENT_TYPES: Record<IngresoType, PurchaseDocumentType[]> = {
-  purchase: ["invoice", "sales_note", "liquidation_purchase", "receipt", "other"],
+export const INGRESO_DOCUMENT_TYPES: Record<
+  IngresoType,
+  PurchaseDocumentType[]
+> = {
+  purchase: [
+    "invoice",
+    "sales_note",
+    "liquidation_purchase",
+    "receipt",
+    "other",
+  ],
   initial_inventory: ["inventory_act", "none"],
   adjustment_positive: ["adjustment_act", "none"],
   customer_return: ["invoice", "credit_note", "other"],
@@ -15,15 +24,16 @@ export const INGRESO_DOCUMENT_TYPES: Record<IngresoType, PurchaseDocumentType[]>
   other: ["other", "none"],
 };
 
-export const EGRESO_DOCUMENT_TYPES: Record<EgresoType, PurchaseDocumentType[]> = {
-  sale: ["invoice", "sales_note"],
-  baja: ["disposal_act", "none"],
-  adjustment_negative: ["adjustment_act", "none"],
-  supplier_return: ["supplier_return", "invoice", "transfer_note"],
-  internal_consumption: ["internal_consumption_act", "none"],
-  transfer_sent: ["transfer_note", "transfer_act"],
-  other: ["other", "none"],
-};
+export const EGRESO_DOCUMENT_TYPES: Record<EgresoType, PurchaseDocumentType[]> =
+  {
+    sale: ["invoice", "sales_note"],
+    baja: ["disposal_act", "none"],
+    adjustment_negative: ["adjustment_act", "none"],
+    supplier_return: ["supplier_return", "invoice", "transfer_note"],
+    internal_consumption: ["internal_consumption_act", "none"],
+    transfer_sent: ["transfer_note", "transfer_act"],
+    other: ["other", "none"],
+  };
 
 export const BAJA_REASON_LABELS: Record<BajaReason, string> = {
   damage: "Daño",
@@ -37,7 +47,10 @@ export const BAJA_REASON_LABELS: Record<BajaReason, string> = {
   other: "Otro",
 };
 
-export const PURCHASE_DOCUMENT_TYPE_LABELS: Record<PurchaseDocumentType, string> = {
+export const PURCHASE_DOCUMENT_TYPE_LABELS: Record<
+  PurchaseDocumentType,
+  string
+> = {
   invoice: "Factura",
   sales_note: "Nota de venta",
   liquidation_purchase: "Liquidación de compra",
@@ -57,7 +70,9 @@ export const PURCHASE_DOCUMENT_TYPE_LABELS: Record<PurchaseDocumentType, string>
   none: "Sin documento",
 };
 
-export function isEgresoNotesRequired(documentType: PurchaseDocumentType): boolean {
+export function isEgresoNotesRequired(
+  documentType: PurchaseDocumentType,
+): boolean {
   return documentType === "other";
 }
 

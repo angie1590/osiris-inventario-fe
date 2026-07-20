@@ -475,7 +475,9 @@ export function DocumentLinesEditor({
               <TableHead className="w-[35%] text-center">Producto</TableHead>
               <TableHead className="w-24 text-center">Cantidad</TableHead>
               {showUnitCost && (
-                <TableHead className="w-28 text-center">Costo unitario</TableHead>
+                <TableHead className="w-28 text-center">
+                  Costo unitario
+                </TableHead>
               )}
               {showUnitPrice && (
                 <TableHead className="w-28 text-center">Precio unit.</TableHead>
@@ -647,7 +649,7 @@ export function DocumentLinesEditor({
                       value={
                         showDiscount
                           ? String(line.product_pvp ?? "")
-                          : line.unit_price ?? ""
+                          : (line.unit_price ?? "")
                       }
                       onChange={(e) => {
                         if (showDiscount || lockUnitPrice) return;
@@ -678,8 +680,9 @@ export function DocumentLinesEditor({
                   <TableCell className="align-middle text-right font-medium tabular-nums">
                     {formatCurrency(
                       showDiscount
-                        ? discountSummaries[i]?.subtotal ?? 0
-                        : Number(line.quantity || 0) * Number(line.unit_cost || 0),
+                        ? (discountSummaries[i]?.subtotal ?? 0)
+                        : Number(line.quantity || 0) *
+                            Number(line.unit_cost || 0),
                     )}
                   </TableCell>
                 )}
@@ -795,27 +798,31 @@ export function DocumentLinesEditor({
                                   }
                                   if (e.key !== "Enter") return;
                                   e.preventDefault();
-                                  if (i === lines.length - 1 && line.product_id) {
+                                  if (
+                                    i === lines.length - 1 &&
+                                    line.product_id
+                                  ) {
                                     addLineAndFocus();
                                   }
                                 }}
                               />
                             </div>
-                            {(line.discount_value ?? "") !== "" && subtotal > 0 && (
-                              <p className="text-[11px] text-right text-muted-foreground">
-                                {discType === "percent"
-                                  ? `≈ $${getEquivalentDiscount(
-                                      line.discount_value ?? "",
-                                      discType,
-                                      subtotal,
-                                    )}`
-                                  : `≈ ${getEquivalentDiscount(
-                                      line.discount_value ?? "",
-                                      discType,
-                                      subtotal,
-                                    )}%`}
-                              </p>
-                            )}
+                            {(line.discount_value ?? "") !== "" &&
+                              subtotal > 0 && (
+                                <p className="text-[11px] text-right text-muted-foreground">
+                                  {discType === "percent"
+                                    ? `≈ $${getEquivalentDiscount(
+                                        line.discount_value ?? "",
+                                        discType,
+                                        subtotal,
+                                      )}`
+                                    : `≈ ${getEquivalentDiscount(
+                                        line.discount_value ?? "",
+                                        discType,
+                                        subtotal,
+                                      )}%`}
+                                </p>
+                              )}
                             {discountExceedsPvp && (
                               <p className="text-[11px] text-right font-medium text-destructive">
                                 Descuento supera el PVP.
@@ -863,11 +870,10 @@ export function DocumentLinesEditor({
             <>
               <p className="font-semibold">Totales:</p>
               <p>
-                Ítems. {" "}
-                <span className="font-semibold">{lines.length}</span>
+                Ítems. <span className="font-semibold">{lines.length}</span>
               </p>
               <p>
-                Subtotal. {" "}
+                Subtotal.{" "}
                 <span className="font-semibold tabular-nums">
                   {formatCurrency(
                     discountSummaries.reduce(
@@ -878,7 +884,7 @@ export function DocumentLinesEditor({
                 </span>
               </p>
               <p>
-                Descuento. {" "}
+                Descuento.{" "}
                 <span className="font-semibold tabular-nums">
                   {formatCurrency(
                     discountSummaries.reduce(
@@ -889,10 +895,13 @@ export function DocumentLinesEditor({
                 </span>
               </p>
               <p>
-                PVP Final. {" "}
+                PVP Final.{" "}
                 <span className="font-semibold tabular-nums">
                   {formatCurrency(
-                    discountSummaries.reduce((acc, line) => acc + line.total, 0),
+                    discountSummaries.reduce(
+                      (acc, line) => acc + line.total,
+                      0,
+                    ),
                   )}
                 </span>
               </p>
@@ -900,7 +909,7 @@ export function DocumentLinesEditor({
           ) : (
             <>
               <p>
-                Total de unidades: {" "}
+                Total de unidades:{" "}
                 <span className="font-semibold">
                   {formatQty(
                     totals.totalUnits,
@@ -909,7 +918,7 @@ export function DocumentLinesEditor({
                 </span>
               </p>
               <p>
-                Total del ingreso: {" "}
+                Total del ingreso:{" "}
                 <span className="font-semibold tabular-nums">
                   {formatCurrency(totals.totalAmount)}
                 </span>

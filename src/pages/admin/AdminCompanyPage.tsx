@@ -61,12 +61,15 @@ const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
 };
 const INGRESO_TYPE_DESCRIPTIONS: Record<IngresoType, string> = {
   purchase: "Registra mercancía adquirida a un proveedor.",
-  initial_inventory: "Registra las existencias con las que inicia la operación del sistema.",
-  adjustment_positive: "Corrige el inventario cuando el stock físico es mayor al registrado.",
+  initial_inventory:
+    "Registra las existencias con las que inicia la operación del sistema.",
+  adjustment_positive:
+    "Corrige el inventario cuando el stock físico es mayor al registrado.",
   customer_return: "Reingresa productos devueltos por un cliente.",
   production: "Incorpora productos fabricados o ensamblados por la empresa.",
   transfer_received: "Recibe productos provenientes de otra bodega o sucursal.",
-  other: "Registra cualquier ingreso que no corresponda a los tipos anteriores.",
+  other:
+    "Registra cualquier ingreso que no corresponda a los tipos anteriores.",
 };
 const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
   sale: "Venta",
@@ -620,7 +623,9 @@ export default function AdminCompanyPage() {
             </FormField>
 
             <div className="col-span-2 space-y-2">
-              <p className="text-sm font-semibold">Tipos de ingreso habilitados</p>
+              <p className="text-sm font-semibold">
+                Tipos de ingreso habilitados
+              </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {(Object.keys(INGRESO_TYPE_LABELS) as IngresoType[]).map(
                   (type) => (
@@ -644,7 +649,9 @@ export default function AdminCompanyPage() {
                         }}
                       />
                       <div className="space-y-1">
-                        <p className="font-medium">{INGRESO_TYPE_LABELS[type]}</p>
+                        <p className="font-medium">
+                          {INGRESO_TYPE_LABELS[type]}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {INGRESO_TYPE_DESCRIPTIONS[type]}
                         </p>
@@ -661,34 +668,42 @@ export default function AdminCompanyPage() {
             </div>
 
             <div className="col-span-2 space-y-2">
-              <p className="text-sm font-semibold">Tipos de egreso habilitados</p>
+              <p className="text-sm font-semibold">
+                Tipos de egreso habilitados
+              </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {(Object.keys(EGRESO_TYPE_LABELS) as EgresoType[]).map((type) => (
-                  <label
-                    key={type}
-                    className="flex items-start gap-3 rounded-lg border p-3 text-sm"
-                  >
-                    <Checkbox
-                      checked={!!watch("enabled_egreso_types")?.includes(type)}
-                      onCheckedChange={(checked) => {
-                        const current = watch("enabled_egreso_types") ?? [];
-                        const next = checked
-                          ? Array.from(new Set([...current, type]))
-                          : current.filter((item) => item !== type);
-                        setValue("enabled_egreso_types", next, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                    />
-                    <div className="space-y-1">
-                      <p className="font-medium">{EGRESO_TYPE_LABELS[type]}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {EGRESO_TYPE_DESCRIPTIONS[type]}
-                      </p>
-                    </div>
-                  </label>
-                ))}
+                {(Object.keys(EGRESO_TYPE_LABELS) as EgresoType[]).map(
+                  (type) => (
+                    <label
+                      key={type}
+                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                    >
+                      <Checkbox
+                        checked={
+                          !!watch("enabled_egreso_types")?.includes(type)
+                        }
+                        onCheckedChange={(checked) => {
+                          const current = watch("enabled_egreso_types") ?? [];
+                          const next = checked
+                            ? Array.from(new Set([...current, type]))
+                            : current.filter((item) => item !== type);
+                          setValue("enabled_egreso_types", next, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                      />
+                      <div className="space-y-1">
+                        <p className="font-medium">
+                          {EGRESO_TYPE_LABELS[type]}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {EGRESO_TYPE_DESCRIPTIONS[type]}
+                        </p>
+                      </div>
+                    </label>
+                  ),
+                )}
               </div>
               {errors.enabled_egreso_types?.message && (
                 <p className="text-sm text-destructive">
@@ -698,34 +713,42 @@ export default function AdminCompanyPage() {
             </div>
 
             <div className="col-span-2 space-y-2">
-              <p className="text-sm font-semibold">Motivos de baja habilitados</p>
+              <p className="text-sm font-semibold">
+                Motivos de baja habilitados
+              </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {(Object.keys(BAJA_REASON_LABELS) as BajaReason[]).map((type) => (
-                  <label
-                    key={type}
-                    className="flex items-start gap-3 rounded-lg border p-3 text-sm"
-                  >
-                    <Checkbox
-                      checked={!!watch("enabled_baja_reasons")?.includes(type)}
-                      onCheckedChange={(checked) => {
-                        const current = watch("enabled_baja_reasons") ?? [];
-                        const next = checked
-                          ? Array.from(new Set([...current, type]))
-                          : current.filter((item) => item !== type);
-                        setValue("enabled_baja_reasons", next, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                    />
-                    <div className="space-y-1">
-                      <p className="font-medium">{BAJA_REASON_LABELS[type]}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {BAJA_REASON_DESCRIPTIONS[type]}
-                      </p>
-                    </div>
-                  </label>
-                ))}
+                {(Object.keys(BAJA_REASON_LABELS) as BajaReason[]).map(
+                  (type) => (
+                    <label
+                      key={type}
+                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                    >
+                      <Checkbox
+                        checked={
+                          !!watch("enabled_baja_reasons")?.includes(type)
+                        }
+                        onCheckedChange={(checked) => {
+                          const current = watch("enabled_baja_reasons") ?? [];
+                          const next = checked
+                            ? Array.from(new Set([...current, type]))
+                            : current.filter((item) => item !== type);
+                          setValue("enabled_baja_reasons", next, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                      />
+                      <div className="space-y-1">
+                        <p className="font-medium">
+                          {BAJA_REASON_LABELS[type]}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {BAJA_REASON_DESCRIPTIONS[type]}
+                        </p>
+                      </div>
+                    </label>
+                  ),
+                )}
               </div>
               {errors.enabled_baja_reasons?.message && (
                 <p className="text-sm text-destructive">
