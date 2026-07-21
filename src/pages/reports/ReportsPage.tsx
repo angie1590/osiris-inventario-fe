@@ -16,22 +16,19 @@ import {
   Check,
   ChevronDown,
   ChevronsUpDown,
-  Download,
   Eye,
+  FileDown,
+  Sheet,
   Search,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DataTable, type Column } from "@/components/shared/DataTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -49,6 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import {
@@ -61,24 +59,46 @@ import {
   useStockReport,
   useStockValorizado,
 } from "@/features/reports/hooks";
+import { useCompanyConfig } from "@/features/admin/hooks";
 import { useKardex } from "@/features/kardex/hooks";
 import { useAuditUsers } from "@/features/audit/hooks";
 import { useProducts } from "@/features/catalog/hooks";
+import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { downloadBlob } from "@/lib/download";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { formatCurrency as fmtCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type {
+  DocumentStatus,
+  EgresoType,
+  IngresoType,
+  InventoryDocument,
+} from "@/types/api";
 
 type SortDirection = "asc" | "desc";
 type ConsolidadoMetric = "quantity" | "monetary";
+const TABLE_PAGE_SIZE = 10;
+const MOVEMENT_TABLE_PAGE_SIZE = 8;
+const USER_REPORT_PAGE_SIZE = 8;
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   cancelled: "Cancelado",
   voided: "Anulado",
+};
+
+const STATUS_VARIANTS: Record<
+  DocumentStatus,
+  "default" | "secondary" | "destructive"
+> = {
+  pending: "secondary",
+  approved: "default",
+  cancelled: "secondary",
+  voided: "destructive",
 };
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -108,6 +128,46 @@ const CONSOLIDADO_EGRESO_TYPE_LABELS: Record<string, string> = {
   other: "Otro",
 };
 
+const INGRESO_TYPE_BADGE_CLASS: Record<IngresoType, string> = {
+  purchase: "border-transparent bg-sky-100 text-sky-800",
+  initial_inventory: "border-transparent bg-slate-100 text-slate-800",
+  adjustment_positive: "border-transparent bg-emerald-100 text-emerald-800",
+  customer_return: "border-transparent bg-amber-100 text-amber-800",
+  production: "border-transparent bg-cyan-100 text-cyan-800",
+  transfer_received: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
+};
+
+const EGRESO_TYPE_BADGE_CLASS: Record<EgresoType, string> = {
+  sale: "border-transparent bg-sky-100 text-sky-800",
+  baja: "border-transparent bg-rose-100 text-rose-800",
+  adjustment_negative: "border-transparent bg-orange-100 text-orange-800",
+  supplier_return: "border-transparent bg-amber-100 text-amber-800",
+  internal_consumption: "border-transparent bg-zinc-100 text-zinc-800",
+  transfer_sent: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
+};
+
+const ALL_INGRESO_TYPES: IngresoType[] = [
+  "purchase",
+  "initial_inventory",
+  "adjustment_positive",
+  "customer_return",
+  "production",
+  "transfer_received",
+  "other",
+];
+
+const ALL_EGRESO_TYPES: EgresoType[] = [
+  "sale",
+  "baja",
+  "adjustment_negative",
+  "supplier_return",
+  "internal_consumption",
+  "transfer_sent",
+  "other",
+];
+
 function statusLabel(value: string | null | undefined) {
   if (!value) return "—";
   return STATUS_LABELS[value.toLowerCase()] ?? value;
@@ -116,6 +176,16 @@ function statusLabel(value: string | null | undefined) {
 function docTypeLabel(value: string | null | undefined) {
   if (!value) return "—";
   return DOC_TYPE_LABELS[value] ?? value;
+}
+
+function auditUserLabel(
+  userId: number | null | undefined,
+  users: Array<{ id: number; full_name: string; username: string }> | undefined,
+) {
+  if (!userId) return "—";
+  const user = users?.find((item) => item.id === userId);
+  if (!user) return `#${userId}`;
+  return user.username;
 }
 
 function fileSafePart(
@@ -130,6 +200,39 @@ function fileSafePart(
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return normalized || fallback;
+}
+
+function movementTotalItems(doc: InventoryDocument) {
+  return doc.lines.length;
+}
+
+function movementTotalAmount(doc: InventoryDocument) {
+  if (doc.doc_type === "EG" && doc.egreso_type === "sale") {
+    return doc.lines.reduce((total, line) => {
+      const quantity = Number(line.quantity || 0);
+      const finalTotal = quantity * Number(line.unit_price || 0);
+      const hasDiscountData =
+        line.unit_price_base != null ||
+        line.discount_type != null ||
+        line.discount_value != null;
+      if (!hasDiscountData) return total + finalTotal;
+
+      const unitPriceBase = Number(line.unit_price_base ?? line.unit_price ?? 0);
+      const subtotal = quantity * unitPriceBase;
+      const rawDiscountValue = Math.max(0, Number(line.discount_value || 0));
+      const discount =
+        line.discount_type === "percent"
+          ? (subtotal * Math.min(rawDiscountValue, 100)) / 100
+          : rawDiscountValue;
+      return total + Math.max(0, subtotal - Math.min(subtotal, discount));
+    }, 0);
+  }
+
+  return doc.lines.reduce(
+    (total, line) =>
+      total + Number(line.quantity || 0) * Number(line.unit_cost || 0),
+    0,
+  );
 }
 
 function SortableHeader({
@@ -160,6 +263,39 @@ function SortableHeader({
         <ChevronDown className="h-3.5 w-3.5 opacity-40" />
       )}
     </button>
+  );
+}
+
+function ExportIconButtons({
+  onPdf,
+  onExcel,
+}: {
+  onPdf: () => void;
+  onExcel: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-8 w-8"
+        onClick={onPdf}
+        title="Exportar PDF"
+        aria-label="Exportar PDF"
+      >
+        <FileDown className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-8 w-8"
+        onClick={onExcel}
+        title="Exportar Excel"
+        aria-label="Exportar Excel"
+      >
+        <Sheet className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
 
@@ -319,49 +455,63 @@ function MovementReport({
   endpoint,
   prefix,
   supportsProductFilter,
-  quantityMode,
 }: {
   endpoint: string;
   prefix: string;
   supportsProductFilter: boolean;
-  quantityMode: "integer" | "decimal";
 }) {
   const { toast } = useToast();
   const [range, setRange] = useState<DateRange>(currentMonthRange());
   const [productId, setProductId] = useState<number | undefined>();
+  const [movementType, setMovementType] = useState<string | undefined>();
   const [userId, setUserId] = useState<number | undefined>();
-  const [sortBy, setSortBy] = useState<
-    "number" | "status" | "reference" | "created_at"
-  >("created_at");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewDocumentId, setViewDocumentId] = useState<number | null>(null);
   const { data: products } = useProducts({ status: "active" });
   const { data: users } = useAuditUsers();
+  const { data: company } = useCompanyConfig();
 
   const endpointKey = endpoint.split("/").pop() ?? "ingresos";
+  const movementTypeOptions = useMemo(() => {
+    const isIngreso = endpointKey === "ingresos";
+    const enabled = isIngreso
+      ? (company?.enabled_ingreso_types?.length
+          ? company.enabled_ingreso_types
+          : ALL_INGRESO_TYPES)
+      : (company?.enabled_egreso_types?.length
+          ? company.enabled_egreso_types
+          : ALL_EGRESO_TYPES);
+    const labels = isIngreso
+      ? CONSOLIDADO_INGRESO_TYPE_LABELS
+      : CONSOLIDADO_EGRESO_TYPE_LABELS;
+
+    return [...enabled]
+      .sort((a, b) => {
+        const aOther = a === "other";
+        const bOther = b === "other";
+        if (aOther && !bOther) return 1;
+        if (!aOther && bOther) return -1;
+        return (labels[a] ?? a).localeCompare(labels[b] ?? b, "es-EC", {
+          sensitivity: "base",
+        });
+      })
+      .map((value) => ({ value, label: labels[value] ?? value }));
+  }, [company, endpointKey]);
   const {
     data: rows,
     isLoading,
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["reports", "movement", endpoint, range, productId],
+    queryKey: ["reports", "movement", endpoint, range, productId, userId, movementType],
     queryFn: async () => {
-      const res = await api.get<
-        Array<{
-          id: number;
-          number: string;
-          status: string;
-          reference: string | null;
-          created_at: string;
-        }>
-      >(endpoint, {
+      const res = await api.get<InventoryDocument[]>(`/inventory/${endpointKey}`, {
         params: {
           date_from: range.date_from,
           date_to: range.date_to,
+          type: movementType,
           product_id: supportsProductFilter ? productId : undefined,
           created_by: userId,
-          format: "json",
+          limit: 100,
         },
       });
       return res.data;
@@ -378,25 +528,236 @@ function MovementReport({
     enabled: !!viewDocumentId,
   });
 
-  const sortedRows = useMemo(() => {
-    const list = [...(rows ?? [])];
-    list.sort((a, b) => {
-      const cmp = compareValue(a[sortBy], b[sortBy]);
-      if (cmp !== 0) return sortDirection === "asc" ? cmp : -cmp;
-      const fallback = compareValue(a.created_at, b.created_at);
-      return sortDirection === "asc" ? fallback : -fallback;
-    });
-    return list;
-  }, [rows, sortBy, sortDirection]);
+  const columns = useMemo<Column<InventoryDocument>[]>(() => {
+    const userAccessor = (doc: InventoryDocument) =>
+      auditUserLabel(doc.created_by, users);
+    const hasProductFilter = Boolean(productId);
+    const totalItemsAccessor = (doc: InventoryDocument) =>
+      hasProductFilter ? null : movementTotalItems(doc);
+    const totalAmountAccessor = (doc: InventoryDocument) =>
+      hasProductFilter ? null : movementTotalAmount(doc);
 
-  const setSort = (key: "number" | "status" | "reference" | "created_at") => {
-    if (sortBy === key) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
+    if (endpointKey === "ingresos") {
+      return [
+        {
+          key: "number",
+          header: "Número",
+          sortable: true,
+          sortAccessor: (d) => d.number,
+          cell: (d) => <span className="font-mono text-sm">{d.number}</span>,
+        },
+        {
+          key: "ingreso_type",
+          header: "Tipo de ingreso",
+          sortable: true,
+          sortAccessor: (d) =>
+            CONSOLIDADO_INGRESO_TYPE_LABELS[d.ingreso_type ?? "purchase"],
+          cell: (d) => {
+            const type = d.ingreso_type ?? "purchase";
+            return (
+              <Badge variant="outline" className={INGRESO_TYPE_BADGE_CLASS[type]}>
+                {CONSOLIDADO_INGRESO_TYPE_LABELS[type]}
+              </Badge>
+            );
+          },
+        },
+        {
+          key: "supplier",
+          header: "Proveedor",
+          sortable: true,
+          sortAccessor: (d) => d.supplier?.trade_name ?? "",
+          cell: (d) => d.supplier?.trade_name || "—",
+        },
+        {
+          key: "reference",
+          header: "Referencia",
+          sortable: true,
+          sortAccessor: (d) => d.reference ?? "",
+          cell: (d) => d.reference || "—",
+        },
+        {
+          key: "created_by",
+          header: "Usuario",
+          sortable: true,
+          sortAccessor: userAccessor,
+          cell: (d) => userAccessor(d),
+        },
+        {
+          key: "lines",
+          header: "Total ítems",
+          align: "center",
+          sortable: true,
+          sortAccessor: totalItemsAccessor,
+          cell: (d) =>
+            hasProductFilter ? "N/A" : movementTotalItems(d),
+        },
+        {
+          key: "total_amount",
+          header: "Total ingreso",
+          align: "right",
+          sortable: true,
+          sortAccessor: totalAmountAccessor,
+          cell: (d) =>
+            hasProductFilter ? "N/A" : fmtCurrency(movementTotalAmount(d)),
+        },
+        {
+          key: "status",
+          header: "Estado",
+          sortable: true,
+          sortAccessor: (d) => statusLabel(d.status),
+          cell: (d) => (
+            <Badge variant={STATUS_VARIANTS[d.status]}>
+              {statusLabel(d.status)}
+            </Badge>
+          ),
+        },
+        {
+          key: "created_at",
+          header: "Fecha",
+          sortable: true,
+          sortAccessor: (d) => new Date(d.created_at),
+          cell: (d) => (
+            <span className="text-sm text-muted-foreground">
+              {new Date(d.created_at).toLocaleDateString("es-EC")}
+            </span>
+          ),
+        },
+        {
+          key: "actions",
+          header: "",
+          className: "text-right",
+          cell: (d) => (
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setViewDocumentId(d.id)}
+                title="Ver documento"
+                aria-label="Ver documento"
+              >
+                <Eye className="h-4 w-4 text-primary" />
+              </Button>
+            </div>
+          ),
+        },
+      ];
     }
-    setSortBy(key);
-    setSortDirection("asc");
-  };
+
+    return [
+      {
+        key: "number",
+        header: "Número",
+        sortable: true,
+        sortAccessor: (d) => d.number,
+        cell: (d) => <span className="font-mono text-sm">{d.number}</span>,
+      },
+      {
+        key: "reference",
+        header: "Referencia",
+        sortable: true,
+        sortAccessor: (d) => d.reference ?? "",
+        cell: (d) => d.reference || "—",
+      },
+      {
+        key: "egreso_type",
+        header: "Tipo de egreso",
+        sortable: true,
+        sortAccessor: (d) =>
+          d.egreso_type ? CONSOLIDADO_EGRESO_TYPE_LABELS[d.egreso_type] : "",
+        cell: (d) =>
+          d.egreso_type ? (
+            <Badge
+              variant="outline"
+              className={EGRESO_TYPE_BADGE_CLASS[d.egreso_type]}
+            >
+              {CONSOLIDADO_EGRESO_TYPE_LABELS[d.egreso_type]}
+            </Badge>
+          ) : (
+            "—"
+          ),
+      },
+      {
+        key: "purchase_document_type",
+        header: "Tipo documento",
+        sortable: true,
+        sortAccessor: (d) =>
+          d.purchase_document_type
+            ? PURCHASE_DOCUMENT_TYPE_LABELS[d.purchase_document_type]
+            : "",
+        cell: (d) =>
+          d.purchase_document_type
+            ? PURCHASE_DOCUMENT_TYPE_LABELS[d.purchase_document_type]
+            : "—",
+      },
+      {
+        key: "created_by",
+        header: "Usuario",
+        sortable: true,
+        sortAccessor: userAccessor,
+        cell: (d) => userAccessor(d),
+      },
+      {
+        key: "lines",
+        header: "Total ítems",
+        align: "right",
+        sortable: true,
+        sortAccessor: totalItemsAccessor,
+        cell: (d) =>
+          hasProductFilter ? "N/A" : movementTotalItems(d),
+      },
+      {
+        key: "total_amount",
+        header: "Total gasto",
+        align: "right",
+        sortable: true,
+        sortAccessor: totalAmountAccessor,
+        cell: (d) =>
+          hasProductFilter ? "N/A" : fmtCurrency(movementTotalAmount(d)),
+      },
+      {
+        key: "status",
+        header: "Estado",
+        sortable: true,
+        sortAccessor: (d) => statusLabel(d.status),
+        cell: (d) => (
+          <Badge variant={STATUS_VARIANTS[d.status]}>
+            {statusLabel(d.status)}
+          </Badge>
+        ),
+      },
+      {
+        key: "created_at",
+        header: "Fecha",
+        sortable: true,
+        sortAccessor: (d) => new Date(d.created_at),
+        cell: (d) => (
+          <span className="text-sm text-muted-foreground">
+            {new Date(d.created_at).toLocaleDateString("es-EC")}
+          </span>
+        ),
+      },
+      {
+        key: "actions",
+        header: "",
+        className: "text-right",
+        cell: (d) => (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewDocumentId(d.id)}
+              title="Ver documento"
+              aria-label="Ver documento"
+            >
+              <Eye className="h-4 w-4 text-primary" />
+            </Button>
+          </div>
+        ),
+      },
+    ];
+  }, [endpointKey, users, productId]);
 
   const handleExport = async (fmt: "pdf" | "excel") => {
     if (!range) return;
@@ -406,7 +767,9 @@ function MovementReport({
           date_from: range.date_from,
           date_to: range.date_to,
           format: fmt,
+          type: movementType,
           product_id: supportsProductFilter ? productId : undefined,
+          created_by: userId,
         },
         responseType: "blob",
       });
@@ -414,18 +777,24 @@ function MovementReport({
         supportsProductFilter && productId
           ? products?.find((p) => p.id === productId)?.name
           : undefined;
+      const selectedTypeLabel = movementTypeOptions.find(
+        (option) => option.value === movementType,
+      )?.label;
       const selectedUserName = userId
         ? users?.find((u) => u.id === userId)?.username
         : undefined;
       const productSuffix = selectedProductName
         ? `_producto-${fileSafePart(selectedProductName)}`
         : "";
+      const typeSuffix = selectedTypeLabel
+        ? `_tipo-${fileSafePart(selectedTypeLabel)}`
+        : "";
       const userSuffix = selectedUserName
         ? `_usuario-${fileSafePart(selectedUserName)}`
         : "";
       downloadBlob(
         res,
-        `${prefix}${productSuffix}${userSuffix}_${range.date_from}_${range.date_to}.${fmt === "pdf" ? "pdf" : "xlsx"}`,
+        `${prefix}${typeSuffix}${productSuffix}${userSuffix}_${range.date_from}_${range.date_to}.${fmt === "pdf" ? "pdf" : "xlsx"}`,
       );
     } catch {
       toast({ variant: "destructive", description: "Error al exportar" });
@@ -434,7 +803,7 @@ function MovementReport({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card p-3">
+      <div className="flex flex-wrap items-start gap-3 rounded-lg border bg-card p-3">
         <DateRangeFilter onApply={setRange} />
         {supportsProductFilter && (
           <div className="space-y-1">
@@ -450,6 +819,27 @@ function MovementReport({
             />
           </div>
         )}
+        <div className="space-y-1">
+          <span className="text-xs font-medium">Tipo (opcional)</span>
+          <Select
+            value={movementType ?? "__all__"}
+            onValueChange={(value) =>
+              setMovementType(value === "__all__" ? undefined : value)
+            }
+          >
+            <SelectTrigger className="h-8 w-56">
+              <SelectValue placeholder="Todos los tipos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos los tipos</SelectItem>
+              {movementTypeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1">
           <span className="text-xs font-medium">Usuario (opcional)</span>
           <Select
@@ -471,180 +861,42 @@ function MovementReport({
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          PDF
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleExport("excel")}
-        >
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Excel
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <Skeleton className="h-48" />
-      ) : isError ? (
-        <ErrorState
-          className="py-10"
-          message="No se pudo cargar el reporte para este rango."
-          onRetry={() => void refetch()}
-        />
-      ) : (
-        <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <SortableHeader
-                    label="Número"
-                    active={sortBy === "number"}
-                    direction={sortDirection}
-                    onClick={() => setSort("number")}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Estado"
-                    active={sortBy === "status"}
-                    direction={sortDirection}
-                    onClick={() => setSort("status")}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Referencia"
-                    active={sortBy === "reference"}
-                    direction={sortDirection}
-                    onClick={() => setSort("reference")}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Fecha"
-                    active={sortBy === "created_at"}
-                    direction={sortDirection}
-                    onClick={() => setSort("created_at")}
-                  />
-                </TableHead>
-                <TableHead className="w-20" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <EmptyState
-                      className="py-10"
-                      heading="Sin resultados"
-                      description="No hay movimientos para el rango seleccionado."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedRows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono text-sm">
-                      {r.number}
-                    </TableCell>
-                    <TableCell>{statusLabel(r.status)}</TableCell>
-                    <TableCell>{r.reference || "—"}</TableCell>
-                    <TableCell>
-                      {new Date(r.created_at).toLocaleDateString("es-EC")}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setViewDocumentId(r.id)}
-                        title="Ver documento"
-                        aria-label="Ver documento"
-                      >
-                        <Eye className="h-4 w-4 text-primary" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <div className="ml-auto self-end">
+          <ExportIconButtons
+            onPdf={() => handleExport("pdf")}
+            onExcel={() => handleExport("excel")}
+          />
         </div>
-      )}
+      </div>
 
-      <Dialog
-        open={!!viewDocumentId}
-        onOpenChange={(open) => !open && setViewDocumentId(null)}
-      >
-        <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle de documento</DialogTitle>
-          </DialogHeader>
-          {detailLoading || !detailDoc ? (
-            <Skeleton className="h-48" />
-          ) : (
-            <div className="space-y-4 px-8 pb-8 pt-2">
-              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-                <div>
-                  <span className="font-semibold text-foreground">Número:</span>{" "}
-                  {detailDoc.number}
-                </div>
-                <div>
-                  <span className="font-semibold text-foreground">Estado:</span>{" "}
-                  {statusLabel(detailDoc.status)}
-                </div>
-                <div>
-                  <span className="font-semibold text-foreground">
-                    Referencia:
-                  </span>{" "}
-                  {detailDoc.reference || "—"}
-                </div>
-                <div>
-                  <span className="font-semibold text-foreground">Fecha:</span>{" "}
-                  {new Date(detailDoc.created_at).toLocaleString("es-EC")}
-                </div>
-              </div>
-              <div className="rounded-lg border bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código de barras</TableHead>
-                      <TableHead>Producto</TableHead>
-                      <TableHead className="text-right">Cantidad</TableHead>
-                      <TableHead className="text-right">Costo</TableHead>
-                      <TableHead className="text-right">Precio</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(detailDoc.lines ?? []).map((line: any) => (
-                      <TableRow key={line.id}>
-                        <TableCell>{line.product_isbn || "—"}</TableCell>
-                        <TableCell>
-                          {line.product_name || "Producto no disponible"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatQuantity(line.quantity, quantityMode)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {line.unit_cost ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {line.unit_price ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <DataTable
+        columns={columns}
+        data={rows ?? []}
+        rowKey={(d) => d.id}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={refetch}
+        defaultSort={{ key: "created_at", dir: "desc" }}
+        pageSize={MOVEMENT_TABLE_PAGE_SIZE}
+        emptyHeading="Sin resultados"
+        emptyDescription="No hay movimientos para el rango seleccionado."
+      />
+
+      {viewDocumentId &&
+        (detailLoading || !detailDoc ? (
+          <Dialog open onOpenChange={(open) => !open && setViewDocumentId(null)}>
+            <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
+              <Skeleton className="h-48" />
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <DocumentDetailModal
+            doc={detailDoc}
+            onClose={() => setViewDocumentId(null)}
+            showCost
+            showPrice={detailDoc.doc_type === "EG"}
+          />
+        ))}
     </div>
   );
 }
@@ -661,11 +913,13 @@ function StockReport({
   const canViewStockReports =
     user?.role === "admin" || user?.role === "supervisor";
   const [bajoStock, setBajoStock] = useState(false);
+  const [stockValorizado, setStockValorizado] = useState(false);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<
-    "name" | "stock_actual" | "stock_minimo"
+    "name" | "stock_actual" | "stock_minimo" | "cost" | "value"
   >("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [page, setPage] = useState(1);
   const [ctx, setCtx] = useState<{
     x: number;
     y: number;
@@ -675,10 +929,15 @@ function StockReport({
     data: products,
     isLoading,
     isError,
+    error,
     refetch,
   } = useStockReport(
     { bajo_stock: bajoStock || undefined },
     { enabled: canViewStockReports },
+  );
+  const { data: valorizadoData } = useStockValorizado(
+    {},
+    { enabled: canViewStockReports && stockValorizado },
   );
 
   useEffect(() => {
@@ -687,7 +946,9 @@ function StockReport({
     return () => window.removeEventListener("click", close);
   }, []);
 
-  const setSort = (key: "name" | "stock_actual" | "stock_minimo") => {
+  const setSort = (
+    key: "name" | "stock_actual" | "stock_minimo" | "cost" | "value",
+  ) => {
     if (sortBy === key) {
       setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
       return;
@@ -697,16 +958,74 @@ function StockReport({
   };
 
   const visibleProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = (products ?? []).filter((p) =>
-      p.name.toLowerCase().includes(q),
+    const valorizadoMap = new Map(
+      (valorizadoData?.items ?? []).map((item) => [item.id, item]),
     );
+    const q = search.trim().toLowerCase();
+    const list = (products ?? [])
+      .filter((p) => {
+        if (!q) return true;
+        return (
+          (p.name ?? "").toLowerCase().includes(q) ||
+          (p.isbn ?? "").toLowerCase().includes(q) ||
+          (p.codigo_interno ?? "").toLowerCase().includes(q)
+        );
+      })
+      .map((p) => {
+        const valorizado = valorizadoMap.get(p.id);
+        return {
+          ...p,
+          cost: valorizado?.cost ?? null,
+          value: valorizado?.value ?? null,
+        };
+      });
+
+    const sortValue = (row: (typeof list)[number]) => {
+      if (sortBy === "cost" || sortBy === "value") return row[sortBy];
+      return row[sortBy];
+    };
+
     list.sort((a, b) => {
-      const cmp = compareValue((a as any)[sortBy], (b as any)[sortBy]);
+      const cmp = compareValue(sortValue(a), sortValue(b));
       return sortDirection === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [products, search, sortBy, sortDirection]);
+  }, [products, search, sortBy, sortDirection, valorizadoData]);
+
+  const stockValorizadoSummary = useMemo(() => {
+    if (!stockValorizado) return null;
+    const cantidadProductosDisponibles = visibleProducts.length;
+    const totalItemsEnStock = visibleProducts.reduce(
+      (sum, product) => sum + Number(product.stock_actual || 0),
+      0,
+    );
+    const totalValorInventario = visibleProducts.reduce(
+      (sum, product) => sum + Number(product.value || 0),
+      0,
+    );
+    return {
+      cantidadProductosDisponibles,
+      totalItemsEnStock,
+      totalValorInventario,
+    };
+  }, [stockValorizado, visibleProducts]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, bajoStock, stockValorizado, sortBy, sortDirection]);
+
+  const totalRows = visibleProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * TABLE_PAGE_SIZE;
+  const end = start + TABLE_PAGE_SIZE;
+  const pagedProducts = visibleProducts.slice(start, end);
+  const stockErrorStatus = (error as { response?: { status?: number } })
+    ?.response?.status;
+  const stockErrorMessage =
+    stockErrorStatus === 401
+      ? "Sesion expirada o no autorizada. Inicia sesion nuevamente."
+      : getApiErrorMessage(error, "No se pudo cargar el reporte de stock.");
 
   if (!canViewStockReports) {
     return (
@@ -732,9 +1051,9 @@ function StockReport({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
         <Input
-          placeholder="Buscar producto..."
+          placeholder="Buscar por producto, código de barras o código interno..."
           className="h-8 w-56"
           value={search}
           onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -751,25 +1070,43 @@ function StockReport({
           />
           Solo bajo stock
         </label>
-        <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          PDF
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleExport("excel")}
-        >
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Excel
-        </Button>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={stockValorizado}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setStockValorizado(e.target.checked)
+            }
+          />
+          Stock valorizado
+        </label>
+        <ExportIconButtons
+          onPdf={() => handleExport("pdf")}
+          onExcel={() => handleExport("excel")}
+        />
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+          {stockValorizadoSummary && (
+            <div className="flex flex-wrap items-center justify-end gap-3 text-sm whitespace-nowrap">
+              <span className="font-semibold text-foreground">Resumen global</span>
+              <span className="font-medium text-foreground">
+                Total productos: {formatQuantity(stockValorizadoSummary.cantidadProductosDisponibles, "integer")}
+              </span>
+              <span className="font-medium text-foreground">
+                Ítems en stock: {formatQuantity(stockValorizadoSummary.totalItemsEnStock, quantityMode)}
+              </span>
+              <span className="font-medium text-foreground">
+                Valor inventario: {fmtCurrency(stockValorizadoSummary.totalValorInventario)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
       {isLoading ? (
         <Skeleton className="h-48" />
       ) : isError ? (
         <ErrorState
           className="py-10"
-          message="No se pudo cargar el reporte de stock."
+          message={stockErrorMessage}
           onRetry={() => void refetch()}
         />
       ) : (
@@ -785,7 +1122,7 @@ function StockReport({
                     onClick={() => setSort("name")}
                   />
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-center">
                   <SortableHeader
                     label="Stock actual"
                     active={sortBy === "stock_actual"}
@@ -793,7 +1130,7 @@ function StockReport({
                     onClick={() => setSort("stock_actual")}
                   />
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-center">
                   <SortableHeader
                     label="Stock mínimo"
                     active={sortBy === "stock_minimo"}
@@ -801,6 +1138,26 @@ function StockReport({
                     onClick={() => setSort("stock_minimo")}
                   />
                 </TableHead>
+                {stockValorizado && (
+                  <>
+                    <TableHead className="text-right">
+                      <SortableHeader
+                        label="Costo unit."
+                        active={sortBy === "cost"}
+                        direction={sortDirection}
+                        onClick={() => setSort("cost")}
+                      />
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <SortableHeader
+                        label="Valor total"
+                        active={sortBy === "value"}
+                        direction={sortDirection}
+                        onClick={() => setSort("value")}
+                      />
+                    </TableHead>
+                  </>
+                )}
                 <TableHead>Estado</TableHead>
                 <TableHead className="w-20" />
               </TableRow>
@@ -808,7 +1165,7 @@ function StockReport({
             <TableBody>
               {visibleProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={stockValorizado ? 7 : 5} className="p-0">
                     <EmptyState
                       className="py-10"
                       heading="Sin resultados"
@@ -817,7 +1174,7 @@ function StockReport({
                   </TableCell>
                 </TableRow>
               ) : (
-                visibleProducts.map((p) => (
+                pagedProducts.map((p) => (
                   <TableRow
                     key={p.id}
                     onContextMenu={(e) => {
@@ -827,13 +1184,23 @@ function StockReport({
                   >
                     <TableCell>{p.name}</TableCell>
                     <TableCell
-                      className={`text-right ${p.bajo_stock ? "text-destructive font-medium" : ""}`}
+                      className={`text-center ${p.bajo_stock ? "text-destructive font-medium" : ""}`}
                     >
                       {formatQuantity(p.stock_actual, quantityMode)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       {formatQuantity(p.stock_minimo, quantityMode)}
                     </TableCell>
+                    {stockValorizado && (
+                      <>
+                        <TableCell className="text-right">
+                          {p.cost == null ? "—" : fmtCurrency(p.cost)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {p.value == null ? "—" : fmtCurrency(p.value)}
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell>
                       <Badge variant={p.bajo_stock ? "destructive" : "default"}>
                         {p.bajo_stock ? "Bajo stock" : "Normal"}
@@ -853,6 +1220,36 @@ function StockReport({
               )}
             </TableBody>
           </Table>
+          {(totalRows > 0 || stockValorizadoSummary) && (
+            <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-3 py-2 text-sm whitespace-nowrap">
+              <span className="text-muted-foreground">
+                Mostrando {totalRows === 0 ? 0 : start + 1}-{Math.min(end, totalRows)} de {totalRows}
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1 || totalRows === 0}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="min-w-16 text-center text-muted-foreground">
+                  {totalRows === 0 ? 0 : currentPage}/{totalRows === 0 ? 0 : totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages || totalRows === 0}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -888,7 +1285,7 @@ function StockValorizadoReport({
   const { user } = useAuth();
   const canViewStockReports =
     user?.role === "admin" || user?.role === "supervisor";
-  const { data, isLoading, isError, refetch } = useStockValorizado(
+  const { data, isLoading, isError, error, refetch } = useStockValorizado(
     {},
     { enabled: canViewStockReports },
   );
@@ -896,6 +1293,7 @@ function StockValorizadoReport({
     "name",
   );
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [page, setPage] = useState(1);
 
   const setSort = (key: "name" | "stock" | "cost" | "value") => {
     if (sortBy === key) {
@@ -914,6 +1312,26 @@ function StockValorizadoReport({
     });
     return items;
   }, [data?.items, sortBy, sortDirection]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortBy, sortDirection, data?.items]);
+
+  const totalRows = sortedItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * TABLE_PAGE_SIZE;
+  const end = start + TABLE_PAGE_SIZE;
+  const pagedItems = sortedItems.slice(start, end);
+  const stockValorizadoErrorStatus = (error as { response?: { status?: number } })
+    ?.response?.status;
+  const stockValorizadoErrorMessage =
+    stockValorizadoErrorStatus === 401
+      ? "Sesion expirada o no autorizada. Inicia sesion nuevamente."
+      : getApiErrorMessage(
+          error,
+          "No se pudo cargar el reporte de stock valorizado.",
+        );
 
   if (!canViewStockReports) {
     return (
@@ -942,7 +1360,7 @@ function StockValorizadoReport({
     return (
       <ErrorState
         className="py-10"
-        message="No se pudo cargar el reporte de stock valorizado."
+        message={stockValorizadoErrorMessage}
         onRetry={() => void refetch()}
       />
     );
@@ -959,19 +1377,11 @@ function StockValorizadoReport({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          PDF
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleExport("excel")}
-        >
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Excel
-        </Button>
+      <div className="flex items-center justify-end">
+        <ExportIconButtons
+          onPdf={() => handleExport("pdf")}
+          onExcel={() => handleExport("excel")}
+        />
       </div>
       <Card>
         <CardContent className="pt-4">
@@ -1035,7 +1445,7 @@ function StockValorizadoReport({
                 </TableCell>
               </TableRow>
             ) : (
-              sortedItems.map((item) => (
+              pagedItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.name}</TableCell>
                   <TableCell className="text-right">
@@ -1061,6 +1471,36 @@ function StockValorizadoReport({
             )}
           </TableBody>
         </Table>
+        {totalRows > 0 && (
+          <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
+            <span className="text-muted-foreground">
+              Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="min-w-16 text-center text-muted-foreground">
+                {currentPage}/{totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1078,6 +1518,7 @@ function KardexReport({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [productId, setProductId] = useState<number | undefined>();
   const [range, setRange] = useState<DateRange>(currentMonthRange());
+  const [page, setPage] = useState(1);
   const { data: products } = useProducts({ status: "active" });
   const {
     data: kardex,
@@ -1105,6 +1546,17 @@ function KardexReport({
     });
     return list;
   }, [kardex?.entries, sortBy, sortDirection]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [productId, range.date_from, range.date_to, sortBy, sortDirection, kardex?.entries]);
+
+  const totalRows = sortedEntries.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * TABLE_PAGE_SIZE;
+  const end = start + TABLE_PAGE_SIZE;
+  const pagedEntries = sortedEntries.slice(start, end);
 
   const { toast } = useToast();
 
@@ -1154,23 +1606,11 @@ function KardexReport({
           />
         </div>
         <DateRangeFilter onApply={setRange} defaultValues={range} />
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport("pdf")}
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            PDF
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport("excel")}
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Excel
-          </Button>
+        <div className="ml-auto">
+          <ExportIconButtons
+            onPdf={() => handleExport("pdf")}
+            onExcel={() => handleExport("excel")}
+          />
         </div>
       </div>
 
@@ -1242,7 +1682,7 @@ function KardexReport({
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedEntries.map((entry) => (
+                pagedEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell>
                       {new Date(entry.created_at).toLocaleDateString("es-EC")}
@@ -1265,6 +1705,36 @@ function KardexReport({
               )}
             </TableBody>
           </Table>
+          {totalRows > 0 && (
+            <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="min-w-16 text-center text-muted-foreground">
+                  {currentPage}/{totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1273,19 +1743,19 @@ function KardexReport({
 
 // ─── Movimientos por usuario ──────────────────────────────────────────────────
 function MovimientosPorUsuarioReport({
-  quantityMode,
-}: {
-  quantityMode: "integer" | "decimal";
-}) {
+}: {}) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [range, setRange] = useState<DateRange>(currentMonthRange());
   const [userId, setUserId] = useState<number | undefined>();
+  const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<
     "number" | "doc_type" | "status" | "reference" | "created_at"
   >("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewDocumentId, setViewDocumentId] = useState<number | null>(null);
   const { data: users } = useAuditUsers();
+  const selectedUserId = userId ?? user?.id;
 
   const {
     data: rows,
@@ -1293,7 +1763,7 @@ function MovimientosPorUsuarioReport({
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["reports", "movimientos-por-usuario", range, userId],
+    queryKey: ["reports", "movimientos-por-usuario", range, selectedUserId],
     queryFn: async () => {
       const res = await api.get<
         Array<{
@@ -1308,13 +1778,13 @@ function MovimientosPorUsuarioReport({
         params: {
           date_from: range.date_from,
           date_to: range.date_to,
-          user_id: userId,
+          user_id: selectedUserId,
           format: "json",
         },
       });
       return res.data;
     },
-    enabled: !!userId,
+    enabled: !!selectedUserId,
   });
 
   const { data: detailDoc, isLoading: detailLoading } = useQuery({
@@ -1344,6 +1814,17 @@ function MovimientosPorUsuarioReport({
     return list;
   }, [rows, sortBy, sortDirection]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [selectedUserId, range.date_from, range.date_to, sortBy, sortDirection, rows]);
+
+  const totalRows = sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / USER_REPORT_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * USER_REPORT_PAGE_SIZE;
+  const end = start + USER_REPORT_PAGE_SIZE;
+  const pagedRows = sortedRows.slice(start, end);
+
   const setSort = (
     key: "number" | "doc_type" | "status" | "reference" | "created_at",
   ) => {
@@ -1356,7 +1837,7 @@ function MovimientosPorUsuarioReport({
   };
 
   const handleExport = async (fmt: "pdf" | "excel") => {
-    if (!userId) {
+    if (!selectedUserId) {
       toast({
         variant: "warning",
         description: "Selecciona un usuario para exportar.",
@@ -1369,12 +1850,12 @@ function MovimientosPorUsuarioReport({
         params: {
           date_from: range.date_from,
           date_to: range.date_to,
-          user_id: userId,
+          user_id: selectedUserId,
           format: fmt,
         },
         responseType: "blob",
       });
-      const selectedUser = users?.find((u) => u.id === userId);
+      const selectedUser = users?.find((u) => u.id === selectedUserId);
       const userSuffix = fileSafePart(
         selectedUser?.username || selectedUser?.full_name,
         "usuario",
@@ -1390,46 +1871,43 @@ function MovimientosPorUsuarioReport({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card p-3">
-        <div className="space-y-1">
-          <span className="text-xs font-medium">Usuario</span>
-          <Select
-            value={userId ? String(userId) : "__none__"}
-            onValueChange={(v) =>
-              setUserId(v === "__none__" ? undefined : Number(v))
-            }
-          >
-            <SelectTrigger className="h-8 w-56">
-              <SelectValue placeholder="Seleccionar usuario" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Seleccionar usuario</SelectItem>
-              {(users ?? []).map((u) => (
-                <SelectItem key={u.id} value={String(u.id)}>
-                  {u.full_name} ({u.username})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="flex flex-wrap items-start gap-3 rounded-lg border bg-card p-3">
+        <DateRangeFilter
+          onApply={setRange}
+          defaultValues={range}
+          afterApplySlot={
+            <div className="space-y-1">
+              <span className="text-xs font-medium">Usuario</span>
+              <Select
+                value={selectedUserId ? String(selectedUserId) : "__none__"}
+                onValueChange={(v) =>
+                  setUserId(v === "__none__" ? undefined : Number(v))
+                }
+              >
+                <SelectTrigger className="h-8 w-56">
+                  <SelectValue placeholder="Seleccionar usuario" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Seleccionar usuario</SelectItem>
+                  {(users ?? []).map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.full_name} ({u.username})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          }
+        />
+        <div className="ml-auto self-end">
+          <ExportIconButtons
+            onPdf={() => handleExport("pdf")}
+            onExcel={() => handleExport("excel")}
+          />
         </div>
-        <DateRangeFilter onApply={setRange} defaultValues={range} />
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          PDF
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleExport("excel")}
-        >
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Excel
-        </Button>
       </div>
 
-      {!userId ? (
+      {!selectedUserId ? (
         <EmptyState
           className="py-10"
           heading="Selecciona un usuario"
@@ -1503,7 +1981,7 @@ function MovimientosPorUsuarioReport({
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedRows.map((r) => (
+                pagedRows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-sm">
                       {r.number}
@@ -1532,77 +2010,54 @@ function MovimientosPorUsuarioReport({
               )}
             </TableBody>
           </Table>
-        </div>
-      )}
-
-      <Dialog
-        open={!!viewDocumentId}
-        onOpenChange={(open) => !open && setViewDocumentId(null)}
-      >
-        <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle de documento</DialogTitle>
-          </DialogHeader>
-          {detailLoading || !detailDoc ? (
-            <Skeleton className="h-48" />
-          ) : (
-            <div className="space-y-4 px-8 pb-8 pt-2">
-              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-                <div>
-                  <span className="font-semibold text-foreground">Número:</span>{" "}
-                  {detailDoc.number}
-                </div>
-                <div>
-                  <span className="font-semibold text-foreground">Estado:</span>{" "}
-                  {statusLabel(detailDoc.status)}
-                </div>
-                <div>
-                  <span className="font-semibold text-foreground">
-                    Referencia:
-                  </span>{" "}
-                  {detailDoc.reference || "—"}
-                </div>
-                <div>
-                  <span className="font-semibold text-foreground">Fecha:</span>{" "}
-                  {new Date(detailDoc.created_at).toLocaleString("es-EC")}
-                </div>
-              </div>
-              <div className="rounded-lg border bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código de barras</TableHead>
-                      <TableHead>Producto</TableHead>
-                      <TableHead className="text-right">Cantidad</TableHead>
-                      <TableHead className="text-right">Costo</TableHead>
-                      <TableHead className="text-right">Precio</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(detailDoc.lines ?? []).map((line: any) => (
-                      <TableRow key={line.id}>
-                        <TableCell>{line.product_isbn || "—"}</TableCell>
-                        <TableCell>
-                          {line.product_name || "Producto no disponible"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatQuantity(line.quantity, quantityMode)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {line.unit_cost ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {line.unit_price ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+          {totalRows > 0 && (
+            <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="min-w-16 text-center text-muted-foreground">
+                  {currentPage}/{totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                >
+                  Siguiente
+                </Button>
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {viewDocumentId &&
+        (detailLoading || !detailDoc ? (
+          <Dialog open onOpenChange={(open) => !open && setViewDocumentId(null)}>
+            <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
+              <Skeleton className="h-48" />
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <DocumentDetailModal
+            doc={detailDoc}
+            onClose={() => setViewDocumentId(null)}
+            showCost
+            showPrice={detailDoc.doc_type === "EG"}
+          />
+        ))}
     </div>
   );
 }
@@ -1804,24 +2259,10 @@ function ConsolidadoReport() {
               Monetario
             </button>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExport("pdf")}
-            >
-              <Download className="mr-1.5 h-3.5 w-3.5" />
-              PDF
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExport("excel")}
-            >
-              <Download className="mr-1.5 h-3.5 w-3.5" />
-              Excel
-            </Button>
-          </div>
+          <ExportIconButtons
+            onPdf={() => handleExport("pdf")}
+            onExcel={() => handleExport("excel")}
+          />
         </div>
       </div>
       {isLoading && <Skeleton className="h-48" />}
@@ -2089,8 +2530,6 @@ function ConsolidadoReport() {
 const TABS = [
   ...DOC_REPORT_TYPES.map((t) => ({ value: t.value, label: t.label })),
   { value: "stock", label: "Stock" },
-  { value: "stock-valorizado", label: "Stock valorizado" },
-  { value: "kardex", label: "Kardex" },
   { value: "movimientos-por-usuario", label: "Por usuario" },
   { value: "consolidado", label: "Consolidado" },
 ];
@@ -2124,7 +2563,6 @@ export default function ReportsPage() {
               endpoint={t.endpoint}
               prefix={t.prefix}
               supportsProductFilter={t.supportsProductFilter}
-              quantityMode={quantityMode}
             />
           </TabsContent>
         ))}
@@ -2138,7 +2576,7 @@ export default function ReportsPage() {
           <KardexReport quantityMode={quantityMode} />
         </TabsContent>
         <TabsContent value="movimientos-por-usuario" className="mt-4">
-          <MovimientosPorUsuarioReport quantityMode={quantityMode} />
+          <MovimientosPorUsuarioReport />
         </TabsContent>
         <TabsContent value="consolidado" className="mt-4">
           <ConsolidadoReport />

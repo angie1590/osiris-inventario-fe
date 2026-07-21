@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -62,9 +62,15 @@ interface Props {
   onApply: (range: DateRange) => void;
   defaultValues?: DateRange;
   autoApply?: boolean;
+  afterApplySlot?: ReactNode;
 }
 
-export function DateRangeFilter({ onApply, defaultValues, autoApply }: Props) {
+export function DateRangeFilter({
+  onApply,
+  defaultValues,
+  autoApply,
+  afterApplySlot,
+}: Props) {
   const {
     register,
     handleSubmit,
@@ -127,6 +133,7 @@ export function DateRangeFilter({ onApply, defaultValues, autoApply }: Props) {
         <Button type="submit" size="sm">
           Aplicar
         </Button>
+        {afterApplySlot}
       </form>
     </div>
   );

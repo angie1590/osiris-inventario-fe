@@ -9,6 +9,7 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
+import { useAuditUsers } from "@/features/audit/hooks";
 import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
 import { useEgresos } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
@@ -27,6 +28,16 @@ const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
   internal_consumption: "Consumo interno",
   transfer_sent: "Transferencia enviada",
   other: "Otro",
+};
+
+const EGRESO_TYPE_BADGE_CLASS: Record<EgresoType, string> = {
+  sale: "border-transparent bg-sky-100 text-sky-800",
+  baja: "border-transparent bg-rose-100 text-rose-800",
+  adjustment_negative: "border-transparent bg-orange-100 text-orange-800",
+  supplier_return: "border-transparent bg-amber-100 text-amber-800",
+  internal_consumption: "border-transparent bg-zinc-100 text-zinc-800",
+  transfer_sent: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
 };
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
@@ -54,6 +65,7 @@ export default function EgresosPage() {
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
   const [cursor, setCursor] = useState<number | undefined>();
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
+  const { data: users } = useAuditUsers();
   const {
     data: docs,
     isLoading,
@@ -64,6 +76,10 @@ export default function EgresosPage() {
     date_to: dateTo || undefined,
     cursor,
   });
+
+  const userLabels = new Map(
+    (users ?? []).map((item) => [item.id, item.username]),
+  );
 
   const columns: Column<InventoryDocument>[] = [
     {
@@ -85,7 +101,17 @@ export default function EgresosPage() {
       header: "Tipo de egreso",
       sortable: true,
       sortAccessor: (d) => d.egreso_type ?? "",
-      cell: (d) => (d.egreso_type ? EGRESO_TYPE_LABELS[d.egreso_type] : "—"),
+      cell: (d) =>
+        d.egreso_type ? (
+          <Badge
+            variant="outline"
+            className={EGRESO_TYPE_BADGE_CLASS[d.egreso_type]}
+          >
+            {EGRESO_TYPE_LABELS[d.egreso_type]}
+          </Badge>
+        ) : (
+          "—"
+        ),
     },
     {
       key: "purchase_document_type",
@@ -96,6 +122,13 @@ export default function EgresosPage() {
         d.purchase_document_type
           ? PURCHASE_DOCUMENT_TYPE_LABELS[d.purchase_document_type]
           : "—",
+    },
+    {
+      key: "created_by",
+      header: "Usuario",
+      sortable: true,
+      sortAccessor: (d) => userLabels.get(d.created_by) ?? String(d.created_by),
+      cell: (d) => userLabels.get(d.created_by) ?? `#${d.created_by}`,
     },
     {
       key: "lines",

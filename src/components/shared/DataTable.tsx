@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './EmptyState'
 import { ErrorState } from './ErrorState'
@@ -44,6 +45,7 @@ interface DataTableProps<T> {
    */
   sort?: SortState | null
   onSortChange?: (sort: SortState | null) => void
+  pageSize?: number
 }
 
 const SKELETON_ROWS = 5
@@ -110,9 +112,11 @@ export function DataTable<T>({
   defaultSort,
   sort,
   onSortChange,
+  pageSize = 10,
 }: DataTableProps<T>) {
   const isControlled = onSortChange != null
   const [internalSort, setInternalSort] = React.useState<SortState | null>(defaultSort ?? null)
+  const [page, setPage] = React.useState(1)
   const effectiveSort = isControlled ? sort ?? null : internalSort
 
   const handleToggle = (key: string) => {
@@ -135,6 +139,18 @@ export function DataTable<T>({
       return effectiveSort.dir === 'asc' ? cmp : -cmp
     })
   }, [data, columns, effectiveSort, isControlled])
+
+  const totalRows = sortedData.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [totalRows, effectiveSort?.key, effectiveSort?.dir, pageSize])
+
+  const currentPage = Math.min(page, totalPages)
+  const start = (currentPage - 1) * pageSize
+  const end = start + pageSize
+  const pagedData = sortedData.slice(start, end)
 
   return (
     <div className={cn('rounded-md border', className)}>
@@ -195,7 +211,7 @@ export function DataTable<T>({
               </TableCell>
             </TableRow>
           ) : (
-            sortedData.map((row) => (
+            pagedData.map((row) => (
               <TableRow key={rowKey(row)}>
                 {columns.map((col) => (
                   <TableCell key={col.key} className={cn(col.align && ALIGN_CLASS[col.align], col.className)}>
@@ -207,6 +223,36 @@ export function DataTable<T>({
           )}
         </TableBody>
       </Table>
+      {!isLoading && !isError && sortedData.length > 0 && (
+        <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
+          <span className="text-muted-foreground">
+            Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            >
+              Anterior
+            </Button>
+            <span className="min-w-16 text-center text-muted-foreground">
+              {currentPage}/{totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

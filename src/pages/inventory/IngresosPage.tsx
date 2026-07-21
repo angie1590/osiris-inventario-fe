@@ -9,6 +9,7 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
+import { useAuditUsers } from "@/features/audit/hooks";
 import { useIngresos } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +27,16 @@ const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
   production: "Producción",
   transfer_received: "Transferencia recibida",
   other: "Otro",
+};
+
+const INGRESO_TYPE_BADGE_CLASS: Record<IngresoType, string> = {
+  purchase: "border-transparent bg-sky-100 text-sky-800",
+  initial_inventory: "border-transparent bg-slate-100 text-slate-800",
+  adjustment_positive: "border-transparent bg-emerald-100 text-emerald-800",
+  customer_return: "border-transparent bg-amber-100 text-amber-800",
+  production: "border-transparent bg-cyan-100 text-cyan-800",
+  transfer_received: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
 };
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
@@ -54,6 +65,7 @@ export default function IngresosPage() {
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
   const [cursor, setCursor] = useState<number | undefined>();
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
+  const { data: users } = useAuditUsers();
 
   const {
     data: docs,
@@ -65,6 +77,10 @@ export default function IngresosPage() {
     date_to: dateTo || undefined,
     cursor,
   });
+
+  const userLabels = new Map(
+    (users ?? []).map((item) => [item.id, item.username]),
+  );
 
   const columns: Column<InventoryDocument>[] = [
     {
@@ -79,7 +95,14 @@ export default function IngresosPage() {
       header: "Tipo de ingreso",
       sortable: true,
       sortAccessor: (d) => d.ingreso_type ?? "purchase",
-      cell: (d) => INGRESO_TYPE_LABELS[d.ingreso_type ?? "purchase"],
+      cell: (d) => {
+        const type = d.ingreso_type ?? "purchase";
+        return (
+          <Badge variant="outline" className={INGRESO_TYPE_BADGE_CLASS[type]}>
+            {INGRESO_TYPE_LABELS[type]}
+          </Badge>
+        );
+      },
     },
     {
       key: "supplier",
@@ -94,6 +117,13 @@ export default function IngresosPage() {
       sortable: true,
       sortAccessor: (d) => d.reference ?? "",
       cell: (d) => d.reference || "—",
+    },
+    {
+      key: "created_by",
+      header: "Usuario",
+      sortable: true,
+      sortAccessor: (d) => userLabels.get(d.created_by) ?? String(d.created_by),
+      cell: (d) => userLabels.get(d.created_by) ?? `#${d.created_by}`,
     },
     {
       key: "lines",
