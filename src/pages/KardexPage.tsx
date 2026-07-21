@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
@@ -11,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -21,12 +21,19 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useKardex } from "@/features/kardex/hooks";
 import { useProducts } from "@/features/catalog/hooks";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
-import type { KardexEntry, KardexEntryType } from "@/types/api";
+import type {
+  EgresoType,
+  IngresoType,
+  InventoryDocument,
+  KardexEntry,
+  KardexEntryType,
+} from "@/types/api";
 
 const ENTRY_TYPE_LABELS: Record<KardexEntryType, string> = {
   IN: "Ingreso",
@@ -40,6 +47,42 @@ const ENTRY_TYPE_VARIANTS: Record<
   IN: "default",
   OUT: "destructive",
   ADJUST: "secondary",
+};
+const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
+  purchase: "Compra",
+  initial_inventory: "Inventario inicial",
+  adjustment_positive: "Ajuste positivo",
+  customer_return: "Devolucion de cliente",
+  production: "Produccion",
+  transfer_received: "Transferencia recibida",
+  other: "Otro",
+};
+const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
+  sale: "Venta",
+  baja: "Baja",
+  adjustment_negative: "Ajuste negativo",
+  supplier_return: "Devolucion a proveedor",
+  internal_consumption: "Consumo interno",
+  transfer_sent: "Transferencia enviada",
+  other: "Otro",
+};
+const INGRESO_TYPE_BADGE_CLASS: Record<IngresoType, string> = {
+  purchase: "border-transparent bg-sky-100 text-sky-800",
+  initial_inventory: "border-transparent bg-slate-100 text-slate-800",
+  adjustment_positive: "border-transparent bg-emerald-100 text-emerald-800",
+  customer_return: "border-transparent bg-amber-100 text-amber-800",
+  production: "border-transparent bg-cyan-100 text-cyan-800",
+  transfer_received: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
+};
+const EGRESO_TYPE_BADGE_CLASS: Record<EgresoType, string> = {
+  sale: "border-transparent bg-sky-100 text-sky-800",
+  baja: "border-transparent bg-rose-100 text-rose-800",
+  adjustment_negative: "border-transparent bg-orange-100 text-orange-800",
+  supplier_return: "border-transparent bg-amber-100 text-amber-800",
+  internal_consumption: "border-transparent bg-zinc-100 text-zinc-800",
+  transfer_sent: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
 };
 
 function getEntryDisplayType(entry: KardexEntry): "IN" | "OUT" {
@@ -145,6 +188,10 @@ export default function KardexPage() {
   );
   const [productOpen, setProductOpen] = useState(false);
   const [productQuery, setProductQuery] = useState("");
+  const [viewDocumentId, setViewDocumentId] = useState<number | null>(null);
+  const [viewDocumentType, setViewDocumentType] = useState<
+    "ingresos" | "egresos" | null
+  >(null);
 
   const { data: reportSettings } = useQuery<{
     stock_quantity_mode: "integer" | "decimal";
@@ -161,7 +208,12 @@ export default function KardexPage() {
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
     if (!q) return products ?? [];
-    return (products ?? []).filter((p) => p.name.toLowerCase().includes(q));
+    return (products ?? []).filter((p) => {
+      const name = p.name.toLowerCase();
+      const isbn = p.isbn.toLowerCase();
+      const internalCode = (p.codigo_interno ?? "").toLowerCase();
+      return name.includes(q) || isbn.includes(q) || internalCode.includes(q);
+    });
   }, [products, productQuery]);
   const {
     data: kardex,
@@ -169,6 +221,17 @@ export default function KardexPage() {
     isError,
     refetch,
   } = useKardex(selectedProductId, dateFrom || undefined, dateTo || undefined);
+
+  const { data: detailDoc, isLoading: detailLoading } = useQuery({
+    queryKey: ["kardex", "movement-detail", viewDocumentType, viewDocumentId],
+    queryFn: async () => {
+      const res = await api.get<InventoryDocument>(
+        `/inventory/${viewDocumentType}/${viewDocumentId}`,
+      );
+      return res.data;
+    },
+    enabled: !!viewDocumentId && !!viewDocumentType,
+  });
 
   const costSummary = useMemo(() => {
     if (!kardex) {
@@ -200,6 +263,11 @@ export default function KardexPage() {
     const numId = Number(id);
     setSelectedProductId(numId);
     navigate(`/kardex/${numId}`, { replace: true });
+  };
+
+  const closeDocumentModal = () => {
+    setViewDocumentId(null);
+    setViewDocumentType(null);
   };
 
   const hasProductSelected = selectedProductId > 0;
@@ -254,7 +322,7 @@ export default function KardexPage() {
                   <Input
                     value={productQuery}
                     onChange={(e) => setProductQuery(e.target.value)}
-                    placeholder="Buscar producto..."
+                    placeholder="Buscar por nombre, cod. barras o cod. interno..."
                     className="h-7 border-none p-0 text-sm shadow-none focus-visible:ring-0"
                   />
                 </div>
@@ -374,46 +442,109 @@ export default function KardexPage() {
             </Card>
           </div>
 
-          <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
+          <div className="rounded-lg border bg-card max-h-[calc(100vh-22rem)] overflow-y-auto overflow-x-hidden">
+            <Table className="table-fixed w-full [&_th]:px-2 [&_td]:px-2">
+              <colgroup>
+                <col style={{ width: "6%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+              </colgroup>
+              <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-[hsl(var(--table-head))] [&_th]:whitespace-nowrap">
                 <TableRow>
-                  <TableHead className="text-center">Fecha</TableHead>
+                  <TableHead className="text-center text-[11px]">
+                    Fecha
+                  </TableHead>
                   <TableHead className="text-center">Documento</TableHead>
-                  <TableHead className="text-center">Tipo</TableHead>
-                  <TableHead className="text-center">Cant. entrada</TableHead>
-                  <TableHead className="text-center">Costo unitario</TableHead>
-                  <TableHead className="text-center">Valor entrada</TableHead>
-                  <TableHead className="text-center">Cant. salida</TableHead>
-                  <TableHead className="text-center">Costo unitario</TableHead>
-                  <TableHead className="text-center">Valor salida</TableHead>
-                  <TableHead className="text-center">Saldo cant.</TableHead>
-                  <TableHead className="text-center">Saldo valor</TableHead>
+                  <TableHead className="text-center">Movimiento</TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Cant.
+                      <br />
+                      entrada
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Costo
+                      <br />
+                      unitario
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Valor
+                      <br />
+                      entrada
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Cant.
+                      <br />
+                      salida
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Costo
+                      <br />
+                      unitario
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Valor
+                      <br />
+                      salida
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Saldo
+                      <br />
+                      cant.
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="block leading-tight">
+                      Saldo
+                      <br />
+                      valor
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {kardex.opening_balance_quantity > 0 && (
                   <TableRow className="bg-muted/30 italic">
-                    <TableCell className="text-left text-muted-foreground">
+                    <TableCell className="text-left text-muted-foreground whitespace-nowrap">
                       —
                     </TableCell>
-                    <TableCell />
-                    <TableCell className="text-left">
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="text-left whitespace-nowrap">
                       <Badge variant="secondary">Saldo inicial</Badge>
                     </TableCell>
-                    <TableCell />
-                    <TableCell />
-                    <TableCell />
-                    <TableCell />
-                    <TableCell />
-                    <TableCell />
-                    <TableCell className="text-center font-medium">
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="whitespace-nowrap" />
+                    <TableCell className="text-center font-medium whitespace-nowrap">
                       {formatQuantity(
                         kardex.opening_balance_quantity,
                         quantityMode,
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
+                    <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                       {formatCurrency(kardex.opening_balance_value)}
                     </TableCell>
                   </TableRow>
@@ -431,7 +562,7 @@ export default function KardexPage() {
                 )}
                 {kardex.entries.map((e) => (
                   <TableRow key={e.id}>
-                    <TableCell className="text-left text-sm text-muted-foreground">
+                    <TableCell className="text-left text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(e.created_at).toLocaleDateString("es-EC")}
                     </TableCell>
                     <TableCell className="text-left whitespace-nowrap">
@@ -439,61 +570,98 @@ export default function KardexPage() {
                       e.document_id &&
                       (e.document_doc_type === "IN" ||
                         e.document_doc_type === "EG") ? (
-                        <Link
-                          className="inline-block whitespace-nowrap font-mono text-sm text-primary underline"
-                          to={
-                            e.document_doc_type === "IN"
-                              ? `/inventory/ingresos/${e.document_id}`
-                              : `/inventory/egresos/${e.document_id}`
-                          }
+                        <button
+                          type="button"
+                          className="inline-block whitespace-nowrap align-middle font-mono text-sm text-primary underline"
+                          onClick={() => {
+                            setViewDocumentId(e.document_id);
+                            setViewDocumentType(
+                              e.document_doc_type === "IN"
+                                ? "ingresos"
+                                : "egresos",
+                            );
+                          }}
+                          title={e.document_number}
                         >
                           {e.document_number}
-                        </Link>
+                        </button>
                       ) : e.document_number ? (
-                        <span className="font-mono text-sm">
+                        <span
+                          className="inline-block whitespace-nowrap align-middle font-mono text-sm"
+                          title={e.document_number}
+                        >
                           {e.document_number}
                         </span>
                       ) : (
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="text-left">
+                    <TableCell className="text-left whitespace-nowrap">
                       <Badge
                         variant={ENTRY_TYPE_VARIANTS[getEntryDisplayType(e)]}
                       >
                         {ENTRY_TYPE_LABELS[getEntryDisplayType(e)]}
                       </Badge>
+                      {(e.document_doc_type === "IN" &&
+                        e.document_ingreso_type) ||
+                      (e.document_doc_type === "EG" &&
+                        e.document_egreso_type) ? (
+                        <>
+                          <span className="mx-2 text-muted-foreground">|</span>
+                          {e.document_doc_type === "IN" &&
+                          e.document_ingreso_type ? (
+                            <Badge
+                              variant="outline"
+                              className={`inline-flex whitespace-nowrap ${INGRESO_TYPE_BADGE_CLASS[e.document_ingreso_type]}`}
+                              title={
+                                INGRESO_TYPE_LABELS[e.document_ingreso_type]
+                              }
+                            >
+                              {INGRESO_TYPE_LABELS[e.document_ingreso_type]}
+                            </Badge>
+                          ) : e.document_doc_type === "EG" &&
+                            e.document_egreso_type ? (
+                            <Badge
+                              variant="outline"
+                              className={`inline-flex whitespace-nowrap ${EGRESO_TYPE_BADGE_CLASS[e.document_egreso_type]}`}
+                              title={EGRESO_TYPE_LABELS[e.document_egreso_type]}
+                            >
+                              {EGRESO_TYPE_LABELS[e.document_egreso_type]}
+                            </Badge>
+                          ) : null}
+                        </>
+                      ) : null}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center whitespace-nowrap">
                       {e.quantity_in > 0
                         ? formatQuantity(e.quantity_in, quantityMode)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums whitespace-nowrap">
                       {e.cost_in > 0 ? formatCurrency(e.cost_in) : "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums whitespace-nowrap">
                       {e.quantity_in > 0 && e.cost_in > 0
                         ? formatCurrency(e.quantity_in * e.cost_in)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center whitespace-nowrap">
                       {e.quantity_out > 0
                         ? formatQuantity(e.quantity_out, quantityMode)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums whitespace-nowrap">
                       {e.cost_out > 0 ? formatCurrency(e.cost_out) : "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums whitespace-nowrap">
                       {e.quantity_out > 0 && e.cost_out > 0
                         ? formatCurrency(e.quantity_out * e.cost_out)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-center font-medium">
+                    <TableCell className="text-center font-medium whitespace-nowrap">
                       {formatQuantity(e.balance_quantity, quantityMode)}
                     </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
+                    <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                       {formatCurrency(e.balance_value)}
                     </TableCell>
                   </TableRow>
@@ -503,6 +671,23 @@ export default function KardexPage() {
           </div>
         </>
       )}
+
+      {viewDocumentId &&
+        viewDocumentType &&
+        (detailLoading || !detailDoc ? (
+          <Dialog open onOpenChange={(open) => !open && closeDocumentModal()}>
+            <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
+              <Skeleton className="h-48" />
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <DocumentDetailModal
+            doc={detailDoc}
+            onClose={closeDocumentModal}
+            showCost
+            showPrice={detailDoc.doc_type === "EG"}
+          />
+        ))}
     </div>
   );
 }

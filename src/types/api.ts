@@ -399,6 +399,8 @@ export interface KardexEntry {
   lot_id: number | null;
   document_number?: string | null;
   document_doc_type?: DocumentType | null;
+  document_ingreso_type?: IngresoType | null;
+  document_egreso_type?: EgresoType | null;
   created_at: string;
 }
 

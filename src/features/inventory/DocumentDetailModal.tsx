@@ -47,6 +47,24 @@ const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
   transfer_sent: "Transferencia enviada",
   other: "Otro",
 };
+const INGRESO_TYPE_BADGE_CLASS: Record<IngresoType, string> = {
+  purchase: "border-transparent bg-sky-100 text-sky-800",
+  initial_inventory: "border-transparent bg-slate-100 text-slate-800",
+  adjustment_positive: "border-transparent bg-emerald-100 text-emerald-800",
+  customer_return: "border-transparent bg-amber-100 text-amber-800",
+  production: "border-transparent bg-cyan-100 text-cyan-800",
+  transfer_received: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
+};
+const EGRESO_TYPE_BADGE_CLASS: Record<EgresoType, string> = {
+  sale: "border-transparent bg-sky-100 text-sky-800",
+  baja: "border-transparent bg-rose-100 text-rose-800",
+  adjustment_negative: "border-transparent bg-orange-100 text-orange-800",
+  supplier_return: "border-transparent bg-amber-100 text-amber-800",
+  internal_consumption: "border-transparent bg-zinc-100 text-zinc-800",
+  transfer_sent: "border-transparent bg-indigo-100 text-indigo-800",
+  other: "border-transparent bg-stone-100 text-stone-800",
+};
 const BAJA_REASON_LABELS: Record<BajaReason, string> = {
   damage: "Daño",
   expiration: "Caducidad",
@@ -371,8 +389,18 @@ export function DocumentDetailModal({
                 ? [
                     {
                       label: "Tipo de ingreso",
-                      value:
-                        INGRESO_TYPE_LABELS[doc.ingreso_type ?? "purchase"],
+                      value: (
+                        <Badge
+                          variant="outline"
+                          className={
+                            INGRESO_TYPE_BADGE_CLASS[
+                              doc.ingreso_type ?? "purchase"
+                            ]
+                          }
+                        >
+                          {INGRESO_TYPE_LABELS[doc.ingreso_type ?? "purchase"]}
+                        </Badge>
+                      ),
                     },
                     {
                       label: "Proveedor",
@@ -404,9 +432,16 @@ export function DocumentDetailModal({
                 ? [
                     {
                       label: "Tipo de egreso",
-                      value: doc.egreso_type
-                        ? EGRESO_TYPE_LABELS[doc.egreso_type]
-                        : "—",
+                      value: doc.egreso_type ? (
+                        <Badge
+                          variant="outline"
+                          className={EGRESO_TYPE_BADGE_CLASS[doc.egreso_type]}
+                        >
+                          {EGRESO_TYPE_LABELS[doc.egreso_type]}
+                        </Badge>
+                      ) : (
+                        "—"
+                      ),
                     },
                     ...(doc.egreso_type === "baja"
                       ? [

@@ -318,7 +318,12 @@ function ProductSearchCombobox({
   placeholder = "Seleccionar producto",
   includeAll = false,
 }: {
-  products: Array<{ id: number; name: string }>;
+  products: Array<{
+    id: number;
+    name: string;
+    isbn?: string | null;
+    codigo_interno?: string | null;
+  }>;
   value?: number;
   onChange: (id: number | undefined) => void;
   placeholder?: string;
@@ -330,7 +335,12 @@ function ProductSearchCombobox({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(q));
+    return products.filter((p) => {
+      const name = p.name.toLowerCase();
+      const isbn = (p.isbn ?? "").toLowerCase();
+      const internalCode = (p.codigo_interno ?? "").toLowerCase();
+      return name.includes(q) || isbn.includes(q) || internalCode.includes(q);
+    });
   }, [products, query]);
 
   const selected = value
@@ -372,7 +382,7 @@ function ProductSearchCombobox({
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setQuery(e.target.value)
               }
-              placeholder="Buscar producto..."
+              placeholder="Buscar por nombre, cod. barras o cod. interno..."
               className="h-7 border-none p-0 text-sm shadow-none focus-visible:ring-0"
             />
           </div>
@@ -826,6 +836,8 @@ function MovementReport({
               products={(products ?? []).map((p) => ({
                 id: p.id,
                 name: p.name,
+                isbn: p.isbn,
+                codigo_interno: p.codigo_interno,
               }))}
               value={productId}
               onChange={setProductId}
@@ -1642,7 +1654,12 @@ function KardexReport({
         <div className="space-y-1">
           <span className="text-xs font-medium">Producto</span>
           <ProductSearchCombobox
-            products={(products ?? []).map((p) => ({ id: p.id, name: p.name }))}
+            products={(products ?? []).map((p) => ({
+              id: p.id,
+              name: p.name,
+              isbn: p.isbn,
+              codigo_interno: p.codigo_interno,
+            }))}
             value={productId}
             onChange={setProductId}
           />
