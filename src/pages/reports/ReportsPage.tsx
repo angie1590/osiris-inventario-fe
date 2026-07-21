@@ -217,7 +217,9 @@ function movementTotalAmount(doc: InventoryDocument) {
         line.discount_value != null;
       if (!hasDiscountData) return total + finalTotal;
 
-      const unitPriceBase = Number(line.unit_price_base ?? line.unit_price ?? 0);
+      const unitPriceBase = Number(
+        line.unit_price_base ?? line.unit_price ?? 0,
+      );
       const subtotal = quantity * unitPriceBase;
       const rawDiscountValue = Math.max(0, Number(line.discount_value || 0));
       const discount =
@@ -474,12 +476,12 @@ function MovementReport({
   const movementTypeOptions = useMemo(() => {
     const isIngreso = endpointKey === "ingresos";
     const enabled = isIngreso
-      ? (company?.enabled_ingreso_types?.length
-          ? company.enabled_ingreso_types
-          : ALL_INGRESO_TYPES)
-      : (company?.enabled_egreso_types?.length
-          ? company.enabled_egreso_types
-          : ALL_EGRESO_TYPES);
+      ? company?.enabled_ingreso_types?.length
+        ? company.enabled_ingreso_types
+        : ALL_INGRESO_TYPES
+      : company?.enabled_egreso_types?.length
+        ? company.enabled_egreso_types
+        : ALL_EGRESO_TYPES;
     const labels = isIngreso
       ? CONSOLIDADO_INGRESO_TYPE_LABELS
       : CONSOLIDADO_EGRESO_TYPE_LABELS;
@@ -502,18 +504,29 @@ function MovementReport({
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["reports", "movement", endpoint, range, productId, userId, movementType],
+    queryKey: [
+      "reports",
+      "movement",
+      endpoint,
+      range,
+      productId,
+      userId,
+      movementType,
+    ],
     queryFn: async () => {
-      const res = await api.get<InventoryDocument[]>(`/inventory/${endpointKey}`, {
-        params: {
-          date_from: range.date_from,
-          date_to: range.date_to,
-          type: movementType,
-          product_id: supportsProductFilter ? productId : undefined,
-          created_by: userId,
-          limit: 100,
+      const res = await api.get<InventoryDocument[]>(
+        `/inventory/${endpointKey}`,
+        {
+          params: {
+            date_from: range.date_from,
+            date_to: range.date_to,
+            type: movementType,
+            product_id: supportsProductFilter ? productId : undefined,
+            created_by: userId,
+            limit: 100,
+          },
         },
-      });
+      );
       return res.data;
     },
     enabled: !!(range.date_from && range.date_to),
@@ -555,7 +568,10 @@ function MovementReport({
           cell: (d) => {
             const type = d.ingreso_type ?? "purchase";
             return (
-              <Badge variant="outline" className={INGRESO_TYPE_BADGE_CLASS[type]}>
+              <Badge
+                variant="outline"
+                className={INGRESO_TYPE_BADGE_CLASS[type]}
+              >
                 {CONSOLIDADO_INGRESO_TYPE_LABELS[type]}
               </Badge>
             );
@@ -588,8 +604,7 @@ function MovementReport({
           align: "center",
           sortable: true,
           sortAccessor: totalItemsAccessor,
-          cell: (d) =>
-            hasProductFilter ? "N/A" : movementTotalItems(d),
+          cell: (d) => (hasProductFilter ? "N/A" : movementTotalItems(d)),
         },
         {
           key: "total_amount",
@@ -703,8 +718,7 @@ function MovementReport({
         align: "right",
         sortable: true,
         sortAccessor: totalItemsAccessor,
-        cell: (d) =>
-          hasProductFilter ? "N/A" : movementTotalItems(d),
+        cell: (d) => (hasProductFilter ? "N/A" : movementTotalItems(d)),
       },
       {
         key: "total_amount",
@@ -884,7 +898,10 @@ function MovementReport({
 
       {viewDocumentId &&
         (detailLoading || !detailDoc ? (
-          <Dialog open onOpenChange={(open) => !open && setViewDocumentId(null)}>
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setViewDocumentId(null)}
+          >
             <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
               <Skeleton className="h-48" />
             </DialogContent>
@@ -1087,15 +1104,26 @@ function StockReport({
         <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           {stockValorizadoSummary && (
             <div className="flex flex-wrap items-center justify-end gap-3 text-sm whitespace-nowrap">
-              <span className="font-semibold text-foreground">Resumen global</span>
-              <span className="font-medium text-foreground">
-                Total productos: {formatQuantity(stockValorizadoSummary.cantidadProductosDisponibles, "integer")}
+              <span className="font-semibold text-foreground">
+                Resumen global
               </span>
               <span className="font-medium text-foreground">
-                Ítems en stock: {formatQuantity(stockValorizadoSummary.totalItemsEnStock, quantityMode)}
+                Total productos:{" "}
+                {formatQuantity(
+                  stockValorizadoSummary.cantidadProductosDisponibles,
+                  "integer",
+                )}
               </span>
               <span className="font-medium text-foreground">
-                Valor inventario: {fmtCurrency(stockValorizadoSummary.totalValorInventario)}
+                Ítems en stock:{" "}
+                {formatQuantity(
+                  stockValorizadoSummary.totalItemsEnStock,
+                  quantityMode,
+                )}
+              </span>
+              <span className="font-medium text-foreground">
+                Valor inventario:{" "}
+                {fmtCurrency(stockValorizadoSummary.totalValorInventario)}
               </span>
             </div>
           )}
@@ -1223,7 +1251,8 @@ function StockReport({
           {(totalRows > 0 || stockValorizadoSummary) && (
             <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-3 py-2 text-sm whitespace-nowrap">
               <span className="text-muted-foreground">
-                Mostrando {totalRows === 0 ? 0 : start + 1}-{Math.min(end, totalRows)} de {totalRows}
+                Mostrando {totalRows === 0 ? 0 : start + 1}-
+                {Math.min(end, totalRows)} de {totalRows}
               </span>
               <div className="flex shrink-0 items-center gap-2">
                 <Button
@@ -1236,14 +1265,17 @@ function StockReport({
                   Anterior
                 </Button>
                 <span className="min-w-16 text-center text-muted-foreground">
-                  {totalRows === 0 ? 0 : currentPage}/{totalRows === 0 ? 0 : totalPages}
+                  {totalRows === 0 ? 0 : currentPage}/
+                  {totalRows === 0 ? 0 : totalPages}
                 </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   disabled={currentPage >= totalPages || totalRows === 0}
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() =>
+                    setPage((prev) => Math.min(totalPages, prev + 1))
+                  }
                 >
                   Siguiente
                 </Button>
@@ -1323,8 +1355,9 @@ function StockValorizadoReport({
   const start = (currentPage - 1) * TABLE_PAGE_SIZE;
   const end = start + TABLE_PAGE_SIZE;
   const pagedItems = sortedItems.slice(start, end);
-  const stockValorizadoErrorStatus = (error as { response?: { status?: number } })
-    ?.response?.status;
+  const stockValorizadoErrorStatus = (
+    error as { response?: { status?: number } }
+  )?.response?.status;
   const stockValorizadoErrorMessage =
     stockValorizadoErrorStatus === 401
       ? "Sesion expirada o no autorizada. Inicia sesion nuevamente."
@@ -1494,7 +1527,9 @@ function StockValorizadoReport({
                 variant="outline"
                 size="sm"
                 disabled={currentPage >= totalPages}
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                onClick={() =>
+                  setPage((prev) => Math.min(totalPages, prev + 1))
+                }
               >
                 Siguiente
               </Button>
@@ -1549,7 +1584,14 @@ function KardexReport({
 
   useEffect(() => {
     setPage(1);
-  }, [productId, range.date_from, range.date_to, sortBy, sortDirection, kardex?.entries]);
+  }, [
+    productId,
+    range.date_from,
+    range.date_to,
+    sortBy,
+    sortDirection,
+    kardex?.entries,
+  ]);
 
   const totalRows = sortedEntries.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / TABLE_PAGE_SIZE));
@@ -1728,7 +1770,9 @@ function KardexReport({
                   variant="outline"
                   size="sm"
                   disabled={currentPage >= totalPages}
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() =>
+                    setPage((prev) => Math.min(totalPages, prev + 1))
+                  }
                 >
                   Siguiente
                 </Button>
@@ -1742,8 +1786,7 @@ function KardexReport({
 }
 
 // ─── Movimientos por usuario ──────────────────────────────────────────────────
-function MovimientosPorUsuarioReport({
-}: {}) {
+function MovimientosPorUsuarioReport({}: {}) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [range, setRange] = useState<DateRange>(currentMonthRange());
@@ -1816,7 +1859,14 @@ function MovimientosPorUsuarioReport({
 
   useEffect(() => {
     setPage(1);
-  }, [selectedUserId, range.date_from, range.date_to, sortBy, sortDirection, rows]);
+  }, [
+    selectedUserId,
+    range.date_from,
+    range.date_to,
+    sortBy,
+    sortDirection,
+    rows,
+  ]);
 
   const totalRows = sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / USER_REPORT_PAGE_SIZE));
@@ -2033,7 +2083,9 @@ function MovimientosPorUsuarioReport({
                   variant="outline"
                   size="sm"
                   disabled={currentPage >= totalPages}
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() =>
+                    setPage((prev) => Math.min(totalPages, prev + 1))
+                  }
                 >
                   Siguiente
                 </Button>
@@ -2045,7 +2097,10 @@ function MovimientosPorUsuarioReport({
 
       {viewDocumentId &&
         (detailLoading || !detailDoc ? (
-          <Dialog open onOpenChange={(open) => !open && setViewDocumentId(null)}>
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setViewDocumentId(null)}
+          >
             <DialogContent className="w-[min(1200px,calc(100vw-3rem))] max-h-[calc(100vh-3rem)] overflow-y-auto">
               <Skeleton className="h-48" />
             </DialogContent>
