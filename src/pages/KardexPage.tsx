@@ -435,23 +435,22 @@ export default function KardexPage() {
                       {new Date(e.created_at).toLocaleDateString("es-EC")}
                     </TableCell>
                     <TableCell className="text-left whitespace-nowrap">
-                      {e.document_number && e.document_id ? (
+                      {e.document_number &&
+                      e.document_id &&
+                      (e.document_doc_type === "IN" ||
+                        e.document_doc_type === "EG") ? (
                         <Link
                           className="inline-block whitespace-nowrap font-mono text-sm text-primary underline"
                           to={
                             e.document_doc_type === "IN"
                               ? `/inventory/ingresos/${e.document_id}`
-                              : e.document_doc_type === "EG"
-                                ? `/inventory/egresos/${e.document_id}`
-                                : e.document_doc_type === "BI"
-                                  ? `/inventory/bajas/${e.document_id}`
-                                  : e.document_doc_type === "AI"
-                                    ? `/inventory/ajustes/${e.document_id}`
-                                    : "#"
+                              : `/inventory/egresos/${e.document_id}`
                           }
                         >
                           {e.document_number}
                         </Link>
+                      ) : e.document_number ? (
+                        <span className="font-mono text-sm">{e.document_number}</span>
                       ) : (
                         "—"
                       )}

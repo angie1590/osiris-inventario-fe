@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -25,21 +25,29 @@ import {
 import {
   EGRESO_DOCUMENT_TYPES,
   BAJA_REASON_LABELS,
+  ADJUSTMENT_REASON_LABELS,
   getDefaultEgresoDocumentType,
   getDefaultBajaReason,
+  getDefaultAdjustmentReason,
   PURCHASE_DOCUMENT_TYPE_LABELS,
+  isCommercialEgresoType,
+  isInventoryEgresoType,
   isBajaReasonRequired,
+  isAdjustmentReasonRequired,
   isEgresoNotesRequired,
 } from "@/features/inventory/documentTypes";
 import { useCreateEgreso } from "@/features/inventory/hooks";
 import { useCompanyConfig } from "@/features/admin/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
+import api from "@/lib/api";
 import type {
   BajaReason,
+  AdjustmentReason,
   CreateEgresoPayload,
   EgresoType,
   PurchaseDocumentType,
+  KardexResponse,
 } from "@/types/api";
 
 const ALL_EGRESO_TYPES: EgresoType[] = [
@@ -61,6 +69,13 @@ const EGRESO_TYPE_LABELS: Record<EgresoType, string> = {
   transfer_sent: "Transferencia enviada",
   other: "Otro",
 };
+
+const ADJUSTMENT_REASON_OPTIONS: AdjustmentReason[] = [
+  "physical_count",
+  "record_error",
+  "administrative_correction",
+  "other",
+];
 
 function FieldLabel({
   label,
@@ -184,6 +199,9 @@ const schema = z
         "other",
       ])
       .optional(),
+    adjustment_reason: z
+      .enum(["physical_count", "record_error", "administrative_correction", "other"])
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (data.egreso_type === "baja" && !data.baja_reason) {
@@ -191,6 +209,13 @@ const schema = z
         code: "custom",
         path: ["baja_reason"],
         message: "Motivo de la baja es obligatorio",
+      });
+    }
+    if (data.egreso_type === "adjustment_negative" && !data.adjustment_reason) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["adjustment_reason"],
+        message: "Motivo del ajuste es obligatorio",
       });
     }
   });
@@ -203,6 +228,7 @@ export default function EgresoNewPage() {
   const { data: company } = useCompanyConfig();
   const [lines, setLines] = useState<DocumentLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const costSyncRef = useRef(0);
   const enabledEgresoTypes = company?.enabled_egreso_types?.length
     ? company.enabled_egreso_types
     : ALL_EGRESO_TYPES;
@@ -219,6 +245,7 @@ export default function EgresoNewPage() {
         "sample",
         "other",
       ];
+  const enabledAdjustmentReasons: AdjustmentReason[] = ADJUSTMENT_REASON_OPTIONS;
 
   const {
     register,
@@ -233,6 +260,7 @@ export default function EgresoNewPage() {
       purchase_document_type: "sales_note",
       purchase_document_date: getNowDateTimeLocalInput(),
       baja_reason: getDefaultBajaReason(),
+      adjustment_reason: getDefaultAdjustmentReason(),
     },
   });
 
@@ -249,6 +277,14 @@ export default function EgresoNewPage() {
     () =>
       sortWithOtherLast(enabledBajaReasons, (type) => BAJA_REASON_LABELS[type]),
     [enabledBajaReasons],
+  );
+  const sortedAdjustmentReasons = useMemo(
+    () =>
+      sortWithOtherLast(
+        enabledAdjustmentReasons,
+        (type) => ADJUSTMENT_REASON_LABELS[type],
+      ),
+    [enabledAdjustmentReasons],
   );
   const allowedDocumentTypes = useMemo(
     () =>
@@ -296,6 +332,116 @@ export default function EgresoNewPage() {
     });
   }, [egresoType, enabledBajaReasons, setValue, watch]);
 
+  useEffect(() => {
+    if (egresoType !== "adjustment_negative") {
+      setValue("adjustment_reason", undefined, { shouldDirty: true });
+      return;
+    }
+    const currentReason = watch("adjustment_reason");
+    if (currentReason && enabledAdjustmentReasons.includes(currentReason)) return;
+    setValue("adjustment_reason", getDefaultAdjustmentReason(), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [egresoType, enabledAdjustmentReasons, setValue, watch]);
+
+  const isCommercialEgreso = isCommercialEgresoType(egresoType);
+  const isInventoryEgreso = isInventoryEgresoType(egresoType);
+
+  useEffect(() => {
+    if (!isInventoryEgreso || lines.length === 0) return;
+    const productIds = Array.from(
+      new Set(lines.map((line) => line.product_id).filter((id) => id > 0)),
+    );
+    if (productIds.length === 0) return;
+
+    const runId = ++costSyncRef.current;
+    const syncCosts = async () => {
+      const kardexPairs = await Promise.all(
+        productIds.map(async (productId) => {
+          const res = await api.get<KardexResponse>(`/kardex/${productId}`);
+          return [productId, res.data] as const;
+        }),
+      );
+      if (costSyncRef.current !== runId) return;
+
+      const kardexMap = new Map(kardexPairs);
+      const pepsLotsByProduct = new Map<
+        number,
+        Array<{ lotId: number; available: number; unitCost: number; createdAt: string }>
+      >();
+
+      const buildPepsLots = (kardex: KardexResponse) => {
+        const map = new Map<
+          number,
+          { lotId: number; available: number; unitCost: number; createdAt: string }
+        >();
+        for (const entry of kardex.entries) {
+          if (!entry.lot_id) continue;
+          const existing = map.get(entry.lot_id) ?? {
+            lotId: entry.lot_id,
+            available: 0,
+            unitCost: Number(entry.cost_in || entry.cost_out || 0),
+            createdAt: entry.created_at,
+          };
+          existing.available += Number(entry.quantity_in || 0);
+          existing.available -= Number(entry.quantity_out || 0);
+          if (Number(entry.cost_in || 0) > 0) {
+            existing.unitCost = Number(entry.cost_in);
+          }
+          map.set(entry.lot_id, existing);
+        }
+        return Array.from(map.values())
+          .filter((lot) => lot.available > 0)
+          .sort((a, b) => {
+            if (a.createdAt === b.createdAt) return a.lotId - b.lotId;
+            return a.createdAt.localeCompare(b.createdAt);
+          });
+      };
+
+      const nextLines = lines.map((line) => {
+        if (!line.product_id || Number(line.quantity || 0) <= 0) return line;
+        const kardex = kardexMap.get(line.product_id);
+        if (!kardex) return line;
+
+        let nextCost = 0;
+        if (String(kardex.method).toUpperCase() === "PEPS") {
+          const lots =
+            pepsLotsByProduct.get(line.product_id) ?? buildPepsLots(kardex);
+          pepsLotsByProduct.set(line.product_id, lots);
+          let remaining = Number(line.quantity || 0);
+          let consumedValue = 0;
+          for (const lot of lots) {
+            if (remaining <= 0) break;
+            if (lot.available <= 0) continue;
+            const consumed = Math.min(lot.available, remaining);
+            consumedValue += consumed * lot.unitCost;
+            lot.available -= consumed;
+            remaining -= consumed;
+          }
+          nextCost = Number(line.quantity || 0) > 0 ? consumedValue / Number(line.quantity || 1) : 0;
+        } else {
+          nextCost = Number(kardex.weighted_avg_cost || 0);
+        }
+
+        const normalized = Number.isFinite(nextCost) ? nextCost : 0;
+        return {
+          ...line,
+          unit_cost: normalized.toFixed(4),
+        };
+      });
+
+      const changed = nextLines.some(
+        (line, index) => (line.unit_cost ?? "") !== (lines[index]?.unit_cost ?? ""),
+      );
+      if (changed) {
+        setLines(nextLines);
+      }
+    };
+
+    syncCosts().catch(() => undefined);
+  }, [isInventoryEgreso, lines]);
+
   const isOtherDocument = isEgresoNotesRequired(purchaseDocumentType);
   const purchaseDocumentDisabled = purchaseDocumentType === "none";
 
@@ -340,6 +486,10 @@ export default function EgresoNewPage() {
         egreso_type: data.egreso_type,
         purchase_document_type: data.purchase_document_type,
         baja_reason: data.egreso_type === "baja" ? data.baja_reason : undefined,
+        adjustment_reason:
+          data.egreso_type === "adjustment_negative"
+            ? data.adjustment_reason
+            : undefined,
         purchase_document_number:
           data.purchase_document_type !== "none"
             ? data.purchase_document_number || undefined
@@ -348,6 +498,13 @@ export default function EgresoNewPage() {
         reference: data.reference || undefined,
         notes: data.notes || undefined,
         lines: lines.map((l) => {
+          if (!isCommercialEgreso) {
+            return {
+              product_id: l.product_id,
+              quantity: l.quantity,
+              unit_cost: l.unit_cost || undefined,
+            };
+          }
           const pvp = l.product_pvp ?? Number(l.unit_price ?? 0);
           const quantity = Number(l.quantity || 0);
           const subtotal = quantity * pvp;
@@ -369,6 +526,7 @@ export default function EgresoNewPage() {
           return {
             product_id: l.product_id,
             quantity: l.quantity,
+            unit_cost: l.unit_cost || undefined,
             unit_price:
               quantity > 0 && finalLineTotal > 0
                 ? String(finalLineTotal / quantity)
@@ -399,6 +557,8 @@ export default function EgresoNewPage() {
           BAJA_REASON_REQUIRED: "Motivo de la baja es obligatorio",
           BAJA_REASON_DISABLED:
             "El motivo de la baja no está habilitado para la empresa",
+          ADJUSTMENT_REASON_REQUIRED: "Motivo del ajuste es obligatorio",
+          ADJUSTMENT_REASON_INVALID: "Motivo del ajuste inválido",
           NOTES_REQUIRED_FOR_OTHER_DOCUMENT:
             "Observaciones es obligatorio cuando el documento es Otro",
           INSUFFICIENT_STOCK: "Stock insuficiente en uno de los productos",
@@ -470,6 +630,36 @@ export default function EgresoNewPage() {
                     {sortedBajaReasons.map((reason) => (
                       <SelectItem key={reason} value={reason}>
                         {BAJA_REASON_LABELS[reason]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {isAdjustmentReasonRequired(egresoType) && (
+              <div className="space-y-1.5">
+                <FieldLabel label="Motivo del ajuste" required />
+                <Select
+                  value={watch("adjustment_reason") ?? ""}
+                  onValueChange={(v) => {
+                    setValue(
+                      "adjustment_reason",
+                      v as FormData["adjustment_reason"],
+                      {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      },
+                    );
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un motivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedAdjustmentReasons.map((reason) => (
+                      <SelectItem key={reason} value={reason}>
+                        {ADJUSTMENT_REASON_LABELS[reason]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -550,13 +740,22 @@ export default function EgresoNewPage() {
             lines={lines}
             onChange={setLines}
             defaultDiscountType="fixed"
-            showUnitPrice
+            showUnitPrice={isCommercialEgreso}
+            showUnitCost={isInventoryEgreso}
+            readOnlyUnitCost={isInventoryEgreso}
             showSubtotal
-            showDiscount
+            subtotalLabel={isCommercialEgreso ? "Subtotal" : "Valor"}
+            showDiscount={isCommercialEgreso}
             showTotals
+            unitPriceLabel="PVP unitario"
+            totalsAmountLabel={
+              isCommercialEgreso
+                ? "Total del movimiento"
+                : "Valor total del movimiento"
+            }
             prioritizeInStock
             enforceStockLimit
-            autoFillUnitPriceFromProduct
+            autoFillUnitPriceFromProduct={isCommercialEgreso}
           />
         </Section>
 

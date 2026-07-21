@@ -77,6 +77,11 @@ export type BajaReason =
   | "destruction"
   | "sample"
   | "other";
+export type AdjustmentReason =
+  | "physical_count"
+  | "record_error"
+  | "administrative_correction"
+  | "other";
 export type AuditAction =
   | "CREATE"
   | "UPDATE"
@@ -302,6 +307,7 @@ export interface InventoryDocument {
   ingreso_type?: IngresoType | null;
   egreso_type?: EgresoType | null;
   baja_reason?: BajaReason | null;
+  adjustment_reason?: AdjustmentReason | null;
   supplier_id?: number | null;
   purchase_document_type?: PurchaseDocumentType | null;
   purchase_document_number?: string | null;
@@ -339,11 +345,13 @@ export interface CreateEgresoPayload {
   purchase_document_number?: string;
   purchase_document_date?: string;
   baja_reason?: BajaReason;
+  adjustment_reason?: AdjustmentReason;
   reference?: string;
   notes?: string;
   lines: Array<{
     product_id: number;
     quantity: string | number;
+    unit_cost?: string | number;
     unit_price?: string | number;
     unit_price_base?: string | number;
     discount_type?: "percent" | "fixed";
@@ -434,6 +442,21 @@ export interface SystemParam {
 export interface ConsolidadoReport {
   period: { from: string; to: string };
   movements: Record<string, number>;
+  movements_by_type: {
+    ingresos: Record<string, number>;
+    egresos: Record<string, number>;
+  };
+  movements_amount: {
+    IN: number;
+    EG: number;
+  };
+  movements_amount_by_type: {
+    ingresos: Record<string, number>;
+    egresos: Record<string, number>;
+  };
+  status_summary: Record<string, number>;
+  total_movements: number;
+  total_movements_amount: number;
   active_products: number;
   products_below_minimum: number;
 }

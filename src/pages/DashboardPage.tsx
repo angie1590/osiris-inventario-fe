@@ -43,9 +43,32 @@ export default function DashboardPage() {
     { enabled: companyReady },
   );
 
+  const ajustesPositivos = (recentIn ?? []).filter(
+    (d) => d.ingreso_type === "adjustment_positive",
+  ).length;
+  const bajasYAjustesNegativos = (recentOut ?? []).filter(
+    (d) => d.egreso_type === "baja" || d.egreso_type === "adjustment_negative",
+  ).length;
+
   const recentMovements = [
-    ...(recentIn ?? []).slice(0, 3).map((d) => ({ ...d, label: "Ingreso" })),
-    ...(recentOut ?? []).slice(0, 3).map((d) => ({ ...d, label: "Egreso" })),
+    ...(recentIn ?? []).slice(0, 3).map((d) => ({
+      ...d,
+      label:
+        d.ingreso_type === "adjustment_positive"
+          ? "Ingreso (Ajuste +)"
+          : "Ingreso",
+      kind: "in" as const,
+    })),
+    ...(recentOut ?? []).slice(0, 3).map((d) => ({
+      ...d,
+      label:
+        d.egreso_type === "baja"
+          ? "Egreso (Baja)"
+          : d.egreso_type === "adjustment_negative"
+            ? "Egreso (Ajuste -)"
+            : "Egreso",
+      kind: "out" as const,
+    })),
   ]
     .sort(
       (a, b) =>
@@ -73,7 +96,7 @@ export default function DashboardPage() {
     {
       title: "Ingresos recientes",
       value: (recentIn ?? []).length,
-      hint: "Documentos registrados recientemente",
+      hint: `Incluye ${ajustesPositivos} ajustes positivos`,
       icon: TrendingUp,
       accent: "from-sky-500 to-cyan-500",
       iconBg: "bg-cyan-100 text-cyan-700",
@@ -82,7 +105,7 @@ export default function DashboardPage() {
     {
       title: "Egresos recientes",
       value: (recentOut ?? []).length,
-      hint: "Salidas y entregas de inventario",
+      hint: `Incluye ${bajasYAjustesNegativos} bajas/ajustes negativos`,
       icon: TrendingDown,
       accent: "from-blue-600 to-sky-600",
       iconBg: "bg-sky-100 text-sky-700",
@@ -231,9 +254,7 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            d.label === "Ingreso" ? "default" : "secondary"
-                          }
+                          variant={d.kind === "in" ? "default" : "secondary"}
                         >
                           {d.label}
                         </Badge>

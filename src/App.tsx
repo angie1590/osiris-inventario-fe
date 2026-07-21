@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/shared/ProtectedRoute";
 import { RoleGuard } from "@/components/shared/RoleGuard";
@@ -35,14 +35,6 @@ const EgresosPage = lazy(() => import("@/pages/inventory/EgresosPage"));
 const EgresoNewPage = lazy(() => import("@/pages/inventory/EgresoNewPage"));
 const EgresoDetailPage = lazy(
   () => import("@/pages/inventory/EgresoDetailPage"),
-);
-const BajasPage = lazy(() => import("@/pages/inventory/BajasPage"));
-const BajaNewPage = lazy(() => import("@/pages/inventory/BajaNewPage"));
-const BajaDetailPage = lazy(() => import("@/pages/inventory/BajaDetailPage"));
-const AjustesPage = lazy(() => import("@/pages/inventory/AjustesPage"));
-const AjusteNewPage = lazy(() => import("@/pages/inventory/AjusteNewPage"));
-const AjusteDetailPage = lazy(
-  () => import("@/pages/inventory/AjusteDetailPage"),
 );
 const KardexPage = lazy(() => import("@/pages/KardexPage"));
 const ReportsPage = lazy(() => import("@/pages/reports/ReportsPage"));
@@ -119,23 +111,29 @@ export default function App() {
                     path="/inventory/egresos/:id"
                     element={<EgresoDetailPage />}
                   />
-                  <Route path="/inventory/bajas" element={<BajasPage />} />
+                  <Route
+                    path="/inventory/bajas"
+                    element={<Navigate to="/inventory/egresos" replace />}
+                  />
                   <Route
                     path="/inventory/bajas/new"
-                    element={<BajaNewPage />}
+                    element={<Navigate to="/inventory/egresos/new" replace />}
                   />
                   <Route
                     path="/inventory/bajas/:id"
-                    element={<BajaDetailPage />}
+                    element={<Navigate to="/inventory/egresos" replace />}
                   />
-                  <Route path="/inventory/ajustes" element={<AjustesPage />} />
+                  <Route
+                    path="/inventory/ajustes"
+                    element={<Navigate to="/inventory/ingresos" replace />}
+                  />
                   <Route
                     path="/inventory/ajustes/new"
-                    element={<AjusteNewPage />}
+                    element={<Navigate to="/inventory/ingresos/new" replace />}
                   />
                   <Route
                     path="/inventory/ajustes/:id"
-                    element={<AjusteDetailPage />}
+                    element={<Navigate to="/inventory/ingresos" replace />}
                   />
                 </Route>
 

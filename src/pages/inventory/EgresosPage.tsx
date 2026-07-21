@@ -214,6 +214,7 @@ export default function EgresosPage() {
         <DocumentDetailModal
           doc={viewDoc}
           onClose={() => setViewDoc(undefined)}
+          showCost
           showPrice
         />
       )}

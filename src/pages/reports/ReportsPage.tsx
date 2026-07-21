@@ -4,6 +4,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import {
   BarChart,
   Bar,
+  CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
@@ -71,6 +72,7 @@ import { formatCurrency as fmtCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type SortDirection = "asc" | "desc";
+type ConsolidadoMetric = "quantity" | "monetary";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
@@ -84,6 +86,26 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   EG: "Egreso de Bodega",
   BI: "Baja de Inventario",
   AI: "Ajuste de Inventario",
+};
+
+const CONSOLIDADO_INGRESO_TYPE_LABELS: Record<string, string> = {
+  purchase: "Compra",
+  initial_inventory: "Inventario inicial",
+  adjustment_positive: "Ajuste positivo",
+  customer_return: "Devolucion de cliente",
+  production: "Produccion",
+  transfer_received: "Transferencia recibida",
+  other: "Otro",
+};
+
+const CONSOLIDADO_EGRESO_TYPE_LABELS: Record<string, string> = {
+  sale: "Venta",
+  baja: "Baja",
+  adjustment_negative: "Ajuste negativo",
+  supplier_return: "Devolucion a proveedor",
+  internal_consumption: "Consumo interno",
+  transfer_sent: "Transferencia enviada",
+  other: "Otro",
 };
 
 function statusLabel(value: string | null | undefined) {
@@ -269,7 +291,7 @@ function ProductSearchCombobox({
   );
 }
 
-// ─── Movement report tabs (Ingresos/Egresos/Bajas/Ajustes) ───────────────────
+// ─── Movement report tabs (modelo consolidado: Ingresos/Egresos) ─────────────
 const DOC_REPORT_TYPES: Array<{
   value: string;
   label: string;
@@ -290,20 +312,6 @@ const DOC_REPORT_TYPES: Array<{
     endpoint: "/reports/egresos",
     prefix: "egresos",
     supportsProductFilter: true,
-  },
-  {
-    value: "bajas",
-    label: "Bajas",
-    endpoint: "/reports/bajas",
-    prefix: "bajas",
-    supportsProductFilter: false,
-  },
-  {
-    value: "ajustes",
-    label: "Ajustes",
-    endpoint: "/reports/ajustes",
-    prefix: "ajustes",
-    supportsProductFilter: false,
   },
 ];
 
@@ -1318,12 +1326,10 @@ function MovimientosPorUsuarioReport({
       const map: Record<string, string> = {
         IN: "ingresos",
         EG: "egresos",
-        BI: "bajas",
-        AI: "ajustes",
       };
-      const res = await api.get(
-        `/inventory/${map[row.doc_type]}/${viewDocumentId}`,
-      );
+      const endpoint = map[row.doc_type];
+      if (!endpoint) return null;
+      const res = await api.get(`/inventory/${endpoint}/${viewDocumentId}`);
       return res.data;
     },
     enabled: !!viewDocumentId,
@@ -1513,6 +1519,7 @@ function MovimientosPorUsuarioReport({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
+                        disabled={r.doc_type !== "IN" && r.doc_type !== "EG"}
                         onClick={() => setViewDocumentId(r.id)}
                         title="Ver documento"
                         aria-label="Ver documento"
@@ -1606,9 +1613,125 @@ function ConsolidadoReport() {
   const { data, isLoading, isError, refetch } = useConsolidado(range);
   const { toast } = useToast();
 
-  const chartData = data
-    ? Object.entries(data.movements).map(([name, value]) => ({ name, value }))
-    : [];
+  const visibleMovements = useMemo(
+    () => ({ IN: data?.movements?.IN ?? 0, EG: data?.movements?.EG ?? 0 }),
+    [data],
+  );
+
+  const statusSummary = data?.status_summary ?? {};
+  const pendingCount = statusSummary.pending ?? 0;
+  const approvedCount = statusSummary.approved ?? 0;
+  const cancelledCount = statusSummary.cancelled ?? 0;
+  const voidedCount = statusSummary.voided ?? 0;
+  const totalMovements =
+    data?.total_movements ?? visibleMovements.IN + visibleMovements.EG;
+  const visibleAmounts = useMemo(
+    () => ({ IN: data?.movements_amount?.IN ?? 0, EG: data?.movements_amount?.EG ?? 0 }),
+    [data],
+  );
+  const totalMovementsAmount =
+    data?.total_movements_amount ?? visibleAmounts.IN + visibleAmounts.EG;
+  const [metric, setMetric] = useState<ConsolidadoMetric>("quantity");
+  const netFlow = visibleMovements.IN - visibleMovements.EG;
+  const metricLabel = metric === "quantity" ? "Cantidad" : "Monetario";
+  const metricUnitLabel = metric === "quantity" ? "movimientos" : "";
+
+  const ingresoChartData = useMemo(() => {
+    const ingresos = data?.movements_by_type?.ingresos ?? {};
+    const ingresosAmount = data?.movements_amount_by_type?.ingresos ?? {};
+    const types = new Set([...Object.keys(ingresos), ...Object.keys(ingresosAmount)]);
+    return [...types]
+      .map((type) => {
+        const quantity = ingresos[type] ?? 0;
+        const monetary = ingresosAmount[type] ?? 0;
+        return {
+          type,
+          label: CONSOLIDADO_INGRESO_TYPE_LABELS[type] ?? type,
+          quantity,
+          monetary,
+          value: metric === "quantity" ? quantity : monetary,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+  }, [data, metric]);
+
+  const egresoChartData = useMemo(() => {
+    const egresos = data?.movements_by_type?.egresos ?? {};
+    const egresosAmount = data?.movements_amount_by_type?.egresos ?? {};
+    const types = new Set([...Object.keys(egresos), ...Object.keys(egresosAmount)]);
+    return [...types]
+      .map((type) => {
+        const quantity = egresos[type] ?? 0;
+        const monetary = egresosAmount[type] ?? 0;
+        return {
+          type,
+          label: CONSOLIDADO_EGRESO_TYPE_LABELS[type] ?? type,
+          quantity,
+          monetary,
+          value: metric === "quantity" ? quantity : monetary,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+  }, [data, metric]);
+
+  const topIngreso = ingresoChartData[0];
+  const topEgreso = egresoChartData[0];
+  const reportTotal = metric === "quantity" ? totalMovements : totalMovementsAmount;
+
+  const reportRows = useMemo(() => {
+    const rows = new Map<
+      string,
+      {
+        type: string;
+        label: string;
+        ingresosQuantity: number;
+        egresosQuantity: number;
+        ingresosMonetary: number;
+        egresosMonetary: number;
+      }
+    >();
+
+    for (const row of ingresoChartData) {
+      const current = rows.get(row.type) ?? {
+        type: row.type,
+        label: row.label,
+        ingresosQuantity: 0,
+        egresosQuantity: 0,
+        ingresosMonetary: 0,
+        egresosMonetary: 0,
+      };
+      current.ingresosQuantity = row.quantity;
+      current.ingresosMonetary = row.monetary;
+      rows.set(row.type, current);
+    }
+
+    for (const row of egresoChartData) {
+      const current = rows.get(row.type) ?? {
+        type: row.type,
+        label: row.label,
+        ingresosQuantity: 0,
+        egresosQuantity: 0,
+        ingresosMonetary: 0,
+        egresosMonetary: 0,
+      };
+      current.egresosQuantity = row.quantity;
+      current.egresosMonetary = row.monetary;
+      rows.set(row.type, current);
+    }
+
+    return [...rows.values()]
+      .map((row) => ({
+        ...row,
+        displayIngresos:
+          metric === "quantity" ? row.ingresosQuantity : row.ingresosMonetary,
+        displayEgresos:
+          metric === "quantity" ? row.egresosQuantity : row.egresosMonetary,
+      }))
+      .sort((a, b) => b.displayIngresos + b.displayEgresos - (a.displayIngresos + a.displayEgresos));
+  }, [egresoChartData, ingresoChartData, metric]);
+
+  const formatMetricValue = (value: number) =>
+    metric === "quantity" ? formatQuantity(value, "integer") : fmtCurrency(value);
 
   const handleExport = async (fmt: "pdf" | "excel") => {
     try {
@@ -1617,12 +1740,13 @@ function ConsolidadoReport() {
           date_from: range.date_from,
           date_to: range.date_to,
           format: fmt,
+          metric,
         },
         responseType: "blob",
       });
       downloadBlob(
         res,
-        `consolidado_${range.date_from}_${range.date_to}.${fmt === "pdf" ? "pdf" : "xlsx"}`,
+        `consolidado_${metric}_${range.date_from}_${range.date_to}.${fmt === "pdf" ? "pdf" : "xlsx"}`,
       );
     } catch {
       toast({
@@ -1636,7 +1760,34 @@ function ConsolidadoReport() {
     <div className="space-y-4">
       <div className="rounded-lg border bg-card p-3">
         <DateRangeFilter onApply={setRange} defaultValues={range} />
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-lg border bg-muted p-1 text-sm">
+            <button
+              type="button"
+              className={cn(
+                "rounded-md px-3 py-1.5 transition",
+                metric === "quantity"
+                  ? "bg-background font-medium shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setMetric("quantity")}
+            >
+              Cantidad
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-md px-3 py-1.5 transition",
+                metric === "monetary"
+                  ? "bg-background font-medium shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setMetric("monetary")}
+            >
+              Monetario
+            </button>
+          </div>
+          <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -1654,6 +1805,7 @@ function ConsolidadoReport() {
             Excel
           </Button>
         </div>
+        </div>
       </div>
       {isLoading && <Skeleton className="h-48" />}
       {isError && (
@@ -1665,15 +1817,60 @@ function ConsolidadoReport() {
       )}
       {data && (
         <>
-          <div className="grid gap-3 sm:grid-cols-4">
-            {Object.entries(data.movements).map(([k, v]) => (
-              <Card key={k}>
-                <CardContent className="pt-4">
-                  <p className="text-xs text-muted-foreground uppercase">{k}</p>
-                  <p className="text-2xl font-bold">{v}</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground uppercase">
+                  Movimientos totales
+                </p>
+                <p className="text-2xl font-bold">{totalMovements}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  IN: {visibleMovements.IN} | EG: {visibleMovements.EG}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground uppercase">
+                  Balance operativo
+                </p>
+                <p
+                  className={`text-2xl font-bold ${
+                    netFlow >= 0 ? "text-emerald-700" : "text-amber-700"
+                  }`}
+                >
+                  {netFlow >= 0 ? "+" : ""}
+                  {netFlow}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Diferencia entre ingresos y egresos
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground uppercase">
+                  Pendientes de aprobacion
+                </p>
+                <p className="text-2xl font-bold text-amber-700">
+                  {pendingCount}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Cancelados/anulados: {cancelledCount + voidedCount}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground uppercase">
+                  Documentos aprobados
+                </p>
+                <p className="text-2xl font-bold">{approvedCount}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  de {totalMovements} movimientos en el periodo
+                </p>
+              </CardContent>
+            </Card>
             <Card>
               <CardContent className="pt-4">
                 <p className="text-xs text-muted-foreground">
@@ -1690,24 +1887,115 @@ function ConsolidadoReport() {
                 </p>
               </CardContent>
             </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Ingreso dominante</p>
+                <p className="text-lg font-semibold truncate">
+                  {topIngreso?.label ?? "Sin datos"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {topIngreso
+                    ? `${formatMetricValue(topIngreso.value)}${metricUnitLabel ? ` ${metricUnitLabel}` : ""}`
+                    : "Sin datos"}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Egreso dominante</p>
+                <p className="text-lg font-semibold truncate">
+                  {topEgreso?.label ?? "Sin datos"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {topEgreso
+                    ? `${formatMetricValue(topEgreso.value)}${metricUnitLabel ? ` ${metricUnitLabel}` : ""}`
+                    : "Sin datos"}
+                </p>
+              </CardContent>
+            </Card>
           </div>
-          {chartData.length > 0 && (
+          <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border bg-card p-4">
-              <p className="mb-3 text-sm font-medium">Movimientos por tipo</p>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={chartData}>
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar
-                    dataKey="value"
-                    fill="hsl(var(--primary))"
-                    radius={[4, 4, 0, 0]}
-                  />
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Tipos de ingreso</p>
+                <p className="text-xs text-muted-foreground">
+                  {topIngreso ? `Dominante: ${topIngreso.label}` : "Sin datos"}
+                </p>
+              </div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {metric === "quantity"
+                  ? "Cantidad de documentos por cada tipo de ingreso."
+                  : "Valor monetario por cada tipo de ingreso."}
+              </p>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={ingresoChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" interval={0} angle={-15} textAnchor="end" height={70} />
+                  <YAxis allowDecimals={metric !== "quantity"} width={110} tickMargin={8} tickFormatter={(value) => formatMetricValue(Number(value))} />
+                  <Tooltip formatter={(value) => [formatMetricValue(Number(value)), metricLabel]} />
+                  <Bar dataKey="value" name={metricLabel} fill="#7b963f" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          )}
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Tipos de egreso</p>
+                <p className="text-xs text-muted-foreground">
+                  {topEgreso ? `Dominante: ${topEgreso.label}` : "Sin datos"}
+                </p>
+              </div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {metric === "quantity"
+                  ? "Cantidad de documentos por cada tipo de egreso."
+                  : "Valor monetario por cada tipo de egreso."}
+              </p>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={egresoChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" interval={0} angle={-15} textAnchor="end" height={70} />
+                  <YAxis allowDecimals={metric !== "quantity"} width={110} tickMargin={8} tickFormatter={(value) => formatMetricValue(Number(value))} />
+                  <Tooltip formatter={(value) => [formatMetricValue(Number(value)), metricLabel]} />
+                  <Bar dataKey="value" name={metricLabel} fill="#e67600" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-center">{metric === "quantity" ? "Ingresos" : "Monto ingresos"}</TableHead>
+                  <TableHead className="text-center">{metric === "quantity" ? "Egresos" : "Monto egresos"}</TableHead>
+                  <TableHead className="text-center">{metric === "quantity" ? "Total" : "Monto total"}</TableHead>
+                  <TableHead className="text-center">Participacion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reportRows.map((row) => {
+                  const total =
+                    metric === "quantity"
+                      ? row.ingresosQuantity + row.egresosQuantity
+                      : row.ingresosMonetary + row.egresosMonetary;
+                  const participation =
+                    reportTotal > 0 ? ((total / reportTotal) * 100).toFixed(1) : "0.0";
+
+                  return (
+                    <TableRow key={row.type}>
+                      <TableCell>{row.label}</TableCell>
+                      <TableCell className="text-center">{formatMetricValue(row.displayIngresos)}</TableCell>
+                      <TableCell className="text-center">{formatMetricValue(row.displayEgresos)}</TableCell>
+                      <TableCell className="text-center font-medium">{formatMetricValue(total)}</TableCell>
+                      <TableCell className="text-center">
+                        {participation}%
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </>
       )}
     </div>

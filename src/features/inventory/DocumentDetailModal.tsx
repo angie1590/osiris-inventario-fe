@@ -22,6 +22,7 @@ import type {
   DocumentStatus,
   DocumentType,
   BajaReason,
+  AdjustmentReason,
   EgresoType,
   IngresoType,
   InventoryDocumentAttachment,
@@ -55,6 +56,12 @@ const BAJA_REASON_LABELS: Record<BajaReason, string> = {
   gift: "Obsequio",
   destruction: "Destrucción",
   sample: "Muestra",
+  other: "Otro",
+};
+const ADJUSTMENT_REASON_LABELS: Record<AdjustmentReason, string> = {
+  physical_count: "Conteo físico",
+  record_error: "Error de registro",
+  administrative_correction: "Corrección administrativa",
   other: "Otro",
 };
 
@@ -98,7 +105,8 @@ function LinesTable({
   showCost?: boolean;
   showPrice?: boolean;
 }) {
-  const isEgreso = doc.doc_type === "EG";
+  const isEgresoCommercial = doc.doc_type === "EG" && doc.egreso_type === "sale";
+  const isEgresoInventory = doc.doc_type === "EG" && !isEgresoCommercial;
   const egresoLineSummaries = doc.lines.map((l) => {
     const quantity = Number(l.quantity || 0);
     const finalTotal = quantity * Number(l.unit_price || 0);
@@ -127,7 +135,9 @@ function LinesTable({
       final: Math.max(0, subtotal - boundedDiscount),
     };
   });
-  const colSpan = isEgreso ? 6 : 2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0);
+  const colSpan = isEgresoCommercial
+    ? 6
+    : 2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0);
   return (
     <div className="rounded-md border">
       <Table>
@@ -135,9 +145,9 @@ function LinesTable({
           <TableRow>
             <TableHead className="text-center">Producto</TableHead>
             <TableHead className="text-center">Cantidad</TableHead>
-            {isEgreso ? (
+            {isEgresoCommercial ? (
               <>
-                <TableHead className="text-center">Precio unit.</TableHead>
+                <TableHead className="text-center">PVP unitario</TableHead>
                 <TableHead className="text-center">Subtotal</TableHead>
                 <TableHead className="text-center">Descuento</TableHead>
                 <TableHead className="text-center">Precio final</TableHead>
@@ -148,7 +158,9 @@ function LinesTable({
                   <TableHead className="text-center">Costo unitario</TableHead>
                 )}
                 {showCost && (
-                  <TableHead className="text-center">Subtotal</TableHead>
+                  <TableHead className="text-center">
+                    {isEgresoInventory ? "Valor" : "Subtotal"}
+                  </TableHead>
                 )}
                 {showPrice && (
                   <TableHead className="text-center">Precio unit.</TableHead>
@@ -178,7 +190,7 @@ function LinesTable({
                 <TableCell className="text-center">
                   {formatQuantity(l.quantity, "integer")}
                 </TableCell>
-                {isEgreso ? (
+                {isEgresoCommercial ? (
                   <>
                     <TableCell className="text-right tabular-nums">
                       {formatCurrency(l.unit_price_base ?? l.unit_price)}
@@ -252,6 +264,7 @@ export function DocumentDetailModal({
     0,
   );
   const isEgreso = doc.doc_type === "EG";
+  const isCommercialEgreso = isEgreso && doc.egreso_type === "sale";
   const egresoLineSummaries = doc.lines.map((l) => {
     const quantity = Number(l.quantity || 0);
     const finalTotal = quantity * Number(l.unit_price || 0);
@@ -404,6 +417,16 @@ export function DocumentDetailModal({
                           },
                         ]
                       : []),
+                    ...(doc.egreso_type === "adjustment_negative"
+                      ? [
+                          {
+                            label: "Motivo del ajuste",
+                            value: doc.adjustment_reason
+                              ? ADJUSTMENT_REASON_LABELS[doc.adjustment_reason]
+                              : "—",
+                          },
+                        ]
+                      : []),
                     {
                       label: "Tipo documento",
                       value: doc.purchase_document_type
@@ -446,7 +469,7 @@ export function DocumentDetailModal({
               <LinesTable doc={doc} showCost={showCost} showPrice={showPrice} />
             ),
           },
-          ...(isEgreso
+          ...(isCommercialEgreso
             ? [
                 {
                   title: "Totales",
@@ -474,7 +497,27 @@ export function DocumentDetailModal({
                   ],
                 },
               ]
-            : showCost || showPrice
+            : isEgreso
+              ? [
+                  {
+                    title: "Totales",
+                    fields: [
+                      {
+                        label: "Ítems",
+                        value: totalItems,
+                      },
+                      {
+                        label: "Total de unidades",
+                        value: formatQuantity(totalUnits, "integer"),
+                      },
+                      {
+                        label: "Valor total del movimiento",
+                        value: formatCurrency(totalCost),
+                      },
+                    ],
+                  },
+                ]
+              : showCost || showPrice
               ? [
                   {
                     title: "Totales",

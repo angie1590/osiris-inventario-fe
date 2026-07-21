@@ -46,6 +46,10 @@ interface Props {
   showSubtotal?: boolean;
   showTotals?: boolean;
   readOnly?: boolean;
+  readOnlyUnitCost?: boolean;
+  unitPriceLabel?: string;
+  subtotalLabel?: string;
+  totalsAmountLabel?: string;
 }
 
 /** Calcula el total final aplicando el descuento al subtotal. */
@@ -331,6 +335,10 @@ export function DocumentLinesEditor({
   showSubtotal = false,
   showTotals = false,
   readOnly = false,
+  readOnlyUnitCost = false,
+  unitPriceLabel = "Precio unit.",
+  subtotalLabel = "Subtotal",
+  totalsAmountLabel = "Total del ingreso",
 }: Props) {
   const { data: settings } = useQuery<{
     stock_quantity_mode: "integer" | "decimal";
@@ -480,10 +488,10 @@ export function DocumentLinesEditor({
                 </TableHead>
               )}
               {showUnitPrice && (
-                <TableHead className="w-28 text-center">Precio unit.</TableHead>
+                <TableHead className="w-28 text-center">{unitPriceLabel}</TableHead>
               )}
               {showSubtotal && (
-                <TableHead className="w-28 text-center">Subtotal</TableHead>
+                <TableHead className="w-28 text-center">{subtotalLabel}</TableHead>
               )}
               {showDiscount && (
                 <TableHead className="w-36 text-center">Descuento</TableHead>
@@ -610,12 +618,18 @@ export function DocumentLinesEditor({
                         type="number"
                         min="0"
                         step="0.01"
-                        className="h-8 w-28 text-center pl-1 pr-2"
+                        className={cn(
+                          "h-8 w-28 text-center pl-1 pr-2",
+                          readOnlyUnitCost && "bg-muted text-muted-foreground",
+                        )}
                         placeholder="0.00"
                         disabled={readOnly}
+                        readOnly={readOnly || readOnlyUnitCost}
                         value={line.unit_cost ?? ""}
                         onChange={(e) =>
-                          updateLine(i, { unit_cost: e.target.value })
+                          (readOnlyUnitCost
+                            ? undefined
+                            : updateLine(i, { unit_cost: e.target.value }))
                         }
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && e.shiftKey) {
@@ -918,7 +932,7 @@ export function DocumentLinesEditor({
                 </span>
               </p>
               <p>
-                Total del ingreso:{" "}
+                {totalsAmountLabel}:{" "}
                 <span className="font-semibold tabular-nums">
                   {formatCurrency(totals.totalAmount)}
                 </span>

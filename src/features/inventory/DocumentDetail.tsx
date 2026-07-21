@@ -26,6 +26,7 @@ import type {
   DocumentStatus,
   DocumentType,
   BajaReason,
+  AdjustmentReason,
   EgresoType,
   IngresoType,
   InventoryDocumentAttachment,
@@ -58,6 +59,12 @@ const BAJA_REASON_LABELS: Record<BajaReason, string> = {
   gift: "Obsequio",
   destruction: "Destrucción",
   sample: "Muestra",
+  other: "Otro",
+};
+const ADJUSTMENT_REASON_LABELS: Record<AdjustmentReason, string> = {
+  physical_count: "Conteo físico",
+  record_error: "Error de registro",
+  administrative_correction: "Corrección administrativa",
   other: "Otro",
 };
 
@@ -110,6 +117,7 @@ export function DocumentDetail({
   if (!doc) return <p>Documento no encontrado</p>;
 
   const isEgreso = doc.doc_type === "EG";
+  const isCommercialEgreso = isEgreso && doc.egreso_type === "sale";
   const totalItems = doc.lines.length;
   const totalUnits = doc.lines.reduce(
     (acc, l) => acc + Number(l.quantity || 0),
@@ -326,6 +334,18 @@ export function DocumentDetail({
                     </span>
                   </div>
                 )}
+                {doc.egreso_type === "adjustment_negative" && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Motivo del ajuste
+                    </span>
+                    <span>
+                      {doc.adjustment_reason
+                        ? ADJUSTMENT_REASON_LABELS[doc.adjustment_reason]
+                        : "—"}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tipo documento</span>
                   <span>
@@ -386,9 +406,9 @@ export function DocumentDetail({
             <TableRow>
               <TableHead className="text-center">Producto</TableHead>
               <TableHead className="text-center">Cantidad</TableHead>
-              {isEgreso ? (
+              {isCommercialEgreso ? (
                 <>
-                  <TableHead className="text-center">Precio unit.</TableHead>
+                  <TableHead className="text-center">PVP unitario</TableHead>
                   <TableHead className="text-center">Subtotal</TableHead>
                   <TableHead className="text-center">Descuento</TableHead>
                   <TableHead className="text-center">Precio final</TableHead>
@@ -401,7 +421,9 @@ export function DocumentDetail({
                     </TableHead>
                   )}
                   {showCost && (
-                    <TableHead className="text-center">Subtotal</TableHead>
+                    <TableHead className="text-center">
+                      {isEgreso ? "Valor" : "Subtotal"}
+                    </TableHead>
                   )}
                   {showPrice && (
                     <TableHead className="text-center">Precio unit.</TableHead>
@@ -415,7 +437,9 @@ export function DocumentDetail({
               <TableRow>
                 <TableCell
                   colSpan={
-                    isEgreso ? 6 : 2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0)
+                    isCommercialEgreso
+                      ? 6
+                      : 2 + (showCost ? 2 : 0) + (showPrice ? 1 : 0)
                   }
                   className="text-center text-muted-foreground"
                 >
@@ -433,7 +457,7 @@ export function DocumentDetail({
                   <TableCell className="text-center">
                     {formatQuantity(l.quantity, "integer")}
                   </TableCell>
-                  {isEgreso ? (
+                  {isCommercialEgreso ? (
                     <>
                       <TableCell className="text-right tabular-nums">
                         {formatCurrency(l.unit_price_base ?? l.unit_price)}
@@ -481,7 +505,7 @@ export function DocumentDetail({
       </div>
 
       <div className="flex items-center justify-end gap-6 rounded-md border bg-muted/20 px-3 py-2 text-sm">
-        {isEgreso ? (
+        {isCommercialEgreso ? (
           <>
             <p className="font-semibold">Totales:</p>
             <p>
@@ -509,6 +533,24 @@ export function DocumentDetail({
               PVP Final:{" "}
               <span className="font-semibold tabular-nums">
                 {formatCurrency(egresoFinal)}
+              </span>
+            </p>
+          </>
+        ) : isEgreso ? (
+          <>
+            <p>
+              Ítems: <span className="font-semibold">{totalItems}</span>
+            </p>
+            <p>
+              Total de unidades:{" "}
+              <span className="font-semibold">
+                {formatQuantity(totalUnits, "integer")}
+              </span>
+            </p>
+            <p>
+              Valor total del movimiento:{" "}
+              <span className="font-semibold tabular-nums">
+                {formatCurrency(totalCost)}
               </span>
             </p>
           </>

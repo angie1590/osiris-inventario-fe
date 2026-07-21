@@ -2,6 +2,7 @@ import type {
   EgresoType,
   IngresoType,
   BajaReason,
+  AdjustmentReason,
   PurchaseDocumentType,
 } from "@/types/api";
 
@@ -47,6 +48,22 @@ export const BAJA_REASON_LABELS: Record<BajaReason, string> = {
   other: "Otro",
 };
 
+export const ADJUSTMENT_REASON_LABELS: Record<AdjustmentReason, string> = {
+  physical_count: "Conteo físico",
+  record_error: "Error de registro",
+  administrative_correction: "Corrección administrativa",
+  other: "Otro",
+};
+
+const INVENTORY_EGRESO_TYPES: EgresoType[] = [
+  "baja",
+  "adjustment_negative",
+  "supplier_return",
+  "internal_consumption",
+  "transfer_sent",
+  "other",
+];
+
 export const PURCHASE_DOCUMENT_TYPE_LABELS: Record<
   PurchaseDocumentType,
   string
@@ -86,8 +103,24 @@ export function isBajaReasonRequired(egresoType: EgresoType): boolean {
   return egresoType === "baja";
 }
 
+export function isAdjustmentReasonRequired(egresoType: EgresoType): boolean {
+  return egresoType === "adjustment_negative";
+}
+
+export function isCommercialEgresoType(egresoType: EgresoType): boolean {
+  return egresoType === "sale";
+}
+
+export function isInventoryEgresoType(egresoType: EgresoType): boolean {
+  return INVENTORY_EGRESO_TYPES.includes(egresoType);
+}
+
 export function getDefaultBajaReason(): BajaReason {
   return "damage";
+}
+
+export function getDefaultAdjustmentReason(): AdjustmentReason {
+  return "physical_count";
 }
 
 export function getDefaultEgresoDocumentType(
