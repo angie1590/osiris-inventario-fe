@@ -105,7 +105,8 @@ function LinesTable({
   showCost?: boolean;
   showPrice?: boolean;
 }) {
-  const isEgresoCommercial = doc.doc_type === "EG" && doc.egreso_type === "sale";
+  const isEgresoCommercial =
+    doc.doc_type === "EG" && doc.egreso_type === "sale";
   const isEgresoInventory = doc.doc_type === "EG" && !isEgresoCommercial;
   const egresoLineSummaries = doc.lines.map((l) => {
     const quantity = Number(l.quantity || 0);
@@ -518,41 +519,41 @@ export function DocumentDetailModal({
                   },
                 ]
               : showCost || showPrice
-              ? [
-                  {
-                    title: "Totales",
-                    fields: [
-                      {
-                        label: "Ítems",
-                        value: totalItems,
-                      },
-                      {
-                        label: "Total de unidades",
-                        value: formatQuantity(totalUnits, "integer"),
-                      },
-                      ...(showCost
-                        ? [
-                            {
-                              label:
-                                doc.doc_type === "EG"
-                                  ? "Total costo"
-                                  : "Total del ingreso",
-                              value: formatCurrency(totalCost),
-                            },
-                          ]
-                        : []),
-                      ...(showPrice
-                        ? [
-                            {
-                              label: "PVP Final",
-                              value: formatCurrency(totalFinalPrice),
-                            },
-                          ]
-                        : []),
-                    ],
-                  },
-                ]
-              : []),
+                ? [
+                    {
+                      title: "Totales",
+                      fields: [
+                        {
+                          label: "Ítems",
+                          value: totalItems,
+                        },
+                        {
+                          label: "Total de unidades",
+                          value: formatQuantity(totalUnits, "integer"),
+                        },
+                        ...(showCost
+                          ? [
+                              {
+                                label:
+                                  doc.doc_type === "EG"
+                                    ? "Total costo"
+                                    : "Total del ingreso",
+                                value: formatCurrency(totalCost),
+                              },
+                            ]
+                          : []),
+                        ...(showPrice
+                          ? [
+                              {
+                                label: "PVP Final",
+                                value: formatCurrency(totalFinalPrice),
+                              },
+                            ]
+                          : []),
+                      ],
+                    },
+                  ]
+                : []),
           ...(doc.doc_type === "IN"
             ? [
                 {

@@ -488,10 +488,14 @@ export function DocumentLinesEditor({
                 </TableHead>
               )}
               {showUnitPrice && (
-                <TableHead className="w-28 text-center">{unitPriceLabel}</TableHead>
+                <TableHead className="w-28 text-center">
+                  {unitPriceLabel}
+                </TableHead>
               )}
               {showSubtotal && (
-                <TableHead className="w-28 text-center">{subtotalLabel}</TableHead>
+                <TableHead className="w-28 text-center">
+                  {subtotalLabel}
+                </TableHead>
               )}
               {showDiscount && (
                 <TableHead className="w-36 text-center">Descuento</TableHead>
@@ -627,9 +631,9 @@ export function DocumentLinesEditor({
                         readOnly={readOnly || readOnlyUnitCost}
                         value={line.unit_cost ?? ""}
                         onChange={(e) =>
-                          (readOnlyUnitCost
+                          readOnlyUnitCost
                             ? undefined
-                            : updateLine(i, { unit_cost: e.target.value }))
+                            : updateLine(i, { unit_cost: e.target.value })
                         }
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && e.shiftKey) {

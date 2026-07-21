@@ -1626,7 +1626,10 @@ function ConsolidadoReport() {
   const totalMovements =
     data?.total_movements ?? visibleMovements.IN + visibleMovements.EG;
   const visibleAmounts = useMemo(
-    () => ({ IN: data?.movements_amount?.IN ?? 0, EG: data?.movements_amount?.EG ?? 0 }),
+    () => ({
+      IN: data?.movements_amount?.IN ?? 0,
+      EG: data?.movements_amount?.EG ?? 0,
+    }),
     [data],
   );
   const totalMovementsAmount =
@@ -1639,7 +1642,10 @@ function ConsolidadoReport() {
   const ingresoChartData = useMemo(() => {
     const ingresos = data?.movements_by_type?.ingresos ?? {};
     const ingresosAmount = data?.movements_amount_by_type?.ingresos ?? {};
-    const types = new Set([...Object.keys(ingresos), ...Object.keys(ingresosAmount)]);
+    const types = new Set([
+      ...Object.keys(ingresos),
+      ...Object.keys(ingresosAmount),
+    ]);
     return [...types]
       .map((type) => {
         const quantity = ingresos[type] ?? 0;
@@ -1658,7 +1664,10 @@ function ConsolidadoReport() {
   const egresoChartData = useMemo(() => {
     const egresos = data?.movements_by_type?.egresos ?? {};
     const egresosAmount = data?.movements_amount_by_type?.egresos ?? {};
-    const types = new Set([...Object.keys(egresos), ...Object.keys(egresosAmount)]);
+    const types = new Set([
+      ...Object.keys(egresos),
+      ...Object.keys(egresosAmount),
+    ]);
     return [...types]
       .map((type) => {
         const quantity = egresos[type] ?? 0;
@@ -1676,7 +1685,8 @@ function ConsolidadoReport() {
 
   const topIngreso = ingresoChartData[0];
   const topEgreso = egresoChartData[0];
-  const reportTotal = metric === "quantity" ? totalMovements : totalMovementsAmount;
+  const reportTotal =
+    metric === "quantity" ? totalMovements : totalMovementsAmount;
 
   const reportRows = useMemo(() => {
     const rows = new Map<
@@ -1727,11 +1737,18 @@ function ConsolidadoReport() {
         displayEgresos:
           metric === "quantity" ? row.egresosQuantity : row.egresosMonetary,
       }))
-      .sort((a, b) => b.displayIngresos + b.displayEgresos - (a.displayIngresos + a.displayEgresos));
+      .sort(
+        (a, b) =>
+          b.displayIngresos +
+          b.displayEgresos -
+          (a.displayIngresos + a.displayEgresos),
+      );
   }, [egresoChartData, ingresoChartData, metric]);
 
   const formatMetricValue = (value: number) =>
-    metric === "quantity" ? formatQuantity(value, "integer") : fmtCurrency(value);
+    metric === "quantity"
+      ? formatQuantity(value, "integer")
+      : fmtCurrency(value);
 
   const handleExport = async (fmt: "pdf" | "excel") => {
     try {
@@ -1788,23 +1805,23 @@ function ConsolidadoReport() {
             </button>
           </div>
           <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport("pdf")}
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            PDF
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport("excel")}
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Excel
-          </Button>
-        </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport("pdf")}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport("excel")}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Excel
+            </Button>
+          </div>
         </div>
       </div>
       {isLoading && <Skeleton className="h-48" />}
@@ -1889,7 +1906,9 @@ function ConsolidadoReport() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Ingreso dominante</p>
+                <p className="text-xs text-muted-foreground">
+                  Ingreso dominante
+                </p>
                 <p className="text-lg font-semibold truncate">
                   {topIngreso?.label ?? "Sin datos"}
                 </p>
@@ -1902,7 +1921,9 @@ function ConsolidadoReport() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Egreso dominante</p>
+                <p className="text-xs text-muted-foreground">
+                  Egreso dominante
+                </p>
                 <p className="text-lg font-semibold truncate">
                   {topEgreso?.label ?? "Sin datos"}
                 </p>
@@ -1928,12 +1949,36 @@ function ConsolidadoReport() {
                   : "Valor monetario por cada tipo de ingreso."}
               </p>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={ingresoChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <BarChart
+                  data={ingresoChartData}
+                  margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" interval={0} angle={-15} textAnchor="end" height={70} />
-                  <YAxis allowDecimals={metric !== "quantity"} width={110} tickMargin={8} tickFormatter={(value) => formatMetricValue(Number(value))} />
-                  <Tooltip formatter={(value) => [formatMetricValue(Number(value)), metricLabel]} />
-                  <Bar dataKey="value" name={metricLabel} fill="#7b963f" radius={[4, 4, 0, 0]} />
+                  <XAxis
+                    dataKey="label"
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={70}
+                  />
+                  <YAxis
+                    allowDecimals={metric !== "quantity"}
+                    width={110}
+                    tickMargin={8}
+                    tickFormatter={(value) => formatMetricValue(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      formatMetricValue(Number(value)),
+                      metricLabel,
+                    ]}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name={metricLabel}
+                    fill="#7b963f"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1950,12 +1995,36 @@ function ConsolidadoReport() {
                   : "Valor monetario por cada tipo de egreso."}
               </p>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={egresoChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <BarChart
+                  data={egresoChartData}
+                  margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" interval={0} angle={-15} textAnchor="end" height={70} />
-                  <YAxis allowDecimals={metric !== "quantity"} width={110} tickMargin={8} tickFormatter={(value) => formatMetricValue(Number(value))} />
-                  <Tooltip formatter={(value) => [formatMetricValue(Number(value)), metricLabel]} />
-                  <Bar dataKey="value" name={metricLabel} fill="#e67600" radius={[4, 4, 0, 0]} />
+                  <XAxis
+                    dataKey="label"
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={70}
+                  />
+                  <YAxis
+                    allowDecimals={metric !== "quantity"}
+                    width={110}
+                    tickMargin={8}
+                    tickFormatter={(value) => formatMetricValue(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      formatMetricValue(Number(value)),
+                      metricLabel,
+                    ]}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name={metricLabel}
+                    fill="#e67600"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1966,9 +2035,15 @@ function ConsolidadoReport() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Tipo</TableHead>
-                  <TableHead className="text-center">{metric === "quantity" ? "Ingresos" : "Monto ingresos"}</TableHead>
-                  <TableHead className="text-center">{metric === "quantity" ? "Egresos" : "Monto egresos"}</TableHead>
-                  <TableHead className="text-center">{metric === "quantity" ? "Total" : "Monto total"}</TableHead>
+                  <TableHead className="text-center">
+                    {metric === "quantity" ? "Ingresos" : "Monto ingresos"}
+                  </TableHead>
+                  <TableHead className="text-center">
+                    {metric === "quantity" ? "Egresos" : "Monto egresos"}
+                  </TableHead>
+                  <TableHead className="text-center">
+                    {metric === "quantity" ? "Total" : "Monto total"}
+                  </TableHead>
                   <TableHead className="text-center">Participacion</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1979,14 +2054,22 @@ function ConsolidadoReport() {
                       ? row.ingresosQuantity + row.egresosQuantity
                       : row.ingresosMonetary + row.egresosMonetary;
                   const participation =
-                    reportTotal > 0 ? ((total / reportTotal) * 100).toFixed(1) : "0.0";
+                    reportTotal > 0
+                      ? ((total / reportTotal) * 100).toFixed(1)
+                      : "0.0";
 
                   return (
                     <TableRow key={row.type}>
                       <TableCell>{row.label}</TableCell>
-                      <TableCell className="text-center">{formatMetricValue(row.displayIngresos)}</TableCell>
-                      <TableCell className="text-center">{formatMetricValue(row.displayEgresos)}</TableCell>
-                      <TableCell className="text-center font-medium">{formatMetricValue(total)}</TableCell>
+                      <TableCell className="text-center">
+                        {formatMetricValue(row.displayIngresos)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {formatMetricValue(row.displayEgresos)}
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {formatMetricValue(total)}
+                      </TableCell>
                       <TableCell className="text-center">
                         {participation}%
                       </TableCell>

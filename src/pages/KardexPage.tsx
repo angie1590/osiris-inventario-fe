@@ -450,7 +450,9 @@ export default function KardexPage() {
                           {e.document_number}
                         </Link>
                       ) : e.document_number ? (
-                        <span className="font-mono text-sm">{e.document_number}</span>
+                        <span className="font-mono text-sm">
+                          {e.document_number}
+                        </span>
                       ) : (
                         "—"
                       )}

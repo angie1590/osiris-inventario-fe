@@ -200,7 +200,12 @@ const schema = z
       ])
       .optional(),
     adjustment_reason: z
-      .enum(["physical_count", "record_error", "administrative_correction", "other"])
+      .enum([
+        "physical_count",
+        "record_error",
+        "administrative_correction",
+        "other",
+      ])
       .optional(),
   })
   .superRefine((data, ctx) => {
@@ -245,7 +250,8 @@ export default function EgresoNewPage() {
         "sample",
         "other",
       ];
-  const enabledAdjustmentReasons: AdjustmentReason[] = ADJUSTMENT_REASON_OPTIONS;
+  const enabledAdjustmentReasons: AdjustmentReason[] =
+    ADJUSTMENT_REASON_OPTIONS;
 
   const {
     register,
@@ -338,7 +344,8 @@ export default function EgresoNewPage() {
       return;
     }
     const currentReason = watch("adjustment_reason");
-    if (currentReason && enabledAdjustmentReasons.includes(currentReason)) return;
+    if (currentReason && enabledAdjustmentReasons.includes(currentReason))
+      return;
     setValue("adjustment_reason", getDefaultAdjustmentReason(), {
       shouldDirty: true,
       shouldValidate: true,
@@ -368,13 +375,23 @@ export default function EgresoNewPage() {
       const kardexMap = new Map(kardexPairs);
       const pepsLotsByProduct = new Map<
         number,
-        Array<{ lotId: number; available: number; unitCost: number; createdAt: string }>
+        Array<{
+          lotId: number;
+          available: number;
+          unitCost: number;
+          createdAt: string;
+        }>
       >();
 
       const buildPepsLots = (kardex: KardexResponse) => {
         const map = new Map<
           number,
-          { lotId: number; available: number; unitCost: number; createdAt: string }
+          {
+            lotId: number;
+            available: number;
+            unitCost: number;
+            createdAt: string;
+          }
         >();
         for (const entry of kardex.entries) {
           if (!entry.lot_id) continue;
@@ -419,7 +436,10 @@ export default function EgresoNewPage() {
             lot.available -= consumed;
             remaining -= consumed;
           }
-          nextCost = Number(line.quantity || 0) > 0 ? consumedValue / Number(line.quantity || 1) : 0;
+          nextCost =
+            Number(line.quantity || 0) > 0
+              ? consumedValue / Number(line.quantity || 1)
+              : 0;
         } else {
           nextCost = Number(kardex.weighted_avg_cost || 0);
         }
@@ -432,7 +452,8 @@ export default function EgresoNewPage() {
       });
 
       const changed = nextLines.some(
-        (line, index) => (line.unit_cost ?? "") !== (lines[index]?.unit_cost ?? ""),
+        (line, index) =>
+          (line.unit_cost ?? "") !== (lines[index]?.unit_cost ?? ""),
       );
       if (changed) {
         setLines(nextLines);
