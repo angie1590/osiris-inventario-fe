@@ -8,7 +8,11 @@ import {
 
 describe("egreso document mapping", () => {
   it("keeps expected documents by egreso type", () => {
-    expect(EGRESO_DOCUMENT_TYPES.sale).toEqual(["invoice", "sales_note"]);
+    expect(EGRESO_DOCUMENT_TYPES.sale).toEqual([
+      "invoice",
+      "sales_note",
+      "none",
+    ]);
     expect(EGRESO_DOCUMENT_TYPES.baja).toEqual(["disposal_act", "none"]);
     expect(EGRESO_DOCUMENT_TYPES.adjustment_negative).toEqual([
       "adjustment_act",

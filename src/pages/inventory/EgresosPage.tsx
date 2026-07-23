@@ -1,13 +1,21 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Plus } from "lucide-react";
+import { Eye, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
+import { SearchInput } from "@/components/shared/SearchInput";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useAuditUsers } from "@/features/audit/hooks";
 import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
@@ -63,9 +71,24 @@ export default function EgresosPage() {
   const defaultRange = currentMonthRange();
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
+  const [movementType, setMovementType] = useState<string>("");
+  const [purchaseDocumentNumber, setPurchaseDocumentNumber] = useState("");
   const [cursor, setCursor] = useState<number | undefined>();
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
   const { data: users } = useAuditUsers();
+  const resetPage = () => setCursor(undefined);
+  const hasActiveFilters =
+    dateFrom !== defaultRange.date_from ||
+    dateTo !== defaultRange.date_to ||
+    movementType !== "" ||
+    purchaseDocumentNumber.trim() !== "";
+  const clearFilters = () => {
+    setDateFrom(defaultRange.date_from);
+    setDateTo(defaultRange.date_to);
+    setMovementType("");
+    setPurchaseDocumentNumber("");
+    setCursor(undefined);
+  };
   const {
     data: docs,
     isLoading,
@@ -74,8 +97,21 @@ export default function EgresosPage() {
   } = useEgresos({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
+    type: movementType || undefined,
     cursor,
   });
+  const normalizedDocumentFilter = purchaseDocumentNumber
+    .trim()
+    .toLocaleLowerCase();
+  const filteredDocs = useMemo(() => {
+    const items = docs ?? [];
+    if (!normalizedDocumentFilter) return items;
+    return items.filter((doc) =>
+      (doc.purchase_document_number ?? "")
+        .toLocaleLowerCase()
+        .includes(normalizedDocumentFilter),
+    );
+  }, [docs, normalizedDocumentFilter]);
 
   const userLabels = new Map(
     (users ?? []).map((item) => [item.id, item.username]),
@@ -90,11 +126,12 @@ export default function EgresosPage() {
       cell: (d) => <span className="font-mono text-sm">{d.number}</span>,
     },
     {
-      key: "reference",
-      header: "Referencia",
+      key: "purchase_document_number",
+      header: "Número de documento",
+      align: "center",
       sortable: true,
-      sortAccessor: (d) => d.reference ?? "",
-      cell: (d) => d.reference || "—",
+      sortAccessor: (d) => d.purchase_document_number ?? "",
+      cell: (d) => d.purchase_document_number || "—",
     },
     {
       key: "egreso_type",
@@ -133,7 +170,7 @@ export default function EgresosPage() {
     {
       key: "lines",
       header: "ítems",
-      align: "right",
+      align: "center",
       sortable: true,
       sortAccessor: (d) => d.lines.length,
       cell: (d) => d.lines.length,
@@ -199,24 +236,70 @@ export default function EgresosPage() {
           <Label className="text-xs">Desde</Label>
           <Input
             type="date"
-            className="h-8 w-40"
+            className="w-40"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              resetPage();
+            }}
           />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Hasta</Label>
           <Input
             type="date"
-            className="h-8 w-40"
+            className="w-40"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              resetPage();
+            }}
           />
         </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Tipo</Label>
+          <Select
+            value={movementType || "__all__"}
+            onValueChange={(v) => {
+              setMovementType(v === "__all__" ? "" : v);
+              resetPage();
+            }}
+          >
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos</SelectItem>
+              {Object.entries(EGRESO_TYPE_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Nro. documento</Label>
+          <SearchInput
+            className="w-56 min-w-56"
+            value={purchaseDocumentNumber}
+            onChange={(value) => {
+              setPurchaseDocumentNumber(value);
+              resetPage();
+            }}
+            placeholder="Ej: 001-002-000123"
+          />
+        </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" className="h-9" onClick={clearFilters}>
+            <X className="mr-1.5 h-4 w-4" />
+            Limpiar filtros
+          </Button>
+        )}
       </FilterBar>
       <DataTable
         columns={columns}
-        data={docs ?? []}
+        data={filteredDocs}
         rowKey={(d) => d.id}
         isLoading={isLoading}
         isError={isError}

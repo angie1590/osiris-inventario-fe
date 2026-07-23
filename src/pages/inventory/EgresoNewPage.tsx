@@ -177,6 +177,7 @@ const schema = z
       "none",
     ]),
     purchase_document_number: z.string().optional(),
+    seller_name: z.string().optional(),
     purchase_document_date: z
       .string()
       .optional()
@@ -252,6 +253,7 @@ export default function EgresoNewPage() {
       ];
   const enabledAdjustmentReasons: AdjustmentReason[] =
     ADJUSTMENT_REASON_OPTIONS;
+  const enabledSellers = company?.sellers?.length ? company.sellers : [];
 
   const {
     register,
@@ -264,6 +266,7 @@ export default function EgresoNewPage() {
     defaultValues: {
       egreso_type: "sale",
       purchase_document_type: "sales_note",
+      seller_name: undefined,
       purchase_document_date: getNowDateTimeLocalInput(),
       baja_reason: getDefaultBajaReason(),
       adjustment_reason: getDefaultAdjustmentReason(),
@@ -302,13 +305,6 @@ export default function EgresoNewPage() {
   );
 
   useEffect(() => {
-    if (egresoType === "sale" && purchaseDocumentType !== "sales_note") {
-      setValue("purchase_document_type", "sales_note", {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-      return;
-    }
     if (allowedDocumentTypes.includes(purchaseDocumentType)) return;
     setValue(
       "purchase_document_type",
@@ -324,6 +320,19 @@ export default function EgresoNewPage() {
     if (enabledEgresoTypes.includes(egresoType)) return;
     setValue("egreso_type", enabledEgresoTypes[0], { shouldDirty: true });
   }, [enabledEgresoTypes, egresoType, setValue]);
+
+  useEffect(() => {
+    if (egresoType !== "sale") {
+      setValue("seller_name", undefined, { shouldDirty: true });
+      return;
+    }
+    const currentSeller = watch("seller_name");
+    if (currentSeller && enabledSellers.includes(currentSeller)) return;
+    setValue("seller_name", enabledSellers[0] ?? undefined, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [egresoType, enabledSellers, setValue, watch]);
 
   useEffect(() => {
     if (egresoType !== "baja") {
@@ -465,6 +474,8 @@ export default function EgresoNewPage() {
 
   const isOtherDocument = isEgresoNotesRequired(purchaseDocumentType);
   const purchaseDocumentDisabled = purchaseDocumentType === "none";
+  const isPurchaseDocumentNumberRequired =
+    egresoType === "sale" && purchaseDocumentType !== "none";
 
   const onSubmit = async (data: FormData) => {
     setFormError(null);
@@ -485,6 +496,24 @@ export default function EgresoNewPage() {
       !data.notes?.trim()
     ) {
       setFormError("Observaciones es obligatorio cuando el documento es Otro");
+      return;
+    }
+
+    const normalizedPurchaseDocumentNumber =
+      data.purchase_document_number?.trim() || "";
+    const normalizedSellerName = data.seller_name?.trim() || "";
+    const isSaleWithoutDocument =
+      data.egreso_type === "sale" && data.purchase_document_type === "none";
+    if (data.egreso_type === "sale" && !normalizedSellerName) {
+      setFormError("Vendedor es obligatorio para ventas");
+      return;
+    }
+    if (
+      data.egreso_type === "sale" &&
+      data.purchase_document_type !== "none" &&
+      !normalizedPurchaseDocumentNumber
+    ) {
+      setFormError("Número de documento es obligatorio para ventas");
       return;
     }
 
@@ -511,10 +540,13 @@ export default function EgresoNewPage() {
           data.egreso_type === "adjustment_negative"
             ? data.adjustment_reason
             : undefined,
-        purchase_document_number:
-          data.purchase_document_type !== "none"
-            ? data.purchase_document_number || undefined
+        purchase_document_number: isSaleWithoutDocument
+          ? "Venta sin documento"
+          : data.purchase_document_type !== "none"
+            ? normalizedPurchaseDocumentNumber || undefined
             : undefined,
+        seller_name:
+          data.egreso_type === "sale" ? normalizedSellerName : undefined,
         purchase_document_date: parsedPurchaseDocumentDate,
         reference: data.reference || undefined,
         notes: data.notes || undefined,
@@ -582,6 +614,8 @@ export default function EgresoNewPage() {
           ADJUSTMENT_REASON_INVALID: "Motivo del ajuste inválido",
           NOTES_REQUIRED_FOR_OTHER_DOCUMENT:
             "Observaciones es obligatorio cuando el documento es Otro",
+          SELLER_REQUIRED: "Vendedor es obligatorio para ventas",
+          SELLER_NOT_ALLOWED: "El vendedor no está habilitado para la empresa",
           INSUFFICIENT_STOCK: "Stock insuficiente en uno de los productos",
           PRODUCT_NOT_FOUND: "Uno de los productos no fue encontrado",
           DOCUMENT_REQUIRES_LINES: "Agrega al menos una línea al documento",
@@ -631,6 +665,33 @@ export default function EgresoNewPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {egresoType === "sale" && (
+              <div className="space-y-1.5">
+                <FieldLabel label="Vendedor" required />
+                <Select
+                  value={watch("seller_name") || undefined}
+                  onValueChange={(v) => {
+                    setValue("seller_name", v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  disabled={enabledSellers.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enabledSellers.map((seller) => (
+                      <SelectItem key={seller} value={seller}>
+                        {seller}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {isBajaReasonRequired(egresoType) && (
               <div className="space-y-1.5">
@@ -719,7 +780,10 @@ export default function EgresoNewPage() {
               </Select>
             </div>
 
-            <FormField label="Número de documento">
+            <FormField
+              label="Número de documento"
+              required={isPurchaseDocumentNumberRequired}
+            >
               <Input
                 {...register("purchase_document_number")}
                 disabled={purchaseDocumentDisabled}

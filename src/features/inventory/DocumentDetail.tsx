@@ -357,6 +357,10 @@ export function DocumentDetail({
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Vendedor</span>
+                  <span>{doc.seller_name || "—"}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Nro. documento</span>
                   <span>{doc.purchase_document_number || "—"}</span>
                 </div>

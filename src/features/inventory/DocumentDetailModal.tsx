@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,7 +109,6 @@ interface Props {
   onClose: () => void;
   showCost?: boolean;
   showPrice?: boolean;
-  /** When provided, shows a "Gestionar" button that opens the full document page. */
   manageHref?: string;
 }
 
@@ -259,7 +257,7 @@ export function DocumentDetailModal({
   onClose,
   showCost,
   showPrice,
-  manageHref,
+  manageHref: _manageHref,
 }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -472,6 +470,10 @@ export function DocumentDetailModal({
                         : "—",
                     },
                     {
+                      label: "Vendedor",
+                      value: doc.seller_name || "—",
+                    },
+                    {
                       label: "Nro. documento",
                       value: doc.purchase_document_number || "—",
                     },
@@ -621,11 +623,6 @@ export function DocumentDetailModal({
             {canVoid && (
               <Button variant="destructive" onClick={() => setVoidOpen(true)}>
                 Anular
-              </Button>
-            )}
-            {manageHref && (
-              <Button variant="outline" asChild>
-                <Link to={manageHref}>Gestionar</Link>
               </Button>
             )}
             <Button variant="ghost" onClick={onClose}>

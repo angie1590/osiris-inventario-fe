@@ -42,6 +42,7 @@ import {
   type DocumentLine,
 } from "@/features/inventory/DocumentLinesEditor";
 import {
+  useAdjustmentIncrementCostPreview,
   useCreateIngreso,
   useCreateSupplier,
   useSuppliers,
@@ -431,10 +432,15 @@ export default function IngresoNewPage() {
   const phoneReg = registerSupplier("phone");
 
   const isPurchase = ingresoType === "purchase";
+  const isAdjustmentPositive = ingresoType === "adjustment_positive";
   const isOtherDocument = purchaseDocumentType === "other";
   const purchaseDocumentDisabled = purchaseDocumentType === "none";
   const purchaseDocumentDateRequired =
     !purchaseDocumentDisabled && !isOtherDocument;
+
+  const adjustmentPositivePreview = useAdjustmentIncrementCostPreview(
+    isAdjustmentPositive ? lines.map((line) => line.product_id) : [],
+  );
 
   useEffect(() => {
     if (allowedDocumentTypes.includes(purchaseDocumentType)) return;
@@ -453,6 +459,58 @@ export default function IngresoNewPage() {
       setValue("supplier_id", "", { shouldDirty: true });
     }
   }, [enabledIngresoTypes, ingresoType, setValue]);
+
+  useEffect(() => {
+    if (!isAdjustmentPositive) {
+      setLines((current) =>
+        current.map((line) => ({
+          ...line,
+          unit_cost_locked: false,
+          unit_cost_hint: undefined,
+        })),
+      );
+      return;
+    }
+
+    const previews = adjustmentPositivePreview.data ?? [];
+    if (previews.length === 0) return;
+    const previewMap = new Map(
+      previews.map((preview) => [preview.product_id, preview]),
+    );
+
+    setLines((current) =>
+      current.map((line) => {
+        const preview = previewMap.get(line.product_id);
+        if (!preview) return line;
+
+        const nextLine = { ...line };
+        const previewCost =
+          preview.unit_cost == null ? "" : String(preview.unit_cost);
+
+        if (preview.mode === "auto") {
+          nextLine.unit_cost = previewCost;
+          nextLine.unit_cost_locked = true;
+          nextLine.unit_cost_hint = "Costo tomado automáticamente del Kardex.";
+          return nextLine;
+        }
+
+        if (preview.mode === "suggested") {
+          if (!String(nextLine.unit_cost ?? "").trim()) {
+            nextLine.unit_cost = previewCost;
+          }
+          nextLine.unit_cost_locked = false;
+          nextLine.unit_cost_hint =
+            "Costo histórico sugerido. Puedes editarlo antes de guardar.";
+          return nextLine;
+        }
+
+        nextLine.unit_cost_locked = false;
+        nextLine.unit_cost_hint =
+          "No existe costo vigente en Kardex. Debes ingresar el costo del inventario encontrado.";
+        return nextLine;
+      }),
+    );
+  }, [adjustmentPositivePreview.data, isAdjustmentPositive]);
 
   const buildConfirmRows = async () => {
     const uniqueProductIds = Array.from(
@@ -506,6 +564,29 @@ export default function IngresoNewPage() {
     if (invalidLine) {
       setFormError("Completa todos los campos de las ítems");
       return;
+    }
+
+    if (isAdjustmentPositive) {
+      const previewMap = new Map(
+        (adjustmentPositivePreview.data ?? []).map((preview) => [
+          preview.product_id,
+          preview,
+        ]),
+      );
+      const invalidCostLine = lines.find((line) => {
+        const preview = previewMap.get(line.product_id);
+        if (!preview) return true;
+        const unitCost = Number(line.unit_cost || 0);
+        if (preview.mode === "required_manual") return unitCost <= 0;
+        if (preview.mode === "suggested") return unitCost <= 0;
+        return false;
+      });
+      if (invalidCostLine) {
+        setFormError(
+          "Revisa el costo unitario de los productos del ajuste positivo antes de guardar.",
+        );
+        return;
+      }
     }
 
     if (data.ingreso_type === "purchase" && !data.supplier_id) {
@@ -581,6 +662,8 @@ export default function IngresoNewPage() {
           PRODUCT_NOT_FOUND: "Uno de los productos no fue encontrado",
           DOCUMENT_REQUIRES_LINES: "Agrega al menos una línea al documento",
           SUPPLIER_NOT_FOUND: "Proveedor inválido o inactivo",
+          UNIT_COST_REQUIRED:
+            "Debe ingresar el costo unitario del inventario encontrado.",
           INVALID_PURCHASE_DOCUMENT_TYPE:
             "El tipo de documento no corresponde al tipo de ingreso",
         }),
@@ -825,6 +908,7 @@ export default function IngresoNewPage() {
             showUnitCost
             showSubtotal
             showTotals
+            readOnlyUnitCost={false}
           />
         </Section>
 

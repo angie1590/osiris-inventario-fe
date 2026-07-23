@@ -36,6 +36,11 @@ const EgresoNewPage = lazy(() => import("@/pages/inventory/EgresoNewPage"));
 const EgresoDetailPage = lazy(
   () => import("@/pages/inventory/EgresoDetailPage"),
 );
+const ConteosPage = lazy(() => import("@/pages/inventory/ConteosPage"));
+const ConteoNewPage = lazy(() => import("@/pages/inventory/ConteoNewPage"));
+const ConteoDetailPage = lazy(
+  () => import("@/pages/inventory/ConteoDetailPage"),
+);
 const KardexPage = lazy(() => import("@/pages/KardexPage"));
 const ReportsPage = lazy(() => import("@/pages/reports/ReportsPage"));
 const AuditPage = lazy(() => import("@/pages/AuditPage"));
@@ -112,6 +117,10 @@ export default function App() {
                     element={<EgresoDetailPage />}
                   />
                   <Route
+                    path="/inventory/conteos/new"
+                    element={<ConteoNewPage />}
+                  />
+                  <Route
                     path="/inventory/bajas"
                     element={<Navigate to="/inventory/egresos" replace />}
                   />
@@ -136,6 +145,12 @@ export default function App() {
                     element={<Navigate to="/inventory/ingresos" replace />}
                   />
                 </Route>
+
+                <Route path="/inventory/conteos" element={<ConteosPage />} />
+                <Route
+                  path="/inventory/conteos/:id"
+                  element={<ConteoDetailPage />}
+                />
 
                 <Route path="/kardex" element={<KardexPage />} />
                 <Route path="/kardex/:productId" element={<KardexPage />} />

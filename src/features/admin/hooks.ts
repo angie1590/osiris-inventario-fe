@@ -7,9 +7,75 @@ import type {
   UpdateUserPayload,
   SystemParam,
   CompanyConfig,
+  IngresoType,
+  EgresoType,
+  BajaReason,
   CreateCompanyPayload,
   UpdateCompanyPayload,
 } from "@/types/api";
+
+const ALLOWED_INGRESO_TYPES: IngresoType[] = [
+  "purchase",
+  "initial_inventory",
+  "adjustment_positive",
+  "customer_return",
+  "production",
+  "transfer_received",
+  "other",
+];
+const ALLOWED_EGRESO_TYPES: EgresoType[] = [
+  "sale",
+  "baja",
+  "adjustment_negative",
+  "supplier_return",
+  "internal_consumption",
+  "transfer_sent",
+  "other",
+];
+const ALLOWED_BAJA_REASONS: BajaReason[] = [
+  "damage",
+  "expiration",
+  "loss",
+  "theft",
+  "donation",
+  "gift",
+  "destruction",
+  "sample",
+  "other",
+];
+
+function uniqueAllowed<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+): T[] {
+  if (!Array.isArray(value)) return [];
+  const allowedSet = new Set(allowed);
+  const out: T[] = [];
+  value.forEach((item) => {
+    if (typeof item !== "string") return;
+    if (!allowedSet.has(item as T)) return;
+    if (!out.includes(item as T)) out.push(item as T);
+  });
+  return out;
+}
+
+function normalizeCompanyConfig(company: CompanyConfig): CompanyConfig {
+  return {
+    ...company,
+    enabled_ingreso_types:
+      uniqueAllowed(company.enabled_ingreso_types, ALLOWED_INGRESO_TYPES) || [],
+    enabled_egreso_types:
+      uniqueAllowed(company.enabled_egreso_types, ALLOWED_EGRESO_TYPES) || [],
+    enabled_baja_reasons:
+      uniqueAllowed(company.enabled_baja_reasons, ALLOWED_BAJA_REASONS) || [],
+    sellers: Array.isArray(company.sellers)
+      ? company.sellers
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim().toUpperCase())
+          .filter((item) => !!item)
+      : [],
+  };
+}
 
 export function useUsers(search?: string, role?: string) {
   return useQuery({
@@ -92,7 +158,7 @@ export function useCompanyConfig() {
     queryFn: async () => {
       try {
         const res = await api.get<CompanyConfig>("/company");
-        return res.data;
+        return normalizeCompanyConfig(res.data);
       } catch (err) {
         // The backend returns 404 when the company is not configured yet —
         // that is a valid "no company" state, not an error.

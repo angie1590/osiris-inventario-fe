@@ -1,10 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Plus } from "lucide-react";
+import { Eye, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
@@ -63,9 +70,21 @@ export default function IngresosPage() {
 
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
+  const [movementType, setMovementType] = useState<string>("");
   const [cursor, setCursor] = useState<number | undefined>();
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
   const { data: users } = useAuditUsers();
+  const resetPage = () => setCursor(undefined);
+  const hasActiveFilters =
+    dateFrom !== defaultRange.date_from ||
+    dateTo !== defaultRange.date_to ||
+    movementType !== "";
+  const clearFilters = () => {
+    setDateFrom(defaultRange.date_from);
+    setDateTo(defaultRange.date_to);
+    setMovementType("");
+    setCursor(undefined);
+  };
 
   const {
     data: docs,
@@ -75,6 +94,7 @@ export default function IngresosPage() {
   } = useIngresos({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
+    type: movementType || undefined,
     cursor,
   });
 
@@ -195,20 +215,54 @@ export default function IngresosPage() {
           <Label className="text-xs">Desde</Label>
           <Input
             type="date"
-            className="h-8 w-40"
+            className="w-40"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              resetPage();
+            }}
           />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Hasta</Label>
           <Input
             type="date"
-            className="h-8 w-40"
+            className="w-40"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              resetPage();
+            }}
           />
         </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Tipo</Label>
+          <Select
+            value={movementType || "__all__"}
+            onValueChange={(v) => {
+              setMovementType(v === "__all__" ? "" : v);
+              resetPage();
+            }}
+          >
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos</SelectItem>
+              {Object.entries(INGRESO_TYPE_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" className="h-9" onClick={clearFilters}>
+            <X className="mr-1.5 h-4 w-4" />
+            Limpiar filtros
+          </Button>
+        )}
       </FilterBar>
 
       <DataTable

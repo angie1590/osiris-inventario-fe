@@ -82,6 +82,7 @@ export type AdjustmentReason =
   | "record_error"
   | "administrative_correction"
   | "other";
+export type CountStatus = "draft" | "applied" | "cancelled";
 export type AuditAction =
   | "CREATE"
   | "UPDATE"
@@ -260,6 +261,17 @@ export interface InventoryDocumentLine {
   created_at: string;
 }
 
+export type AdjustmentIncrementCostMode =
+  | "auto"
+  | "suggested"
+  | "required_manual";
+
+export interface AdjustmentIncrementCostPreview {
+  product_id: number;
+  mode: AdjustmentIncrementCostMode;
+  unit_cost: number | null;
+}
+
 export interface InventorySupplier {
   id: number;
   identification_type: SupplierIdentificationType;
@@ -311,6 +323,7 @@ export interface InventoryDocument {
   supplier_id?: number | null;
   purchase_document_type?: PurchaseDocumentType | null;
   purchase_document_number?: string | null;
+  seller_name?: string | null;
   purchase_document_date?: string | null;
   reference: string | null;
   notes: string | null;
@@ -343,6 +356,7 @@ export interface CreateEgresoPayload {
   egreso_type?: EgresoType;
   purchase_document_type?: PurchaseDocumentType;
   purchase_document_number?: string;
+  seller_name?: string;
   purchase_document_date?: string;
   baja_reason?: BajaReason;
   adjustment_reason?: AdjustmentReason;
@@ -369,6 +383,48 @@ export interface CreateAjustePayload {
   adjust_type: AdjustType;
   notes?: string;
   lines: Array<{ product_id: number; quantity: string | number }>;
+}
+
+export interface InventoryCountLine {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_isbn: string | null;
+  product_codigo_interno: string | null;
+  system_quantity: number;
+  physical_quantity: number;
+  difference_quantity: number;
+  created_at: string;
+}
+
+export interface InventoryCount {
+  id: number;
+  number: string;
+  status: CountStatus;
+  description: string;
+  created_by: number;
+  positive_adjustment_document_id: number | null;
+  negative_adjustment_document_id: number | null;
+  positive_adjustment_document_number: string | null;
+  negative_adjustment_document_number: string | null;
+  applied_at: string | null;
+  created_at: string;
+  updated_at: string;
+  lines: InventoryCountLine[];
+}
+
+export interface CreateInventoryCountPayload {
+  description: string;
+  lines: Array<{ product_id: number; physical_quantity: string | number }>;
+}
+
+export interface UpdateInventoryCountPayload {
+  description: string;
+  lines: Array<{ product_id: number; physical_quantity: string | number }>;
+}
+
+export interface ApplyInventoryCountPayload {
+  line_costs?: Array<{ product_id: number; unit_cost: string | number }>;
 }
 
 export interface AuthCodeResponse {
@@ -491,6 +547,7 @@ export interface CompanyConfig {
   enabled_ingreso_types: IngresoType[];
   enabled_egreso_types: EgresoType[];
   enabled_baja_reasons: BajaReason[];
+  sellers: string[];
   is_complete: boolean;
   created_at: string;
   updated_at: string;
@@ -508,6 +565,7 @@ export interface CreateCompanyPayload {
   enabled_ingreso_types?: IngresoType[];
   enabled_egreso_types?: EgresoType[];
   enabled_baja_reasons?: BajaReason[];
+  sellers?: string[];
 }
 
 export interface UpdateCompanyPayload {
@@ -521,6 +579,7 @@ export interface UpdateCompanyPayload {
   enabled_ingreso_types?: IngresoType[];
   enabled_egreso_types?: EgresoType[];
   enabled_baja_reasons?: BajaReason[];
+  sellers?: string[];
 }
 
 // Pagination helpers

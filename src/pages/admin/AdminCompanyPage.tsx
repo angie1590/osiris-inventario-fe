@@ -119,6 +119,18 @@ const BAJA_REASON_DESCRIPTIONS: Record<BajaReason, string> = {
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 const toUpper = (value: string) => value.toUpperCase();
+const sellersToText = (sellers: string[]) => sellers.join("\n");
+const parseSellersText = (value: string) => {
+  const result: string[] = [];
+  value
+    .split("\n")
+    .map((item) => item.trim().toUpperCase())
+    .filter((item) => !!item)
+    .forEach((item) => {
+      if (!result.includes(item)) result.push(item);
+    });
+  return result;
+};
 
 function mod10CheckDigit(base9: string): number {
   const coefs = [2, 1, 2, 1, 2, 1, 2, 1, 2];
@@ -242,6 +254,10 @@ const schema = z.object({
       ]),
     )
     .min(1, "Selecciona al menos un motivo de baja"),
+  sellers_text: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").toUpperCase()),
 });
 
 type FormInput = z.input<typeof schema>;
@@ -279,6 +295,7 @@ export default function AdminCompanyPage() {
   const [logo, setLogo] = useState<string | undefined>(undefined);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
+  const [logoFileName, setLogoFileName] = useState("");
   const [logoTab, setLogoTab] = useState<"file" | "url">("file");
   const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -288,6 +305,7 @@ export default function AdminCompanyPage() {
   const persistedIngresoTypes = company?.enabled_ingreso_types ?? [];
   const persistedEgresoTypes = company?.enabled_egreso_types ?? [];
   const persistedBajaReasons = company?.enabled_baja_reasons ?? [];
+  const persistedSellers = company?.sellers ?? [];
   const editableIngresoTypes = persistedIngresoTypes;
   const editableEgresoTypes = persistedEgresoTypes;
   const editableBajaReasons = persistedBajaReasons;
@@ -315,12 +333,14 @@ export default function AdminCompanyPage() {
           enabled_ingreso_types: editableIngresoTypes,
           enabled_egreso_types: editableEgresoTypes,
           enabled_baja_reasons: editableBajaReasons,
+          sellers_text: sellersToText(persistedSellers),
         }
       : undefined,
     defaultValues: {
       enabled_ingreso_types: DEFAULT_INGRESO_TYPES,
       enabled_egreso_types: DEFAULT_EGRESO_TYPES,
       enabled_baja_reasons: DEFAULT_BAJA_REASONS,
+      sellers_text: "",
     },
   });
 
@@ -331,6 +351,7 @@ export default function AdminCompanyPage() {
     setLogo(undefined);
     setLogoPreview(null);
     setLogoUrl("");
+    setLogoFileName("");
     setLogoTab("file");
     setEditing(true);
   }
@@ -340,6 +361,7 @@ export default function AdminCompanyPage() {
     setLogo(undefined);
     setLogoPreview(null);
     setLogoUrl("");
+    setLogoFileName("");
     if (company) {
       reset({
         razon_social: company.razon_social,
@@ -351,6 +373,7 @@ export default function AdminCompanyPage() {
         enabled_ingreso_types: editableIngresoTypes,
         enabled_egreso_types: editableEgresoTypes,
         enabled_baja_reasons: editableBajaReasons,
+        sellers_text: sellersToText(persistedSellers),
       });
     }
     setEditing(false);
@@ -361,9 +384,11 @@ export default function AdminCompanyPage() {
     if (!file) return;
     if (file.size > LOGO_MAX_BYTES) {
       setFormError("El logo debe pesar máximo 2 MB.");
+      setLogoFileName("");
       e.target.value = "";
       return;
     }
+    setLogoFileName(file.name);
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
@@ -386,6 +411,7 @@ export default function AdminCompanyPage() {
       enabled_ingreso_types: data.enabled_ingreso_types,
       enabled_egreso_types: data.enabled_egreso_types,
       enabled_baja_reasons: data.enabled_baja_reasons,
+      sellers: parseSellersText(data.sellers_text || ""),
       ...(logoValue !== undefined && { logo: logoValue }),
     };
 
@@ -400,6 +426,7 @@ export default function AdminCompanyPage() {
       setLogo(undefined);
       setLogoPreview(null);
       setLogoUrl("");
+      setLogoFileName("");
       setEditing(false);
     } catch (err: unknown) {
       const apiErr = err as ApiError;
@@ -418,12 +445,16 @@ export default function AdminCompanyPage() {
           "enabled_ingreso_types",
           "enabled_egreso_types",
           "enabled_baja_reasons",
+          "sellers_text",
         ];
         knownFields.forEach((field) => {
           if (fieldErrors[field]) {
             setError(field, { message: fieldErrors[field] });
           }
         });
+        if (fieldErrors.sellers) {
+          setError("sellers_text", { message: fieldErrors.sellers });
+        }
       }
 
       setFormError(msg);
@@ -501,6 +532,14 @@ export default function AdminCompanyPage() {
                       .map((reason) => BAJA_REASON_LABELS[reason])
                       .join(", ")
                   : "—"}
+              </p>
+            </div>
+            <div className="sm:col-span-2 space-y-0.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Vendedores habilitados
+              </p>
+              <p className="text-sm">
+                {persistedSellers.length ? persistedSellers.join(", ") : "—"}
               </p>
             </div>
           </div>
@@ -756,57 +795,92 @@ export default function AdminCompanyPage() {
                 </p>
               )}
             </div>
+
+            <FormField
+              label="Vendedores habilitados"
+              className="col-span-2"
+              error={errors.sellers_text?.message}
+              hint="Esta lista se usa en egresos de tipo venta."
+            >
+              <textarea
+                id="sellers_text"
+                rows={4}
+                className="w-full min-h-28 resize-y rounded-md border bg-background px-3 py-2 text-sm"
+                placeholder="Un vendedor por línea"
+                {...register("sellers_text", {
+                  onChange: (e) => {
+                    e.target.value = e.target.value.toUpperCase();
+                  },
+                })}
+              />
+            </FormField>
           </div>
         </Section>
 
         <Section title="Logo">
-          {currentLogoSrc && (
-            <div className="flex items-center gap-3">
-              <img
-                src={currentLogoSrc}
-                alt="Logo actual"
-                className="h-16 max-w-48 rounded border object-contain"
-              />
-              <span className="text-xs text-muted-foreground">Logo actual</span>
-            </div>
-          )}
+          <div className="space-y-4">
+            {currentLogoSrc && (
+              <div className="inline-flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2">
+                <img
+                  src={currentLogoSrc}
+                  alt="Logo actual"
+                  className="h-16 w-auto max-w-48 rounded border bg-background object-contain"
+                />
+                <span className="text-xs text-muted-foreground">
+                  Logo actual
+                </span>
+              </div>
+            )}
 
-          <Tabs
-            value={logoTab}
-            onValueChange={(v) => setLogoTab(v as "file" | "url")}
-          >
-            <TabsList>
-              <TabsTrigger value="file">
-                <Upload className="mr-1.5 h-3.5 w-3.5" />
-                Subir archivo
-              </TabsTrigger>
-              <TabsTrigger value="url">
-                <Link className="mr-1.5 h-3.5 w-3.5" />
-                URL directa
-              </TabsTrigger>
-            </TabsList>
+            <Tabs
+              value={logoTab}
+              onValueChange={(v) => setLogoTab(v as "file" | "url")}
+            >
+              <TabsList>
+                <TabsTrigger value="file">
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  Subir archivo
+                </TabsTrigger>
+                <TabsTrigger value="url">
+                  <Link className="mr-1.5 h-3.5 w-3.5" />
+                  URL directa
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="file" className="space-y-2 pt-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="cursor-pointer text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted/80"
-              />
-              <p className="text-xs text-muted-foreground">
-                Máximo 2 MB. Se convertirá a base64.
-              </p>
-            </TabsContent>
+              <TabsContent value="file" className="space-y-2 pt-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Seleccionar archivo
+                  </Button>
+                  <span className="max-w-full truncate text-sm text-muted-foreground">
+                    {logoFileName || "Ningún archivo seleccionado"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Máximo 2 MB. Se convertirá a base64.
+                </p>
+              </TabsContent>
 
-            <TabsContent value="url" className="pt-2">
-              <Input
-                placeholder="https://ejemplo.com/logo.png"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-              />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="url" className="pt-2">
+                <Input
+                  placeholder="https://ejemplo.com/logo.png"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
         </Section>
 
         <div className="flex justify-end gap-2">

@@ -27,7 +27,7 @@ export const INGRESO_DOCUMENT_TYPES: Record<
 
 export const EGRESO_DOCUMENT_TYPES: Record<EgresoType, PurchaseDocumentType[]> =
   {
-    sale: ["invoice", "sales_note"],
+    sale: ["invoice", "sales_note", "none"],
     baja: ["disposal_act", "none"],
     adjustment_negative: ["adjustment_act", "none"],
     supplier_return: ["supplier_return", "invoice", "transfer_note"],

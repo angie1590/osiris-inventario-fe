@@ -7,6 +7,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   BookOpen,
+  ClipboardCheck,
   BarChart3,
   ClipboardList,
   Users,
@@ -79,6 +80,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Egresos",
     icon: ArrowUpFromLine,
     roles: ["admin", "operator"],
+    section: "movimientos",
+  },
+  {
+    to: "/inventory/conteos",
+    label: "Conteo",
+    icon: ClipboardCheck,
+    roles: ["admin", "operator", "supervisor"],
     section: "movimientos",
   },
   {

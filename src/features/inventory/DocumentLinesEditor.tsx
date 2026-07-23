@@ -27,6 +27,8 @@ export interface DocumentLine {
   product_pvp?: number;
   quantity: string;
   unit_cost?: string;
+  unit_cost_locked?: boolean;
+  unit_cost_hint?: string;
   unit_price?: string;
   discount_type?: DiscountType;
   discount_value?: string;
@@ -548,6 +550,9 @@ export function DocumentLinesEditor({
                         product_name: p.name,
                         product_stock: Number(p.stock_actual),
                         product_pvp: Number(p.pvp ?? 0),
+                        unit_cost: "",
+                        unit_cost_locked: false,
+                        unit_cost_hint: undefined,
                         ...(autoFillUnitPriceFromProduct
                           ? { unit_price: String(p.pvp ?? "") }
                           : {}),
@@ -556,7 +561,7 @@ export function DocumentLinesEditor({
                     }}
                   />
                 </TableCell>
-                <TableCell className="align-middle text-right">
+                <TableCell className="align-middle text-center">
                   {(() => {
                     const quantityNumber = Number(line.quantity);
                     const exceedsStock =
@@ -617,21 +622,24 @@ export function DocumentLinesEditor({
                 </TableCell>
                 {showUnitCost && (
                   <TableCell className="align-top text-center">
-                    <div className="flex justify-center">
+                    <div className="flex flex-col items-center gap-1">
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
                         className={cn(
                           "h-8 w-28 text-center pl-1 pr-2",
-                          readOnlyUnitCost && "bg-muted text-muted-foreground",
+                          (readOnlyUnitCost || line.unit_cost_locked) &&
+                            "bg-muted text-muted-foreground",
                         )}
                         placeholder="0.00"
                         disabled={readOnly}
-                        readOnly={readOnly || readOnlyUnitCost}
+                        readOnly={
+                          readOnly || readOnlyUnitCost || line.unit_cost_locked
+                        }
                         value={line.unit_cost ?? ""}
                         onChange={(e) =>
-                          readOnlyUnitCost
+                          readOnlyUnitCost || line.unit_cost_locked
                             ? undefined
                             : updateLine(i, { unit_cost: e.target.value })
                         }
@@ -648,6 +656,11 @@ export function DocumentLinesEditor({
                           }
                         }}
                       />
+                      {line.unit_cost_hint && (
+                        <p className="max-w-32 text-[11px] leading-tight text-muted-foreground">
+                          {line.unit_cost_hint}
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                 )}

@@ -40,16 +40,19 @@ const FIXED_PARAM_OPTIONS: Record<
   ],
 };
 
-const NUMERIC_PARAM_KEYS = new Set([
+const INTEGER_PARAM_KEYS = new Set([
   "session_timeout_minutes",
   "max_export_date_range_days",
   "auth_code_expire_minutes",
   "doc_number_padding",
 ]);
+const PERCENT_PARAM_KEYS = new Set(["seller_commission_percent"]);
 
 const PARAM_HINTS: Record<string, string> = {
   kardex_method:
     "Se bloquea automáticamente cuando existen movimientos en el año fiscal vigente.",
+  seller_commission_percent:
+    "Acepta valores entre 0 y 100, con hasta 2 decimales.",
 };
 
 const PARAM_BADGES: Record<string, string> = {
@@ -57,6 +60,9 @@ const PARAM_BADGES: Record<string, string> = {
 };
 
 function getDisplayParamValue(key: string, value: string): string {
+  if (key === "seller_commission_percent") {
+    return `${value}%`;
+  }
   const options = FIXED_PARAM_OPTIONS[key];
   if (!options) return value;
   return options.find((option) => option.value === value)?.label ?? value;
@@ -93,7 +99,7 @@ export default function AdminParamsPage() {
   };
 
   const saveEdit = async (key: string) => {
-    const normalizedValue = editValue.trim();
+    let normalizedValue = editValue.trim();
 
     if (!normalizedValue) {
       toast({
@@ -104,13 +110,35 @@ export default function AdminParamsPage() {
       return;
     }
 
-    if (NUMERIC_PARAM_KEYS.has(key) && !/^\d+$/.test(normalizedValue)) {
+    if (INTEGER_PARAM_KEYS.has(key) && !/^\d+$/.test(normalizedValue)) {
       toast({
         variant: "destructive",
         title: "Valor inválido",
         description: `El parámetro ${key} solo permite números enteros.`,
       });
       return;
+    }
+
+    if (PERCENT_PARAM_KEYS.has(key)) {
+      const valueWithDot = normalizedValue.replace(",", ".");
+      if (!/^\d+(?:\.\d{1,2})?$/.test(valueWithDot)) {
+        toast({
+          variant: "destructive",
+          title: "Valor inválido",
+          description: `El parámetro ${key} debe estar entre 0 y 100 con hasta 2 decimales.`,
+        });
+        return;
+      }
+      if (Number(valueWithDot) > 100) {
+        toast({
+          variant: "destructive",
+          title: "Valor inválido",
+          description: `El parámetro ${key} debe ser menor o igual a 100.`,
+        });
+        return;
+      }
+      normalizedValue = valueWithDot;
+      setEditValue(valueWithDot);
     }
 
     try {
@@ -222,14 +250,30 @@ export default function AdminParamsPage() {
                               className="h-7 w-36"
                               value={editValue}
                               inputMode={
-                                NUMERIC_PARAM_KEYS.has(p.key)
+                                INTEGER_PARAM_KEYS.has(p.key)
                                   ? "numeric"
-                                  : undefined
+                                  : PERCENT_PARAM_KEYS.has(p.key)
+                                    ? "decimal"
+                                    : undefined
                               }
                               onChange={(e) => {
                                 const next = e.target.value;
-                                if (NUMERIC_PARAM_KEYS.has(p.key)) {
+                                if (INTEGER_PARAM_KEYS.has(p.key)) {
                                   setEditValue(next.replace(/\D+/g, ""));
+                                  return;
+                                }
+                                if (PERCENT_PARAM_KEYS.has(p.key)) {
+                                  const normalized = next
+                                    .replace(",", ".")
+                                    .replace(/[^\d.]/g, "");
+                                  const [whole, ...rest] =
+                                    normalized.split(".");
+                                  const decimal = rest.join("").slice(0, 2);
+                                  setEditValue(
+                                    rest.length > 0
+                                      ? `${whole}.${decimal}`
+                                      : whole,
+                                  );
                                   return;
                                 }
                                 setEditValue(next);
