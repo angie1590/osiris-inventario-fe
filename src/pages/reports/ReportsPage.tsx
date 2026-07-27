@@ -2741,7 +2741,7 @@ function VentasReport() {
             <ResponsiveContainer width="100%" height={300}>
               <LineChart
                 data={timelineData}
-                margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                margin={{ top: 8, right: 16, left: 24, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
@@ -2753,7 +2753,10 @@ function VentasReport() {
                     })
                   }
                 />
-                <YAxis tickFormatter={(value) => fmtCurrency(Number(value))} />
+                <YAxis
+                  width={96}
+                  tickFormatter={(value) => fmtCurrency(Number(value))}
+                />
                 <Tooltip
                   labelFormatter={(value) =>
                     new Date(`${String(value)}T00:00:00`).toLocaleDateString(
