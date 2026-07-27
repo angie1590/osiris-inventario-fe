@@ -67,6 +67,14 @@ const ADJUSTMENT_REASON_LABELS: Record<AdjustmentReason, string> = {
   administrative_correction: "Corrección administrativa",
   other: "Otro",
 };
+const RETURN_CONDITION_LABELS: Record<
+  "available" | "damaged" | "requires_review",
+  string
+> = {
+  available: "Disponible para la venta",
+  damaged: "Dañado",
+  requires_review: "Requiere revisión",
+};
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
   pending: "Pendiente",
@@ -402,6 +410,29 @@ export function DocumentDetail({
             )}
           </CardContent>
         </Card>
+        {(doc.exchange_original_document_number ||
+          doc.exchange_return_document_number ||
+          doc.exchange_new_sale_document_number) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentos relacionados</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Venta original</span>
+                <span>{doc.exchange_original_document_number || "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Devolución</span>
+                <span>{doc.exchange_return_document_number || "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Nueva venta</span>
+                <span>{doc.exchange_new_sale_document_number || "—"}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="rounded-lg border bg-card">
@@ -457,6 +488,13 @@ export function DocumentDetail({
                     {l.product_name
                       ? `${l.product_name}${l.product_isbn ? ` (${l.product_isbn})` : ""}`
                       : `#${l.product_id}`}
+                    {l.return_condition && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        <p>
+                          Estado: {RETURN_CONDITION_LABELS[l.return_condition]}
+                        </p>
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {formatQuantity(l.quantity, "integer")}

@@ -17,6 +17,8 @@ import type {
   UpdateSupplierPayload,
   InventoryDocumentAttachment,
   SetApprovalCodePayload,
+  SaleExchangePayload,
+  SaleExchangeResponse,
   UpdateInventoryCountPayload,
   ApplyInventoryCountPayload,
 } from "@/types/api";
@@ -518,6 +520,31 @@ export function useVoidDocument() {
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["kardex"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+export function useExchangeSale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: SaleExchangePayload;
+    }) => {
+      const res = await api.post<SaleExchangeResponse>(
+        `/inventory/egresos/${id}/exchange`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["kardex"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
     },
   });
 }

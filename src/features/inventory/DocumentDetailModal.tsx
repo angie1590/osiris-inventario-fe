@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { DetailModal } from "@/components/shared/DetailModal";
 import { VoidDialog } from "./VoidDialog";
+import { SaleExchangeDialog } from "./SaleExchangeDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +81,14 @@ const ADJUSTMENT_REASON_LABELS: Record<AdjustmentReason, string> = {
   record_error: "Error de registro",
   administrative_correction: "Corrección administrativa",
   other: "Otro",
+};
+const RETURN_CONDITION_LABELS: Record<
+  "available" | "damaged" | "requires_review",
+  string
+> = {
+  available: "Disponible para la venta",
+  damaged: "Dañado",
+  requires_review: "Requiere revisión",
 };
 
 const STATUS_LABELS: Record<DocumentStatus, string> = {
@@ -203,6 +212,13 @@ function LinesTable({
                   {l.product_name
                     ? `${l.product_name}${l.product_isbn ? ` (${l.product_isbn})` : ""}`
                     : `#${l.product_id}`}
+                  {l.return_condition && (
+                    <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                      <p>
+                        Estado: {RETURN_CONDITION_LABELS[l.return_condition]}
+                      </p>
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="text-center">
                   {formatQuantity(l.quantity, "integer")}
@@ -262,6 +278,7 @@ export function DocumentDetailModal({
   const { user } = useAuth();
   const { toast } = useToast();
   const [voidOpen, setVoidOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
   const canVoid =
     doc.status === "approved" &&
     (user?.role === "admin" ||
@@ -282,6 +299,19 @@ export function DocumentDetailModal({
   );
   const isEgreso = doc.doc_type === "EG";
   const isCommercialEgreso = isEgreso && doc.egreso_type === "sale";
+  const isSaleFromChange =
+    isCommercialEgreso && !!doc.exchange_original_document_id;
+  const hasExchangeGenerated =
+    isCommercialEgreso &&
+    (!!doc.exchange_return_document_id || !!doc.exchange_new_sale_document_id);
+  const canExchange =
+    doc.status === "approved" &&
+    isCommercialEgreso &&
+    !isSaleFromChange &&
+    !hasExchangeGenerated &&
+    (user?.role === "admin" ||
+      user?.role === "supervisor" ||
+      user?.role === "operator");
   const egresoLineSummaries = doc.lines.map((l) => {
     const quantity = Number(l.quantity || 0);
     const finalTotal = quantity * Number(l.unit_price || 0);
@@ -501,6 +531,29 @@ export function DocumentDetailModal({
               { label: "Notas", value: doc.notes || "—", full: true },
             ],
           },
+          ...(doc.exchange_original_document_number ||
+          doc.exchange_return_document_number ||
+          doc.exchange_new_sale_document_number
+            ? [
+                {
+                  title: "Documentos relacionados",
+                  fields: [
+                    {
+                      label: "Venta original",
+                      value: doc.exchange_original_document_number || "—",
+                    },
+                    {
+                      label: "Devolución",
+                      value: doc.exchange_return_document_number || "—",
+                    },
+                    {
+                      label: "Nueva venta",
+                      value: doc.exchange_new_sale_document_number || "—",
+                    },
+                  ],
+                },
+              ]
+            : []),
           {
             title: "Productos",
             content: (
@@ -620,6 +673,11 @@ export function DocumentDetailModal({
         ]}
         footer={
           <>
+            {canExchange && (
+              <Button variant="default" onClick={() => setExchangeOpen(true)}>
+                Generar cambio
+              </Button>
+            )}
             {canVoid && (
               <Button variant="destructive" onClick={() => setVoidOpen(true)}>
                 Anular
@@ -636,6 +694,13 @@ export function DocumentDetailModal({
           doc={doc}
           onClose={() => setVoidOpen(false)}
           onVoided={onClose}
+        />
+      )}
+      {exchangeOpen && (
+        <SaleExchangeDialog
+          doc={doc}
+          onClose={() => setExchangeOpen(false)}
+          onSuccess={onClose}
         />
       )}
     </>

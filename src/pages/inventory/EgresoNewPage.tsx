@@ -616,6 +616,10 @@ export default function EgresoNewPage() {
             "Observaciones es obligatorio cuando el documento es Otro",
           SELLER_REQUIRED: "Vendedor es obligatorio para ventas",
           SELLER_NOT_ALLOWED: "El vendedor no está habilitado para la empresa",
+          PURCHASE_DOCUMENT_NUMBER_WHITESPACE:
+            "Número de documento no debe tener espacios al inicio o al final",
+          PURCHASE_DOCUMENT_NUMBER_DUPLICATE:
+            "Número de documento ya registrado en otra venta",
           INSUFFICIENT_STOCK: "Stock insuficiente en uno de los productos",
           PRODUCT_NOT_FOUND: "Uno de los productos no fue encontrado",
           DOCUMENT_REQUIRES_LINES: "Agrega al menos una línea al documento",

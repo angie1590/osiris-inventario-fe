@@ -258,6 +258,7 @@ export interface InventoryDocumentLine {
   unit_price_base?: number | null;
   discount_type?: "percent" | "fixed" | null;
   discount_value?: number | null;
+  return_condition?: "available" | "damaged" | "requires_review" | null;
   created_at: string;
 }
 
@@ -327,6 +328,12 @@ export interface InventoryDocument {
   purchase_document_date?: string | null;
   reference: string | null;
   notes: string | null;
+  exchange_original_document_id?: number | null;
+  exchange_original_document_number?: string | null;
+  exchange_return_document_id?: number | null;
+  exchange_return_document_number?: string | null;
+  exchange_new_sale_document_id?: number | null;
+  exchange_new_sale_document_number?: string | null;
   created_by: number;
   authorized_by: number | null;
   requested_at: string | null;
@@ -437,6 +444,37 @@ export interface ApprovePayload {
 
 export interface SetApprovalCodePayload {
   approval_code: string;
+}
+
+export interface SaleExchangePayload {
+  returned_lines: Array<{
+    product_id: number;
+    quantity: string | number;
+    return_condition: "available" | "damaged" | "requires_review";
+  }>;
+  new_lines: Array<{
+    product_id: number;
+    quantity: string | number;
+    unit_price?: string | number;
+    unit_price_base?: string | number;
+    discount_type?: "percent" | "fixed";
+    discount_value?: string | number;
+  }>;
+  purchase_document_type?: PurchaseDocumentType;
+  purchase_document_number?: string;
+  purchase_document_date?: string;
+  reference?: string;
+  notes?: string;
+  authorizer_pin?: string;
+}
+
+export interface SaleExchangeResponse {
+  original_document: InventoryDocument;
+  return_document: InventoryDocument;
+  new_document: InventoryDocument;
+  return_total: number;
+  new_total: number;
+  difference_total: number;
 }
 
 // Kardex
