@@ -2888,12 +2888,309 @@ function VentasReport() {
   );
 }
 
+function VendedoresDashboardReport() {
+  const [range, setRange] = useState<DateRange>(currentMonthRange());
+  const { data, isLoading, isError, refetch } = useVentas(range);
+
+  const salesBySeller = useMemo(
+    () =>
+      [...(data?.sales_by_seller ?? [])].sort(
+        (a, b) => b.sales_total - a.sales_total,
+      ),
+    [data?.sales_by_seller],
+  );
+
+  const totalSales = useMemo(
+    () => salesBySeller.reduce((total, row) => total + row.sales_total, 0),
+    [salesBySeller],
+  );
+  const totalDocuments = useMemo(
+    () => salesBySeller.reduce((total, row) => total + row.sales_count, 0),
+    [salesBySeller],
+  );
+
+  const sellerCount = salesBySeller.length;
+  const avgSalesPerSeller = sellerCount ? totalSales / sellerCount : 0;
+  const avgTicketGlobal = totalDocuments ? totalSales / totalDocuments : 0;
+  const topSeller = salesBySeller[0];
+  const topCommissionSeller =
+    salesBySeller.length === 0
+      ? undefined
+      : [...salesBySeller].sort(
+          (a, b) => b.commission_amount - a.commission_amount,
+        )[0];
+
+  const comparisonData = useMemo(
+    () =>
+      salesBySeller.map((row) => ({
+        ...row,
+        short_name:
+          row.seller_name.length > 18
+            ? `${row.seller_name.slice(0, 18)}...`
+            : row.seller_name,
+        avg_ticket: row.sales_count ? row.sales_total / row.sales_count : 0,
+        participation: totalSales ? (row.sales_total / totalSales) * 100 : 0,
+      })),
+    [salesBySeller, totalSales],
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-card p-3">
+        <DateRangeFilter onApply={setRange} defaultValues={range} />
+      </div>
+
+      {isLoading && <Skeleton className="h-48" />}
+      {isError && (
+        <ErrorState
+          className="py-10"
+          message="No se pudo cargar el dashboard de vendedores."
+          onRetry={() => void refetch()}
+        />
+      )}
+
+      {data && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Vendedores con ventas
+                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">{sellerCount}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Periodo actual
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Venta promedio por vendedor
+                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">
+                    {fmtCurrency(avgSalesPerSeller)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Sobre {formatQuantity(totalDocuments, "integer")} docs.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Ticket promedio global
+                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">
+                    {fmtCurrency(avgTicketGlobal)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatQuantity(totalDocuments, "integer")} ventas
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Líder en ventas
+                </p>
+                <div className="mt-1 text-right">
+                  <p
+                    className="truncate text-lg font-bold"
+                    title={topSeller?.seller_name}
+                  >
+                    {topSeller?.seller_name ?? "Sin datos"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {topSeller ? fmtCurrency(topSeller.sales_total) : "—"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Comparativa de ventas por vendedor
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Ranking por total vendido
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={comparisonData}
+                  margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="short_name"
+                    angle={-20}
+                    textAnchor="end"
+                    interval={0}
+                    height={58}
+                  />
+                  <YAxis
+                    width={96}
+                    tickFormatter={(value) => fmtCurrency(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      fmtCurrency(Number(value)),
+                      "Ventas",
+                    ]}
+                    labelFormatter={(value, payload) => {
+                      const item = payload?.[0]?.payload as
+                        | { seller_name?: string }
+                        | undefined;
+                      return item?.seller_name ?? String(value);
+                    }}
+                  />
+                  <Bar
+                    dataKey="sales_total"
+                    fill="#7b963f"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Ticket promedio y comisión
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Comparativa monetaria por vendedor
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={comparisonData}
+                  margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="short_name"
+                    angle={-20}
+                    textAnchor="end"
+                    interval={0}
+                    height={58}
+                  />
+                  <YAxis
+                    width={96}
+                    tickFormatter={(value) => fmtCurrency(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => [
+                      fmtCurrency(Number(value)),
+                      name === "avg_ticket" ? "Ticket promedio" : "Comisión",
+                    ]}
+                    labelFormatter={(value, payload) => {
+                      const item = payload?.[0]?.payload as
+                        | { seller_name?: string }
+                        | undefined;
+                      return item?.seller_name ?? String(value);
+                    }}
+                  />
+                  <Bar
+                    dataKey="avg_ticket"
+                    fill="#0ea5e9"
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="commission_amount"
+                    fill="#f59e0b"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">
+                Tabla comparativa de vendedores
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Mayor comisión:{" "}
+                {topCommissionSeller?.seller_name ?? "Sin datos"}
+              </p>
+            </div>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16 text-center">#</TableHead>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead className="text-right">Ventas</TableHead>
+                    <TableHead className="text-center">Docs.</TableHead>
+                    <TableHead className="text-right">Ticket prom.</TableHead>
+                    <TableHead className="text-center">Participación</TableHead>
+                    <TableHead className="text-right">Comisión</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {comparisonData.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center text-muted-foreground"
+                      >
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    comparisonData.map((row, index) => (
+                      <TableRow key={row.seller_name}>
+                        <TableCell className="text-center tabular-nums">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>{row.seller_name}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtCurrency(row.sales_total)}
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                          {formatQuantity(row.sales_count, "integer")}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtCurrency(row.avg_ticket)}
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                          {row.participation.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtCurrency(row.commission_amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 const TABS = [
   ...DOC_REPORT_TYPES.map((t) => ({ value: t.value, label: t.label })),
   { value: "stock", label: "Stock" },
   { value: "movimientos-por-usuario", label: "Por usuario" },
   { value: "ventas", label: "Ventas" },
+  { value: "vendedores", label: "Vendedores" },
   { value: "consolidado", label: "Consolidado" },
 ];
 
@@ -2943,6 +3240,9 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="ventas" className="mt-4">
           <VentasReport />
+        </TabsContent>
+        <TabsContent value="vendedores" className="mt-4">
+          <VendedoresDashboardReport />
         </TabsContent>
         <TabsContent value="consolidado" className="mt-4">
           <ConsolidadoReport />
