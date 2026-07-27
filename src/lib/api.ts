@@ -38,6 +38,9 @@ api.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
+  if (typeof window !== "undefined") {
+    config.headers["X-Forwarded-Host"] = window.location.hostname;
+  }
   return config;
 });
 

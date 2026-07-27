@@ -96,6 +96,11 @@ export type AuditAction =
   | "SESSION_EXPIRED"
   | "PASSWORD_CHANGED";
 
+export interface SystemHealth {
+  status: "ok";
+  server_ip: string;
+}
+
 // Auth
 export interface LoginResponse {
   access_token: string;

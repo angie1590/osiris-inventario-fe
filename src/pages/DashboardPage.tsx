@@ -22,11 +22,12 @@ import {
 import { useStockReport } from "@/features/reports/hooks";
 import { useIngresos, useEgresos } from "@/features/inventory/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCompanyConfig } from "@/features/admin/hooks";
+import { useCompanyConfig, useSystemHealth } from "@/features/admin/hooks";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data: company } = useCompanyConfig();
+  const { data: health } = useSystemHealth();
   const companyReady = !!company?.is_complete;
   const canViewStockReports =
     user?.role === "admin" || user?.role === "supervisor";
@@ -135,8 +136,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="rounded-xl border border-cyan-300/35 bg-cyan-100/10 px-3 py-2 text-xs font-medium text-cyan-50">
-            Estado del sistema:{" "}
-            {companyReady ? "Configurado" : "Pendiente de configuración"}
+            IP del servidor: {health?.server_ip ?? "No disponible"}
           </div>
         </div>
       </div>

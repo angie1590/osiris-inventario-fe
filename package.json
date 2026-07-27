@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
+    "open:server": "node scripts/open-server.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

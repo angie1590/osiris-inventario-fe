@@ -12,6 +12,7 @@ import type {
   BajaReason,
   CreateCompanyPayload,
   UpdateCompanyPayload,
+  SystemHealth,
 } from "@/types/api";
 
 const ALLOWED_INGRESO_TYPES: IngresoType[] = [
@@ -168,6 +169,17 @@ export function useCompanyConfig() {
     },
     staleTime: 30_000,
     retry: 1,
+  });
+}
+
+export function useSystemHealth() {
+  return useQuery({
+    queryKey: ["system-health"],
+    queryFn: async () => {
+      const res = await api.get<SystemHealth>("/system/health");
+      return res.data;
+    },
+    staleTime: 60_000,
   });
 }
 
