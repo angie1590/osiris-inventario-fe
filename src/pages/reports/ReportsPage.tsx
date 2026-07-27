@@ -5,6 +5,8 @@ import {
   BarChart,
   Bar,
   CartesianGrid,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -56,6 +58,7 @@ import {
 } from "@/features/reports/DateRangeFilter";
 import {
   useConsolidado,
+  useVentas,
   useStockReport,
   useStockValorizado,
 } from "@/features/reports/hooks";
@@ -2353,10 +2356,12 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground uppercase">
                   Movimientos totales
                 </p>
-                <p className="text-2xl font-bold">{totalMovements}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  IN: {visibleMovements.IN} | EG: {visibleMovements.EG}
-                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">{totalMovements}</p>
+                  <p className="text-xs text-muted-foreground">
+                    IN: {visibleMovements.IN} | EG: {visibleMovements.EG}
+                  </p>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -2364,17 +2369,19 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground uppercase">
                   Balance operativo
                 </p>
-                <p
-                  className={`text-2xl font-bold ${
-                    netFlow >= 0 ? "text-emerald-700" : "text-amber-700"
-                  }`}
-                >
-                  {netFlow >= 0 ? "+" : ""}
-                  {netFlow}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Diferencia entre ingresos y egresos
-                </p>
+                <div className="mt-1 text-right">
+                  <p
+                    className={`text-2xl font-bold ${
+                      netFlow >= 0 ? "text-emerald-700" : "text-amber-700"
+                    }`}
+                  >
+                    {netFlow >= 0 ? "+" : ""}
+                    {netFlow}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Diferencia entre ingresos y egresos
+                  </p>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -2382,12 +2389,14 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground uppercase">
                   Pendientes de aprobacion
                 </p>
-                <p className="text-2xl font-bold text-amber-700">
-                  {pendingCount}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Cancelados/anulados: {cancelledCount + voidedCount}
-                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold text-amber-700">
+                    {pendingCount}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Cancelados/anulados: {cancelledCount + voidedCount}
+                  </p>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -2395,10 +2404,12 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground uppercase">
                   Documentos aprobados
                 </p>
-                <p className="text-2xl font-bold">{approvedCount}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  de {totalMovements} movimientos en el periodo
-                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">{approvedCount}</p>
+                  <p className="text-xs text-muted-foreground">
+                    de {totalMovements} movimientos en el periodo
+                  </p>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -2406,13 +2417,15 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground">
                   Productos activos
                 </p>
-                <p className="text-2xl font-bold">{data.active_products}</p>
+                <p className="mt-1 text-right text-2xl font-bold">
+                  {data.active_products}
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4">
                 <p className="text-xs text-muted-foreground">Bajo stock</p>
-                <p className="text-2xl font-bold text-destructive">
+                <p className="mt-1 text-right text-2xl font-bold text-destructive">
                   {data.products_below_minimum}
                 </p>
               </CardContent>
@@ -2422,14 +2435,16 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground">
                   Ingreso dominante
                 </p>
-                <p className="text-lg font-semibold truncate">
-                  {topIngreso?.label ?? "Sin datos"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {topIngreso
-                    ? `${formatMetricValue(topIngreso.value)}${metricUnitLabel ? ` ${metricUnitLabel}` : ""}`
-                    : "Sin datos"}
-                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-lg font-semibold truncate">
+                    {topIngreso?.label ?? "Sin datos"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {topIngreso
+                      ? `${formatMetricValue(topIngreso.value)}${metricUnitLabel ? ` ${metricUnitLabel}` : ""}`
+                      : "Sin datos"}
+                  </p>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -2437,14 +2452,16 @@ function ConsolidadoReport() {
                 <p className="text-xs text-muted-foreground">
                   Egreso dominante
                 </p>
-                <p className="text-lg font-semibold truncate">
-                  {topEgreso?.label ?? "Sin datos"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {topEgreso
-                    ? `${formatMetricValue(topEgreso.value)}${metricUnitLabel ? ` ${metricUnitLabel}` : ""}`
-                    : "Sin datos"}
-                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-lg font-semibold truncate">
+                    {topEgreso?.label ?? "Sin datos"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {topEgreso
+                      ? `${formatMetricValue(topEgreso.value)}${metricUnitLabel ? ` ${metricUnitLabel}` : ""}`
+                      : "Sin datos"}
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -2598,11 +2615,282 @@ function ConsolidadoReport() {
   );
 }
 
+function VentasReport() {
+  const [range, setRange] = useState<DateRange>(currentMonthRange());
+  const { data, isLoading, isError, refetch } = useVentas(range);
+
+  const summary = data?.summary ?? {
+    sales_total: 0,
+    sales_count: 0,
+    purchase_total: 0,
+    purchase_count: 0,
+    utility: 0,
+    commission_percent: 0,
+    commission_total: 0,
+  };
+  const dailyClosings = data?.daily_closings ?? [];
+  const salesBySeller = data?.sales_by_seller ?? [];
+  const commissionsByMonth = data?.commissions_by_month ?? [];
+
+  const timelineData = useMemo(
+    () =>
+      dailyClosings.map((row) => ({
+        ...row,
+        label: new Date(`${row.date}T00:00:00`).toLocaleDateString("es-EC", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
+      })),
+    [dailyClosings],
+  );
+
+  const formatMonthLabel = (value: string) =>
+    new Date(`${value}-01T00:00:00`).toLocaleDateString("es-EC", {
+      month: "short",
+      year: "numeric",
+    });
+
+  const utilityClass =
+    summary.utility >= 0 ? "text-emerald-700" : "text-amber-700";
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-card p-3">
+        <DateRangeFilter onApply={setRange} defaultValues={range} />
+      </div>
+      {isLoading && <Skeleton className="h-48" />}
+      {isError && (
+        <ErrorState
+          className="py-10"
+          message="No se pudo cargar el reporte de ventas."
+          onRetry={() => void refetch()}
+        />
+      )}
+      {data && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Ventas
+                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">
+                    {fmtCurrency(summary.sales_total)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatQuantity(summary.sales_count, "integer")} ventas
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Compras
+                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">
+                    {fmtCurrency(summary.purchase_total)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatQuantity(summary.purchase_count, "integer")} compras
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Utilidad
+                </p>
+                <div className="mt-1 text-right">
+                  <p className={`text-2xl font-bold ${utilityClass}`}>
+                    {fmtCurrency(summary.utility)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Ventas - Compras
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs uppercase text-muted-foreground">
+                  Comisión total
+                </p>
+                <div className="mt-1 text-right">
+                  <p className="text-2xl font-bold">
+                    {fmtCurrency(summary.commission_total)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Tasa global {summary.commission_percent.toFixed(1)}%
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">Cierres diarios de ventas</p>
+              <p className="text-xs text-muted-foreground">
+                Total vendido por día en el periodo
+              </p>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart
+                data={timelineData}
+                margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Date(`${value}T00:00:00`).toLocaleDateString("es-EC", {
+                      day: "2-digit",
+                      month: "2-digit",
+                    })
+                  }
+                />
+                <YAxis tickFormatter={(value) => fmtCurrency(Number(value))} />
+                <Tooltip
+                  labelFormatter={(value) =>
+                    new Date(`${String(value)}T00:00:00`).toLocaleDateString(
+                      "es-EC",
+                      {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      },
+                    )
+                  }
+                  formatter={(value) => [fmtCurrency(Number(value)), "Ventas"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="sales_total"
+                  stroke="#7b963f"
+                  strokeWidth={3}
+                  dot={{ r: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Ventas por vendedor</p>
+                <p className="text-xs text-muted-foreground">
+                  Periodo seleccionado
+                </p>
+              </div>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead className="text-right">Ventas</TableHead>
+                      <TableHead className="text-center">Docs.</TableHead>
+                      <TableHead className="text-right">Comisión</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {salesBySeller.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          className="text-center text-muted-foreground"
+                        >
+                          Sin datos
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      salesBySeller.map((row) => (
+                        <TableRow key={row.seller_name}>
+                          <TableCell>{row.seller_name}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.sales_total)}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            {formatQuantity(row.sales_count, "integer")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.commission_amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">
+                  Comisión mensual por vendedor
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Total por mes y vendedor
+                </p>
+              </div>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mes</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead className="text-right">Ventas</TableHead>
+                      <TableHead className="text-center">%</TableHead>
+                      <TableHead className="text-right">Comisión</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {commissionsByMonth.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="text-center text-muted-foreground"
+                        >
+                          Sin datos
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      commissionsByMonth.map((row) => (
+                        <TableRow key={`${row.month}-${row.seller_name}`}>
+                          <TableCell>{formatMonthLabel(row.month)}</TableCell>
+                          <TableCell>{row.seller_name}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.sales_total)}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            {row.commission_percent.toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.commission_amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 const TABS = [
   ...DOC_REPORT_TYPES.map((t) => ({ value: t.value, label: t.label })),
   { value: "stock", label: "Stock" },
   { value: "movimientos-por-usuario", label: "Por usuario" },
+  { value: "ventas", label: "Ventas" },
   { value: "consolidado", label: "Consolidado" },
 ];
 
@@ -2649,6 +2937,9 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="movimientos-por-usuario" className="mt-4">
           <MovimientosPorUsuarioReport />
+        </TabsContent>
+        <TabsContent value="ventas" className="mt-4">
+          <VentasReport />
         </TabsContent>
         <TabsContent value="consolidado" className="mt-4">
           <ConsolidadoReport />

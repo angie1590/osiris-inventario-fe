@@ -557,6 +557,45 @@ export interface ConsolidadoReport {
   products_below_minimum: number;
 }
 
+export interface SalesDailyClosing {
+  date: string;
+  sales_count: number;
+  sales_total: number;
+}
+
+export interface SalesBySellerSummary {
+  seller_name: string;
+  sales_count: number;
+  sales_total: number;
+  commission_percent: number;
+  commission_amount: number;
+}
+
+export interface SalesCommissionByMonth {
+  month: string;
+  seller_name: string;
+  sales_count: number;
+  sales_total: number;
+  commission_percent: number;
+  commission_amount: number;
+}
+
+export interface VentasReport {
+  period: { from: string; to: string };
+  summary: {
+    sales_total: number;
+    sales_count: number;
+    purchase_total: number;
+    purchase_count: number;
+    utility: number;
+    commission_percent: number;
+    commission_total: number;
+  };
+  daily_closings: SalesDailyClosing[];
+  sales_by_seller: SalesBySellerSummary[];
+  commissions_by_month: SalesCommissionByMonth[];
+}
+
 export interface StockValorizadoItem {
   id: number;
   name: string;

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type {
   ConsolidadoReport,
+  VentasReport,
   StockValorizadoReport,
   Product,
 } from "@/types/api";
@@ -33,6 +34,19 @@ export function useConsolidado(filters: ReportFilters) {
     queryKey: ["reports", "consolidado", filters],
     queryFn: async () => {
       const res = await api.get<ConsolidadoReport>("/reports/consolidado", {
+        params: buildParams(filters),
+      });
+      return res.data;
+    },
+    enabled: !!(filters.date_from && filters.date_to),
+  });
+}
+
+export function useVentas(filters: ReportFilters) {
+  return useQuery({
+    queryKey: ["reports", "ventas", filters],
+    queryFn: async () => {
+      const res = await api.get<VentasReport>("/reports/ventas", {
         params: buildParams(filters),
       });
       return res.data;
