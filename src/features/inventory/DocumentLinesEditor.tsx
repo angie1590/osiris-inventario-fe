@@ -49,6 +49,7 @@ interface Props {
   showTotals?: boolean;
   readOnly?: boolean;
   readOnlyUnitCost?: boolean;
+  maxLines?: number;
   unitPriceLabel?: string;
   subtotalLabel?: string;
   totalsAmountLabel?: string;
@@ -338,6 +339,7 @@ export function DocumentLinesEditor({
   showTotals = false,
   readOnly = false,
   readOnlyUnitCost = false,
+  maxLines,
   unitPriceLabel = "Precio unit.",
   subtotalLabel = "Subtotal",
   totalsAmountLabel = "Total del ingreso",
@@ -358,6 +360,7 @@ export function DocumentLinesEditor({
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const addLine = () => {
+    if (maxLines !== undefined && lines.length >= maxLines) return;
     setLastDeletedLine(null);
     onChange([
       ...lines,
@@ -992,7 +995,9 @@ export function DocumentLinesEditor({
         variant="outline"
         size="sm"
         onClick={addLine}
-        disabled={readOnly}
+        disabled={
+          readOnly || (maxLines !== undefined && lines.length >= maxLines)
+        }
       >
         <Plus className="mr-1.5 h-3.5 w-3.5" />
         Agregar ítem

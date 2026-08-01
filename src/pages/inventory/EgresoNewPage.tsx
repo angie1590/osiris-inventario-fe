@@ -5,8 +5,18 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FormField } from "@/components/shared/FormField";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Section } from "@/components/shared/Section";
@@ -46,6 +56,7 @@ import type {
   AdjustmentReason,
   CreateEgresoPayload,
   EgresoType,
+  InventoryDocument,
   PurchaseDocumentType,
   KardexResponse,
 } from "@/types/api";
@@ -227,6 +238,13 @@ const schema = z
   });
 type FormData = z.infer<typeof schema>;
 
+const EMPTY_CUSTOMER = {
+  name: "",
+  ruc: "",
+  phone: "",
+  address: "",
+};
+
 export default function EgresoNewPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -234,6 +252,12 @@ export default function EgresoNewPage() {
   const { data: company } = useCompanyConfig();
   const [lines, setLines] = useState<DocumentLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [consumerFinal, setConsumerFinal] = useState(true);
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [createdDocument, setCreatedDocument] =
+    useState<InventoryDocument | null>(null);
   const costSyncRef = useRef(0);
   const enabledEgresoTypes = company?.enabled_egreso_types?.length
     ? company.enabled_egreso_types
@@ -324,6 +348,9 @@ export default function EgresoNewPage() {
   useEffect(() => {
     if (egresoType !== "sale") {
       setValue("seller_name", undefined, { shouldDirty: true });
+      setConsumerFinal(true);
+      setCustomer(EMPTY_CUSTOMER);
+      setCustomerDialogOpen(false);
       return;
     }
     const currentSeller = watch("seller_name");
@@ -477,6 +504,28 @@ export default function EgresoNewPage() {
   const isPurchaseDocumentNumberRequired =
     egresoType === "sale" && purchaseDocumentType !== "none";
 
+  const acceptCustomer = () => {
+    if (!customer.name.trim() || !customer.ruc.trim()) {
+      setCustomerError("Nombre y RUC son obligatorios");
+      return;
+    }
+    setValue(
+      "notes",
+      `Nombre: ${customer.name.trim()} | RUC: ${customer.ruc.trim()} | Teléfono: ${customer.phone.trim()} | Dirección: ${customer.address.trim()}`,
+      { shouldDirty: true, shouldValidate: true },
+    );
+    setConsumerFinal(false);
+    setCustomerError(null);
+    setCustomerDialogOpen(false);
+  };
+
+  const selectConsumerFinal = () => {
+    setConsumerFinal(true);
+    setCustomer(EMPTY_CUSTOMER);
+    setCustomerError(null);
+    setValue("notes", "", { shouldDirty: true, shouldValidate: true });
+  };
+
   const onSubmit = async (data: FormData) => {
     setFormError(null);
     if (lines.length === 0) {
@@ -488,6 +537,14 @@ export default function EgresoNewPage() {
     );
     if (invalidLine) {
       setFormError("Completa todos los campos de los ítems");
+      return;
+    }
+    if (
+      data.egreso_type === "sale" &&
+      data.purchase_document_type === "sales_note" &&
+      lines.length > 9
+    ) {
+      setFormError("La Nota de Venta admite máximo 9 productos");
       return;
     }
 
@@ -599,6 +656,13 @@ export default function EgresoNewPage() {
         title: "Egreso creado",
         description: `Egreso ${doc.number} creado correctamente.`,
       });
+      if (
+        data.egreso_type === "sale" &&
+        data.purchase_document_type === "sales_note"
+      ) {
+        setCreatedDocument(doc);
+        return;
+      }
       navigate(`/inventory/egresos/${doc.id}`);
     } catch (err: unknown) {
       setFormError(
@@ -623,6 +687,7 @@ export default function EgresoNewPage() {
           INSUFFICIENT_STOCK: "Stock insuficiente en uno de los productos",
           PRODUCT_NOT_FOUND: "Uno de los productos no fue encontrado",
           DOCUMENT_REQUIRES_LINES: "Agrega al menos una línea al documento",
+          SALES_NOTE_LINE_LIMIT: "La Nota de Venta admite máximo 9 productos",
         }),
       );
     }
@@ -821,6 +886,25 @@ export default function EgresoNewPage() {
                 placeholder="Observaciones (opcional)"
               />
             </FormField>
+
+            {egresoType === "sale" && (
+              <div className="flex items-end pb-2">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                  <Checkbox
+                    checked={consumerFinal}
+                    onCheckedChange={(checked) => {
+                      if (checked === true) {
+                        selectConsumerFinal();
+                        return;
+                      }
+                      setCustomerError(null);
+                      setCustomerDialogOpen(true);
+                    }}
+                  />
+                  Consumidor Final
+                </label>
+              </div>
+            )}
           </div>
         </Section>
 
@@ -845,6 +929,7 @@ export default function EgresoNewPage() {
             prioritizeInStock
             enforceStockLimit
             autoFillUnitPriceFromProduct={isCommercialEgreso}
+            maxLines={purchaseDocumentType === "sales_note" ? 9 : undefined}
           />
         </Section>
 
@@ -857,6 +942,108 @@ export default function EgresoNewPage() {
           </Button>
         </div>
       </form>
+
+      <Dialog
+        open={customerDialogOpen}
+        onOpenChange={(open) => {
+          setCustomerDialogOpen(open);
+          if (!open) setCustomerError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Datos del cliente</DialogTitle>
+            <DialogDescription>
+              Ingresa los datos que se imprimirán en la Nota de Venta.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="grid gap-4 sm:grid-cols-2">
+            {customerError && (
+              <Alert variant="destructive" className="sm:col-span-2">
+                <AlertDescription>{customerError}</AlertDescription>
+              </Alert>
+            )}
+            <FormField label="Nombre" required>
+              <Input
+                value={customer.name}
+                onChange={(event) =>
+                  setCustomer({ ...customer, name: event.target.value })
+                }
+              />
+            </FormField>
+            <FormField label="RUC" required>
+              <Input
+                value={customer.ruc}
+                onChange={(event) =>
+                  setCustomer({ ...customer, ruc: event.target.value })
+                }
+              />
+            </FormField>
+            <FormField label="Teléfono">
+              <Input
+                value={customer.phone}
+                onChange={(event) =>
+                  setCustomer({ ...customer, phone: event.target.value })
+                }
+              />
+            </FormField>
+            <FormField label="Dirección">
+              <Input
+                value={customer.address}
+                onChange={(event) =>
+                  setCustomer({ ...customer, address: event.target.value })
+                }
+              />
+            </FormField>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCustomerDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={acceptCustomer}>
+              Aceptar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!createdDocument}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Imprimir Nota de Venta</DialogTitle>
+            <DialogDescription>
+              ¿Deseas imprimir el documento ahora?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/inventory/egresos")}
+            >
+              No
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!createdDocument) return;
+                window.open(
+                  `/inventory/egresos/${createdDocument.id}/print`,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+                navigate("/inventory/egresos");
+              }}
+            >
+              Sí, imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

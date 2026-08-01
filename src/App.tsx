@@ -36,6 +36,9 @@ const EgresoNewPage = lazy(() => import("@/pages/inventory/EgresoNewPage"));
 const EgresoDetailPage = lazy(
   () => import("@/pages/inventory/EgresoDetailPage"),
 );
+const EgresoPrintPage = lazy(
+  () => import("@/pages/inventory/EgresoPrintPage"),
+);
 const ConteosPage = lazy(() => import("@/pages/inventory/ConteosPage"));
 const ConteoNewPage = lazy(() => import("@/pages/inventory/ConteoNewPage"));
 const ConteoDetailPage = lazy(
@@ -70,6 +73,12 @@ export default function App() {
 
             {/* Protected app routes */}
             <Route element={<ProtectedRoute />}>
+              <Route element={<RoleGuard roles={["admin", "operator"]} />}>
+                <Route
+                  path="/inventory/egresos/:id/print"
+                  element={<EgresoPrintPage />}
+                />
+              </Route>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<DashboardPage />} />
 

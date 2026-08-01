@@ -312,6 +312,10 @@ export function DocumentDetailModal({
     (user?.role === "admin" ||
       user?.role === "supervisor" ||
       user?.role === "operator");
+  const canPrintSalesNote =
+    doc.doc_type === "EG" &&
+    doc.egreso_type === "sale" &&
+    doc.purchase_document_type === "sales_note";
   const egresoLineSummaries = doc.lines.map((l) => {
     const quantity = Number(l.quantity || 0);
     const finalTotal = quantity * Number(l.unit_price || 0);
@@ -673,6 +677,20 @@ export function DocumentDetailModal({
         ]}
         footer={
           <>
+            {canPrintSalesNote && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  window.open(
+                    `/inventory/egresos/${doc.id}/print`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  )
+                }
+              >
+                Imprimir
+              </Button>
+            )}
             {canExchange && (
               <Button variant="default" onClick={() => setExchangeOpen(true)}>
                 Generar cambio
