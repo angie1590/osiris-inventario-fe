@@ -36,9 +36,7 @@ const EgresoNewPage = lazy(() => import("@/pages/inventory/EgresoNewPage"));
 const EgresoDetailPage = lazy(
   () => import("@/pages/inventory/EgresoDetailPage"),
 );
-const EgresoPrintPage = lazy(
-  () => import("@/pages/inventory/EgresoPrintPage"),
-);
+const EgresoPrintPage = lazy(() => import("@/pages/inventory/EgresoPrintPage"));
 const ConteosPage = lazy(() => import("@/pages/inventory/ConteosPage"));
 const ConteoNewPage = lazy(() => import("@/pages/inventory/ConteoNewPage"));
 const ConteoDetailPage = lazy(
