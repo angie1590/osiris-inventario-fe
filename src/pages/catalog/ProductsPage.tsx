@@ -110,6 +110,7 @@ export default function ProductsPage() {
     category_id: categoryId ?? undefined,
     status,
     bajo_stock: bajoStock || undefined,
+    stock_desc: true,
     cursor,
   });
   const { data: categories } = useCategories();
@@ -217,6 +218,13 @@ export default function ProductsPage() {
   };
 
   const columns: Column<Product>[] = [
+    {
+      key: "isbn",
+      header: "Código de barras",
+      sortable: true,
+      sortAccessor: (p) => p.isbn,
+      cell: (p) => <span className="font-mono text-sm">{p.isbn || "—"}</span>,
+    },
     {
       key: "name",
       header: "Nombre",
@@ -417,6 +425,7 @@ export default function ProductsPage() {
         isLoading={isLoading}
         isError={isError}
         onRetry={refetch}
+        defaultSort={{ key: "stock_actual", dir: "desc" }}
         emptyHeading="Sin resultados"
         emptyDescription="No se encontraron productos para los filtros seleccionados."
       />

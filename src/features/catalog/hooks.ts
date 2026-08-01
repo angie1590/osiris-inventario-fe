@@ -200,6 +200,7 @@ interface ProductFilters {
   category_id?: number;
   status?: ProductStatus;
   bajo_stock?: boolean;
+  stock_desc?: boolean;
   cursor?: number;
   limit?: number;
 }
