@@ -224,6 +224,13 @@ export interface Product {
   updated_at: string;
 }
 
+export interface ProductPage {
+  items: Product[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface CreateProductPayload {
   isbn?: string;
   codigo_interno?: string | null;

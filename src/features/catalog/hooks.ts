@@ -4,6 +4,7 @@ import type {
   Category,
   CategoryAttribute,
   Product,
+  ProductPage,
   CreateCategoryPayload,
   CreateAttributePayload,
   UpdateAttributePayload,
@@ -205,6 +206,11 @@ interface ProductFilters {
   limit?: number;
 }
 
+interface ProductPageFilters extends Omit<ProductFilters, "cursor" | "limit"> {
+  page: number;
+  page_size: number;
+}
+
 export function useProducts(filters: ProductFilters = {}) {
   return useQuery({
     queryKey: ["products", filters],
@@ -214,6 +220,16 @@ export function useProducts(filters: ProductFilters = {}) {
           Product[]
         >("/products", { params: { ...filters, limit: filters.limit ?? 50 } })
         .then((r) => r.data),
+  });
+}
+
+export function useProductsPage(filters: ProductPageFilters) {
+  return useQuery({
+    queryKey: ["products", "page", filters],
+    queryFn: () =>
+      api
+        .get<ProductPage>("/products/page", { params: filters })
+        .then((response) => response.data),
   });
 }
 
@@ -271,8 +287,22 @@ export function useUpdateProduct() {
       qc.setQueryData(["product", v.id], updated);
       qc.setQueriesData(
         { queryKey: ["products"] },
-        (prev: Product[] | undefined) =>
-          prev ? prev.map((p) => (p.id === updated.id ? updated : p)) : prev,
+        (prev: Product[] | ProductPage | undefined) => {
+          if (Array.isArray(prev)) {
+            return prev.map((product) =>
+              product.id === updated.id ? updated : product,
+            );
+          }
+          if (prev?.items) {
+            return {
+              ...prev,
+              items: prev.items.map((product) =>
+                product.id === updated.id ? updated : product,
+              ),
+            };
+          }
+          return prev;
+        },
       );
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["product", v.id] });

@@ -33,7 +33,7 @@ import { TreeSelector } from "@/components/shared/TreeSelector";
 import { ProductFormModal } from "@/features/catalog/ProductFormModal";
 import { ReactivateProductDialog } from "@/features/catalog/ReactivateProductDialog";
 import {
-  useProducts,
+  useProductsPage,
   useCategories,
   useToggleProductStatus,
 } from "@/features/catalog/hooks";
@@ -49,6 +49,15 @@ import { formatCurrency } from "@/lib/format";
 import type { Product, ProductStatus } from "@/types/api";
 
 const PRODUCT_PAGE_SIZE = 10;
+
+function visiblePages(current: number, total: number) {
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
+  const pages = new Set([1, total, current - 1, current, current + 1]);
+  const values = [...pages].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
+  return values.flatMap<(number | "ellipsis")>((page, index) =>
+    index > 0 && page - values[index - 1] > 1 ? ["ellipsis", page] : [page],
+  );
+}
 
 function fmtAttrValue(v: unknown): string {
   if (typeof v === "boolean") return v ? "Sí" : "No";
@@ -76,13 +85,10 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [status, setStatus] = useState<ProductStatus | undefined>("active");
   const [bajoStock, setBajoStock] = useState(false);
-  const [cursorHistory, setCursorHistory] = useState<(number | undefined)[]>([
-    undefined,
-  ]);
-  const cursor = cursorHistory[cursorHistory.length - 1];
+  const [page, setPage] = useState(1);
 
   // Any filter change must reset pagination so we never land on a stale page.
-  const resetPage = () => setCursorHistory([undefined]);
+  const resetPage = () => setPage(1);
   const hasActiveFilters =
     name !== "" || categoryId !== null || status !== "active" || bajoStock;
   const clearFilters = () => {
@@ -106,21 +112,24 @@ export default function ProductsPage() {
   >({});
 
   const {
-    data: products,
+    data: productPage,
     isLoading,
     isError,
     refetch,
-  } = useProducts({
+  } = useProductsPage({
     name: name || undefined,
     category_id: categoryId ?? undefined,
     status,
     bajo_stock: bajoStock || undefined,
     stock_desc: true,
-    cursor,
-    limit: PRODUCT_PAGE_SIZE + 1,
+    page,
+    page_size: PRODUCT_PAGE_SIZE,
   });
-  const pageProducts = products?.slice(0, PRODUCT_PAGE_SIZE) ?? [];
-  const hasNextPage = (products?.length ?? 0) > PRODUCT_PAGE_SIZE;
+  const products = productPage?.items ?? [];
+  const totalProducts = productPage?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalProducts / PRODUCT_PAGE_SIZE));
+  const rangeStart = totalProducts === 0 ? 0 : (page - 1) * PRODUCT_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PRODUCT_PAGE_SIZE, totalProducts);
   const { data: categories } = useCategories();
   const toggleStatus = useToggleProductStatus();
 
@@ -428,7 +437,7 @@ export default function ProductsPage() {
 
       <DataTable
         columns={columns}
-        data={pageProducts}
+        data={products}
         rowKey={(p) => p.id}
         isLoading={isLoading}
         isError={isError}
@@ -439,31 +448,35 @@ export default function ProductsPage() {
         emptyDescription="No se encontraron productos para los filtros seleccionados."
       />
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorHistory.length === 1}
-          onClick={() => setCursorHistory((history) => history.slice(0, -1))}
-        >
-          Anterior
-        </Button>
-        <span className="min-w-16 text-center text-sm text-muted-foreground">
-          Página {cursorHistory.length}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <span className="text-muted-foreground">
+          Mostrando {rangeStart} a {rangeEnd} de {totalProducts} productos
         </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!hasNextPage}
-          onClick={() =>
-            setCursorHistory((history) => [
-              ...history,
-              pageProducts[pageProducts.length - 1]?.id,
-            ])
-          }
-        >
-          Siguiente
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
+            Anterior
+          </Button>
+          {visiblePages(page, totalPages).map((item, index) =>
+            item === "ellipsis" ? (
+              <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">…</span>
+            ) : (
+              <Button
+                key={item}
+                variant={item === page ? "default" : "outline"}
+                size="sm"
+                className="min-w-8 px-2"
+                onClick={() => setPage(item)}
+                aria-label={`Página ${item}`}
+                aria-current={item === page ? "page" : undefined}
+              >
+                {item}
+              </Button>
+            ),
+          )}
+          <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+            Siguiente
+          </Button>
+        </div>
       </div>
 
       {viewProduct && (
