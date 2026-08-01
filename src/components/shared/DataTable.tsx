@@ -53,6 +53,7 @@ interface DataTableProps<T> {
   sort?: SortState | null;
   onSortChange?: (sort: SortState | null) => void;
   pageSize?: number;
+  pagination?: boolean;
 }
 
 const SKELETON_ROWS = 5;
@@ -123,6 +124,7 @@ export function DataTable<T>({
   sort,
   onSortChange,
   pageSize = 10,
+  pagination = true,
 }: DataTableProps<T>) {
   const isControlled = onSortChange != null;
   const [internalSort, setInternalSort] = React.useState<SortState | null>(
@@ -162,7 +164,7 @@ export function DataTable<T>({
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
   const end = start + pageSize;
-  const pagedData = sortedData.slice(start, end);
+  const pagedData = pagination ? sortedData.slice(start, end) : sortedData;
 
   return (
     <div className={cn("rounded-md border", className)}>
@@ -250,7 +252,7 @@ export function DataTable<T>({
           )}
         </TableBody>
       </Table>
-      {!isLoading && !isError && sortedData.length > 0 && (
+      {pagination && !isLoading && !isError && sortedData.length > 0 && (
         <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
           <span className="text-muted-foreground">
             Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}

@@ -426,6 +426,7 @@ export default function ProductsPage() {
         isError={isError}
         onRetry={refetch}
         defaultSort={{ key: "stock_actual", dir: "desc" }}
+        pagination={false}
         emptyHeading="Sin resultados"
         emptyDescription="No se encontraron productos para los filtros seleccionados."
       />
