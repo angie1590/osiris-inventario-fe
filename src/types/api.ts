@@ -600,6 +600,20 @@ export interface SalesCommissionByMonth {
   commission_amount: number;
 }
 
+export interface SalesByMonthSummary {
+  month: string;
+  sales_total: number;
+}
+
+export interface SalesQuarterSummary {
+  quarter: string;
+  sales_total: number;
+  products_sold: number;
+  top_product_name: string;
+  top_product_quantity: number;
+  utility: number;
+}
+
 export interface VentasReport {
   period: { from: string; to: string };
   summary: {
@@ -614,6 +628,8 @@ export interface VentasReport {
   daily_closings: SalesDailyClosing[];
   sales_by_seller: SalesBySellerSummary[];
   commissions_by_month: SalesCommissionByMonth[];
+  monthly_sales: SalesByMonthSummary[];
+  quarterly_summary: SalesQuarterSummary[];
 }
 
 export interface StockValorizadoItem {

@@ -2531,6 +2531,422 @@ function ConsolidadoReport() {
   );
 }
 
+/*
+function VentasReport() {
+  const [range, setRange] = useState<DateRange>(currentMonthRange());
+  const { data, isLoading, isError, refetch } = useVentas(range);
+
+  const summary = data?.summary ?? {
+    sales_total: 0,
+    sales_count: 0,
+    purchase_total: 0,
+    purchase_count: 0,
+    utility: 0,
+    commission_percent: 0,
+    commission_total: 0,
+  };
+  const dailyClosings = data?.daily_closings ?? [];
+function currentYearRange(): DateRange {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), 0, 1);
+  const to = new Date(now.getFullYear(), 11, 31);
+  return {
+    date_from: from.toISOString().slice(0, 10),
+    date_to: to.toISOString().slice(0, 10),
+  };
+}
+
+function monthName(monthIndex: number, year: number) {
+  const label = new Date(year, monthIndex, 1).toLocaleDateString("es-EC", {
+    month: "long",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+  const salesBySeller = data?.sales_by_seller ?? [];
+  const range = useMemo(() => currentYearRange(), []);
+
+  const timelineData = useMemo(
+  const year = Number(range.date_from.slice(0, 4));
+
+  const salesBySeller = useMemo(
+    () =>
+      [...(data?.sales_by_seller ?? [])].sort(
+        (a, b) => b.sales_total - a.sales_total,
+      ),
+    [data?.sales_by_seller],
+  );
+
+  const commissionsByMonth = data?.commissions_by_month ?? [];
+
+  const sellers = useMemo(() => {
+    const ordered: string[] = [];
+    const seen = new Set<string>();
+
+    for (const row of salesBySeller) {
+      if (!seen.has(row.seller_name)) {
+        seen.add(row.seller_name);
+        ordered.push(row.seller_name);
+      }
+    }
+
+    for (const row of commissionsByMonth) {
+      if (!seen.has(row.seller_name)) {
+        seen.add(row.seller_name);
+        ordered.push(row.seller_name);
+      }
+    }
+
+    return ordered;
+  }, [commissionsByMonth, salesBySeller]);
+
+  const matrix = useMemo(() => {
+    const cells = new Map<
+      string,
+      { sales_total: number; commission_amount: number }
+    >();
+
+    for (const row of commissionsByMonth) {
+      cells.set(`${row.month}|${row.seller_name}`, {
+        sales_total: row.sales_total,
+        commission_amount: row.commission_amount,
+      });
+    }
+
+    const rows = Array.from({ length: 12 }, (_, monthIndex) => {
+      const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+      const sellerCells = sellers.map(
+        (seller) =>
+          cells.get(`${month}|${seller}`) ?? {
+            sales_total: 0,
+            commission_amount: 0,
+          },
+      );
+      const totalSales = sellerCells.reduce(
+        (total, cell) => total + cell.sales_total,
+        0,
+      );
+
+      return {
+        label: monthName(monthIndex, year),
+        sellerCells,
+        totalSales,
+      };
+    });
+
+    const sellerTotals = sellers.map((_, index) =>
+      rows.reduce(
+        (total, row) => total + row.sellerCells[index].sales_total,
+        0,
+      ),
+    );
+    const sellerCommissions = sellers.map((_, index) =>
+      rows.reduce(
+        (total, row) => total + row.sellerCells[index].commission_amount,
+        0,
+      ),
+    );
+
+    const grandTotalSales = rows.reduce(
+      (total, row) => total + row.totalSales,
+      0,
+    );
+    const grandTotalCommission = sellerCommissions.reduce(
+      (total, value) => total + value,
+      0,
+    );
+
+    return {
+      rows,
+      sellerTotals,
+      sellerCommissions,
+      grandTotalSales,
+      grandTotalCommission,
+    };
+  }, [commissionsByMonth, sellers, year]);
+      </div>
+    const year = Number(range.date_from.slice(0, 4));
+
+          message="No se pudo cargar el reporte de ventas."
+          onRetry={() => void refetch()}
+        />
+      )}
+          message="No se pudo cargar el reporte por vendedor."
+
+    const sellers = useMemo(() => {
+      const ordered: string[] = [];
+      const seen = new Set<string>();
+
+        <div className="rounded-lg border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Ventas por vendedor</p>
+              <p className="text-xs text-muted-foreground">
+                Año calendario {year}. Ventas mensuales por vendedor, total por
+                columna y comisiones al final.
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto rounded-md border">
+            <Table className="min-w-max">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-36">Mes</TableHead>
+                  {sellers.map((seller) => (
+                    <TableHead key={seller} className="min-w-32 text-right">
+                      {seller}
+                    </TableHead>
+                  ))}
+                  <TableHead className="min-w-32 text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sellers.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={2}
+                      className="py-10 text-center text-muted-foreground"
+                    >
+                      Sin datos
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <>
+                    {matrix.rows.map((row) => (
+                      <TableRow key={row.label}>
+                        <TableCell className="font-medium">{row.label}</TableCell>
+                        {row.sellerCells.map((cell, index) => (
+                          <TableCell
+                            key={`${row.label}-${sellers[index]}`}
+                            className="text-right tabular-nums"
+                          >
+                            {fmtCurrency(cell.sales_total)}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {fmtCurrency(row.totalSales)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="border-t bg-muted/40">
+                      <TableCell className="font-semibold">Total</TableCell>
+                      {matrix.sellerTotals.map((total, index) => (
+                        <TableCell
+                          key={`total-${sellers[index]}`}
+                          className="text-right tabular-nums font-semibold"
+                        >
+                          {fmtCurrency(total)}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {fmtCurrency(matrix.grandTotalSales)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="bg-muted/20">
+                      <TableCell className="font-semibold">Comisiones</TableCell>
+                      {matrix.sellerCommissions.map((total, index) => (
+                        <TableCell
+                          key={`commission-${sellers[index]}`}
+                          className="text-right tabular-nums font-semibold"
+                        >
+                          {fmtCurrency(total)}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {fmtCurrency(matrix.grandTotalCommission)}
+                      </TableCell>
+                    </TableRow>
+                  </>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+                  <p
+                    className="truncate text-lg font-bold"
+                    title={topSeller?.seller_name}
+                  >
+                    {topSeller?.seller_name ?? "Sin datos"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {topSeller ? fmtCurrency(topSeller.sales_total) : "—"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Comparativa de ventas por vendedor
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Ranking por total vendido
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={comparisonData}
+                  margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="short_name"
+                    angle={-20}
+                    textAnchor="end"
+                    interval={0}
+                    height={58}
+                  />
+                  <YAxis
+                    width={96}
+                    tickFormatter={(value) => fmtCurrency(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      fmtCurrency(Number(value)),
+                      "Ventas",
+                    ]}
+                    labelFormatter={(value, payload) => {
+                      const item = payload?.[0]?.payload as
+                        | { seller_name?: string }
+                        | undefined;
+                      return item?.seller_name ?? String(value);
+                    }}
+                  />
+                  <Bar
+                    dataKey="sales_total"
+                    fill="#7b963f"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Ticket promedio y comisión
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Comparativa monetaria por vendedor
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={comparisonData}
+                  margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="short_name"
+                    angle={-20}
+                    textAnchor="end"
+                    interval={0}
+                    height={58}
+                  />
+                  <YAxis
+                    width={96}
+                    tickFormatter={(value) => fmtCurrency(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => [
+                      fmtCurrency(Number(value)),
+                      name === "avg_ticket" ? "Ticket promedio" : "Comisión",
+                    ]}
+                    labelFormatter={(value, payload) => {
+                      const item = payload?.[0]?.payload as
+                        | { seller_name?: string }
+                        | undefined;
+                      return item?.seller_name ?? String(value);
+                    }}
+                  />
+                  <Bar
+                    dataKey="avg_ticket"
+                    fill="#0ea5e9"
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="commission_amount"
+                    fill="#f59e0b"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">
+                Tabla comparativa de vendedores
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Mayor comisión:{" "}
+                {topCommissionSeller?.seller_name ?? "Sin datos"}
+              </p>
+            </div>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16 text-center">#</TableHead>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead className="text-right">Ventas</TableHead>
+                    <TableHead className="text-center">Docs.</TableHead>
+                    <TableHead className="text-right">Ticket prom.</TableHead>
+                    <TableHead className="text-center">Participación</TableHead>
+                    <TableHead className="text-right">Comisión</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {comparisonData.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center text-muted-foreground"
+                      >
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    comparisonData.map((row, index) => (
+                      <TableRow key={row.seller_name}>
+                        <TableCell className="text-center tabular-nums">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>{row.seller_name}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtCurrency(row.sales_total)}
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                          {formatQuantity(row.sales_count, "integer")}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtCurrency(row.avg_ticket)}
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                          {row.participation.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtCurrency(row.commission_amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+*/
+
 function VentasReport() {
   const [range, setRange] = useState<DateRange>(currentMonthRange());
   const { data, isLoading, isError, refetch } = useVentas(range);
@@ -2804,10 +3220,31 @@ function VentasReport() {
   );
 }
 
-function VendedoresDashboardReport() {
-  const [range, setRange] = useState<DateRange>(currentMonthRange());
-  const { data, isLoading, isError, refetch } = useVentas(range);
+function currentYearRange(): DateRange {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), 0, 1);
+  const to = new Date(now.getFullYear(), 11, 31);
+  return {
+    date_from: from.toISOString().slice(0, 10),
+    date_to: to.toISOString().slice(0, 10),
+  };
+}
 
+function monthName(monthIndex: number, year: number) {
+  const label = new Date(year, monthIndex, 1).toLocaleDateString("es-EC", {
+    month: "long",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function VendedoresDashboardReport() {
+  const annualRange = useMemo(() => currentYearRange(), []);
+  const [mode, setMode] = useState<"annual" | "dates">("annual");
+  const [range, setRange] = useState<DateRange>(currentMonthRange());
+  const activeRange = mode === "annual" ? annualRange : range;
+  const { data, isLoading, isError, refetch } = useVentas(activeRange);
+
+  const year = Number(annualRange.date_from.slice(0, 4));
   const salesBySeller = useMemo(
     () =>
       [...(data?.sales_by_seller ?? [])].sort(
@@ -2815,6 +3252,125 @@ function VendedoresDashboardReport() {
       ),
     [data?.sales_by_seller],
   );
+  const commissionsByMonth = data?.commissions_by_month ?? [];
+  const monthlySales = data?.monthly_sales ?? [];
+  const quarterlySummary = data?.quarterly_summary ?? [];
+
+  const monthlySalesChartData = useMemo(
+    () =>
+      monthlySales.map((row) => ({
+        ...row,
+        month_label: new Date(`${row.month}-01T00:00:00`).toLocaleDateString(
+          "es-EC",
+          { month: "short" },
+        ),
+        month_long: new Date(`${row.month}-01T00:00:00`).toLocaleDateString(
+          "es-EC",
+          {
+            month: "long",
+            year: "numeric",
+          },
+        ),
+      })),
+    [monthlySales],
+  );
+
+  const quarterlyRows = useMemo(
+    () =>
+      [...quarterlySummary].sort((a, b) => a.quarter.localeCompare(b.quarter)),
+    [quarterlySummary],
+  );
+
+  const formatQuarterLabel = (value: string) => {
+    const [yearValue, quarterValue] = value.split("-Q");
+    return `Q${quarterValue} ${yearValue}`;
+  };
+
+  const sellers = useMemo(() => {
+    const ordered: string[] = [];
+    const seen = new Set<string>();
+
+    for (const row of salesBySeller) {
+      if (!seen.has(row.seller_name)) {
+        seen.add(row.seller_name);
+        ordered.push(row.seller_name);
+      }
+    }
+
+    for (const row of commissionsByMonth) {
+      if (!seen.has(row.seller_name)) {
+        seen.add(row.seller_name);
+        ordered.push(row.seller_name);
+      }
+    }
+
+    return ordered;
+  }, [commissionsByMonth, salesBySeller]);
+
+  const matrix = useMemo(() => {
+    const cells = new Map<
+      string,
+      { sales_total: number; commission_amount: number }
+    >();
+
+    for (const row of commissionsByMonth) {
+      cells.set(`${row.month}|${row.seller_name}`, {
+        sales_total: row.sales_total,
+        commission_amount: row.commission_amount,
+      });
+    }
+
+    const rows = Array.from({ length: 12 }, (_, monthIndex) => {
+      const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+      const sellerCells = sellers.map(
+        (seller) =>
+          cells.get(`${month}|${seller}`) ?? {
+            sales_total: 0,
+            commission_amount: 0,
+          },
+      );
+      const totalSales = sellerCells.reduce(
+        (total, cell) => total + cell.sales_total,
+        0,
+      );
+
+      return {
+        label: monthName(monthIndex, year),
+        sellerCells,
+        totalSales,
+      };
+    });
+
+    const sellerTotals = sellers.map((_, index) =>
+      rows.reduce(
+        (total, row) => total + row.sellerCells[index].sales_total,
+        0,
+      ),
+    );
+    const sellerCommissions = sellers.map((_, index) =>
+      rows.reduce(
+        (total, row) => total + row.sellerCells[index].commission_amount,
+        0,
+      ),
+    );
+
+    const grandTotalSales = rows.reduce(
+      (total, row) => total + row.totalSales,
+      0,
+    );
+    const grandTotalCommission = sellerCommissions.reduce(
+      (total, value) => total + value,
+      0,
+    );
+
+    return {
+      rows,
+      sellerTotals,
+      sellerCommissions,
+      grandTotalSales,
+      grandTotalCommission,
+    };
+  }, [commissionsByMonth, sellers, year]);
 
   const totalSales = useMemo(
     () => salesBySeller.reduce((total, row) => total + row.sales_total, 0),
@@ -2852,250 +3408,478 @@ function VendedoresDashboardReport() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card p-3">
-        <DateRangeFilter onApply={setRange} defaultValues={range} />
-      </div>
-
+      <Tabs
+        value={mode}
+        onValueChange={(value) => setMode(value as "annual" | "dates")}
+      >
+        <TabsList className="grid w-full max-w-sm grid-cols-2">
+          <TabsTrigger value="annual">Anual</TabsTrigger>
+          <TabsTrigger value="dates">Por fechas</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {mode === "dates" && (
+        <div className="rounded-lg border bg-card p-3">
+          <DateRangeFilter onApply={setRange} defaultValues={range} />
+        </div>
+      )}
       {isLoading && <Skeleton className="h-48" />}
       {isError && (
         <ErrorState
           className="py-10"
-          message="No se pudo cargar el dashboard de vendedores."
+          message="No se pudo cargar el reporte por vendedor."
           onRetry={() => void refetch()}
         />
       )}
 
-      {data && (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Vendedores con ventas
-                </p>
-                <div className="mt-1 text-right">
-                  <p className="text-2xl font-bold">{sellerCount}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Periodo actual
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Venta promedio por vendedor
-                </p>
-                <div className="mt-1 text-right">
-                  <p className="text-2xl font-bold">
-                    {fmtCurrency(avgSalesPerSeller)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Sobre {formatQuantity(totalDocuments, "integer")} docs.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Ticket promedio global
-                </p>
-                <div className="mt-1 text-right">
-                  <p className="text-2xl font-bold">
-                    {fmtCurrency(avgTicketGlobal)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatQuantity(totalDocuments, "integer")} ventas
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Líder en ventas
-                </p>
-                <div className="mt-1 text-right">
-                  <p
-                    className="truncate text-lg font-bold"
-                    title={topSeller?.seller_name}
-                  >
-                    {topSeller?.seller_name ?? "Sin datos"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {topSeller ? fmtCurrency(topSeller.sales_total) : "—"}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
+      {data &&
+        (mode === "annual" ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-lg border bg-card p-4">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">
-                  Comparativa de ventas por vendedor
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Ranking por total vendido
-                </p>
-              </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={comparisonData}
-                  margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="short_name"
-                    angle={-20}
-                    textAnchor="end"
-                    interval={0}
-                    height={58}
-                  />
-                  <YAxis
-                    width={96}
-                    tickFormatter={(value) => fmtCurrency(Number(value))}
-                  />
-                  <Tooltip
-                    formatter={(value) => [
-                      fmtCurrency(Number(value)),
-                      "Ventas",
-                    ]}
-                    labelFormatter={(value, payload) => {
-                      const item = payload?.[0]?.payload as
-                        | { seller_name?: string }
-                        | undefined;
-                      return item?.seller_name ?? String(value);
-                    }}
-                  />
-                  <Bar
-                    dataKey="sales_total"
-                    fill="#7b963f"
-                    radius={[6, 6, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <Card className="xl:col-span-2">
+              <CardContent className="p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Ventas por vendedor</p>
+                    <p className="text-xs text-muted-foreground">
+                      Resumen anual compacto
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-md border">
+                  <Table className="w-full table-fixed text-[11px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-28">Mes</TableHead>
+                        {sellers.map((seller) => (
+                          <TableHead
+                            key={seller}
+                            className="truncate text-right"
+                            title={seller}
+                          >
+                            {seller}
+                          </TableHead>
+                        ))}
+                        <TableHead className="w-24 text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sellers.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={2}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            Sin datos
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <>
+                          {matrix.rows.map((row) => (
+                            <TableRow key={row.label}>
+                              <TableCell className="font-medium">
+                                {row.label}
+                              </TableCell>
+                              {row.sellerCells.map((cell, index) => (
+                                <TableCell
+                                  key={`${row.label}-${sellers[index]}`}
+                                  className="truncate text-right tabular-nums"
+                                  title={sellers[index]}
+                                >
+                                  {fmtCurrency(cell.sales_total)}
+                                </TableCell>
+                              ))}
+                              <TableCell className="text-right tabular-nums font-medium">
+                                {fmtCurrency(row.totalSales)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="border-t bg-muted/40">
+                            <TableCell className="font-semibold">
+                              Total
+                            </TableCell>
+                            {matrix.sellerTotals.map((total, index) => (
+                              <TableCell
+                                key={`total-${sellers[index]}`}
+                                className="text-right tabular-nums font-semibold"
+                              >
+                                {fmtCurrency(total)}
+                              </TableCell>
+                            ))}
+                            <TableCell className="text-right tabular-nums font-semibold">
+                              {fmtCurrency(matrix.grandTotalSales)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="bg-muted/20">
+                            <TableCell className="font-semibold">
+                              Comisiones
+                            </TableCell>
+                            {matrix.sellerCommissions.map((total, index) => (
+                              <TableCell
+                                key={`commission-${sellers[index]}`}
+                                className="text-right tabular-nums font-semibold"
+                              >
+                                {fmtCurrency(total)}
+                              </TableCell>
+                            ))}
+                            <TableCell className="text-right tabular-nums font-semibold">
+                              {fmtCurrency(matrix.grandTotalCommission)}
+                            </TableCell>
+                          </TableRow>
+                        </>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
 
-            <div className="rounded-lg border bg-card p-4">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">
-                  Ticket promedio y comisión
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Comparativa monetaria por vendedor
-                </p>
-              </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={comparisonData}
-                  margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="short_name"
-                    angle={-20}
-                    textAnchor="end"
-                    interval={0}
-                    height={58}
-                  />
-                  <YAxis
-                    width={96}
-                    tickFormatter={(value) => fmtCurrency(Number(value))}
-                  />
-                  <Tooltip
-                    formatter={(value, name) => [
-                      fmtCurrency(Number(value)),
-                      name === "avg_ticket" ? "Ticket promedio" : "Comisión",
-                    ]}
-                    labelFormatter={(value, payload) => {
-                      const item = payload?.[0]?.payload as
-                        | { seller_name?: string }
-                        | undefined;
-                      return item?.seller_name ?? String(value);
-                    }}
-                  />
-                  <Bar
-                    dataKey="avg_ticket"
-                    fill="#0ea5e9"
-                    radius={[6, 6, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="commission_amount"
-                    fill="#f59e0b"
-                    radius={[6, 6, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <Card>
+              <CardContent className="p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">
+                      Total de ventas por mes
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Año calendario {year}
+                    </p>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart
+                    data={monthlySalesChartData}
+                    margin={{ top: 8, right: 16, left: 24, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="month_label" interval={0} />
+                    <YAxis
+                      width={96}
+                      tickFormatter={(value) => fmtCurrency(Number(value))}
+                    />
+                    <Tooltip
+                      labelFormatter={(value, payload) => {
+                        const item = payload?.[0]?.payload as
+                          | { month_long?: string }
+                          | undefined;
+                        return item?.month_long ?? String(value);
+                      }}
+                      formatter={(value) => [
+                        fmtCurrency(Number(value)),
+                        "Ventas",
+                      ]}
+                    />
+                    <Bar
+                      dataKey="sales_total"
+                      fill="#7b963f"
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Resumen por quarter</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ventas, productos y producto líder
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-md border">
+                  <Table className="w-full table-fixed text-xs">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-20 align-middle">
+                          Quarter
+                        </TableHead>
+                        <TableHead className="text-right align-middle">
+                          Vendido
+                        </TableHead>
+                        <TableHead className="text-center align-middle">
+                          Productos
+                        </TableHead>
+                        <TableHead className="align-middle">
+                          Producto top
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {quarterlyRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={4}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            Sin datos
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        quarterlyRows.map((row) => (
+                          <TableRow key={row.quarter}>
+                            <TableCell className="font-medium align-middle">
+                              {formatQuarterLabel(row.quarter)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums align-middle">
+                              {fmtCurrency(row.sales_total)}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums align-middle">
+                              {formatQuantity(row.products_sold, "decimal")}
+                            </TableCell>
+                            <TableCell
+                              className="whitespace-normal break-words leading-tight align-middle"
+                              title={row.top_product_name}
+                            >
+                              {row.top_product_name} (
+                              {formatQuantity(
+                                row.top_product_quantity,
+                                "decimal",
+                              )}
+                              )
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-
-          <div className="rounded-lg border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">
-                Tabla comparativa de vendedores
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Mayor comisión:{" "}
-                {topCommissionSeller?.seller_name ?? "Sin datos"}
-              </p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Vendedores con ventas
+                  </p>
+                  <div className="mt-1 text-right">
+                    <p className="text-2xl font-bold">{sellerCount}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Periodo actual
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Venta promedio por vendedor
+                  </p>
+                  <div className="mt-1 text-right">
+                    <p className="text-2xl font-bold">
+                      {fmtCurrency(avgSalesPerSeller)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Sobre {formatQuantity(totalDocuments, "integer")} docs.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Ticket promedio global
+                  </p>
+                  <div className="mt-1 text-right">
+                    <p className="text-2xl font-bold">
+                      {fmtCurrency(avgTicketGlobal)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatQuantity(totalDocuments, "integer")} ventas
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Líder en ventas
+                  </p>
+                  <div className="mt-1 text-right">
+                    <p
+                      className="truncate text-lg font-bold"
+                      title={topSeller?.seller_name}
+                    >
+                      {topSeller?.seller_name ?? "Sin datos"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {topSeller ? fmtCurrency(topSeller.sales_total) : "—"}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16 text-center">#</TableHead>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead className="text-right">Ventas</TableHead>
-                    <TableHead className="text-center">Docs.</TableHead>
-                    <TableHead className="text-right">Ticket prom.</TableHead>
-                    <TableHead className="text-center">Participación</TableHead>
-                    <TableHead className="text-right">Comisión</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {comparisonData.length === 0 ? (
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="rounded-lg border bg-card p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">
+                    Comparativa de ventas por vendedor
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Ranking por total vendido
+                  </p>
+                </div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={comparisonData}
+                    margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="short_name"
+                      angle={-20}
+                      textAnchor="end"
+                      interval={0}
+                      height={58}
+                    />
+                    <YAxis
+                      width={96}
+                      tickFormatter={(value) => fmtCurrency(Number(value))}
+                    />
+                    <Tooltip
+                      formatter={(value) => [
+                        fmtCurrency(Number(value)),
+                        "Ventas",
+                      ]}
+                      labelFormatter={(value, payload) => {
+                        const item = payload?.[0]?.payload as
+                          | { seller_name?: string }
+                          | undefined;
+                        return item?.seller_name ?? String(value);
+                      }}
+                    />
+                    <Bar
+                      dataKey="sales_total"
+                      fill="#7b963f"
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">
+                    Ticket promedio y comisión
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Comparativa monetaria por vendedor
+                  </p>
+                </div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={comparisonData}
+                    margin={{ top: 8, right: 16, left: 24, bottom: 40 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="short_name"
+                      angle={-20}
+                      textAnchor="end"
+                      interval={0}
+                      height={58}
+                    />
+                    <YAxis
+                      width={96}
+                      tickFormatter={(value) => fmtCurrency(Number(value))}
+                    />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        fmtCurrency(Number(value)),
+                        name === "avg_ticket" ? "Ticket promedio" : "Comisión",
+                      ]}
+                      labelFormatter={(value, payload) => {
+                        const item = payload?.[0]?.payload as
+                          | { seller_name?: string }
+                          | undefined;
+                        return item?.seller_name ?? String(value);
+                      }}
+                    />
+                    <Bar
+                      dataKey="avg_ticket"
+                      fill="#0ea5e9"
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="commission_amount"
+                      fill="#f59e0b"
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">
+                  Tabla comparativa de vendedores
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Mayor comisión:{" "}
+                  {topCommissionSeller?.seller_name ?? "Sin datos"}
+                </p>
+              </div>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="text-center text-muted-foreground"
-                      >
-                        Sin datos
-                      </TableCell>
+                      <TableHead className="w-16 text-center">#</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead className="text-right">Ventas</TableHead>
+                      <TableHead className="text-center">Docs.</TableHead>
+                      <TableHead className="text-right">Ticket prom.</TableHead>
+                      <TableHead className="text-center">
+                        Participación
+                      </TableHead>
+                      <TableHead className="text-right">Comisión</TableHead>
                     </TableRow>
-                  ) : (
-                    comparisonData.map((row, index) => (
-                      <TableRow key={row.seller_name}>
-                        <TableCell className="text-center tabular-nums">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell>{row.seller_name}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtCurrency(row.sales_total)}
-                        </TableCell>
-                        <TableCell className="text-center tabular-nums">
-                          {formatQuantity(row.sales_count, "integer")}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtCurrency(row.avg_ticket)}
-                        </TableCell>
-                        <TableCell className="text-center tabular-nums">
-                          {row.participation.toFixed(1)}%
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtCurrency(row.commission_amount)}
+                  </TableHeader>
+                  <TableBody>
+                    {comparisonData.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="text-center text-muted-foreground"
+                        >
+                          Sin datos
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      comparisonData.map((row, index) => (
+                        <TableRow key={row.seller_name}>
+                          <TableCell className="text-center tabular-nums">
+                            {index + 1}
+                          </TableCell>
+                          <TableCell>{row.seller_name}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.sales_total)}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            {formatQuantity(row.sales_count, "integer")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.avg_ticket)}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            {row.participation.toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtCurrency(row.commission_amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        ))}
     </div>
   );
 }
