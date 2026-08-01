@@ -315,7 +315,8 @@ export function DocumentDetailModal({
   const canPrintSalesNote =
     doc.doc_type === "EG" &&
     doc.egreso_type === "sale" &&
-    doc.purchase_document_type === "sales_note";
+    doc.purchase_document_type === "sales_note" &&
+    doc.status === "approved";
   const egresoLineSummaries = doc.lines.map((l) => {
     const quantity = Number(l.quantity || 0);
     const finalTotal = quantity * Number(l.unit_price || 0);
