@@ -454,7 +454,7 @@ export default function KardexPage() {
                   {costSummary.valueText}
                 </p>
                 {costSummary.helperText ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-right text-xs text-muted-foreground">
                     {costSummary.helperText}
                   </p>
                 ) : null}
