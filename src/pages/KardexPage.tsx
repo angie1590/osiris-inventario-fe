@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useKardex } from "@/features/kardex/hooks";
-import { useProducts } from "@/features/catalog/hooks";
+import { useProduct, useProducts } from "@/features/catalog/hooks";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -33,6 +33,7 @@ import type {
   InventoryDocument,
   KardexEntry,
   KardexEntryType,
+  Product,
 } from "@/types/api";
 
 const ENTRY_TYPE_LABELS: Record<KardexEntryType, string> = {
@@ -95,6 +96,13 @@ function getEntryDisplayType(entry: KardexEntry): "IN" | "OUT" {
 function safeNumber(value: unknown, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function productOptionLabel(
+  product: Product,
+  quantityMode: "integer" | "decimal",
+) {
+  return `${product.name} | ${product.isbn || "—"} | ${formatQuantity(product.stock_actual, quantityMode)}`;
 }
 
 function buildPepsLayerSummary(
@@ -204,17 +212,28 @@ export default function KardexPage() {
   });
   const quantityMode = reportSettings?.stock_quantity_mode ?? "integer";
 
-  const { data: products } = useProducts({ status: "active" });
+  const { data: products } = useProducts({
+    status: "active",
+    stock_desc: true,
+  });
+  const { data: selectedProduct } = useProduct(selectedProductId);
+  const selectableProducts = useMemo(() => {
+    const list = [...(products ?? [])];
+    if (selectedProduct && !list.some((p) => p.id === selectedProduct.id)) {
+      list.push(selectedProduct);
+    }
+    return list.sort((a, b) => b.stock_actual - a.stock_actual || a.id - b.id);
+  }, [products, selectedProduct]);
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
-    if (!q) return products ?? [];
-    return (products ?? []).filter((p) => {
+    if (!q) return selectableProducts;
+    return selectableProducts.filter((p) => {
       const name = p.name.toLowerCase();
       const isbn = p.isbn.toLowerCase();
       const internalCode = (p.codigo_interno ?? "").toLowerCase();
       return name.includes(q) || isbn.includes(q) || internalCode.includes(q);
     });
-  }, [products, productQuery]);
+  }, [selectableProducts, productQuery]);
   const {
     data: kardex,
     isLoading,
@@ -300,8 +319,9 @@ export default function KardexPage() {
               >
                 <span className="truncate">
                   {selectedProductId
-                    ? (products ?? []).find((p) => p.id === selectedProductId)
-                        ?.name
+                    ? selectedProduct
+                      ? productOptionLabel(selectedProduct, quantityMode)
+                      : "Cargando producto..."
                     : "Seleccionar producto"}
                 </span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -348,7 +368,7 @@ export default function KardexPage() {
                         }}
                       >
                         <span className="flex-1 truncate text-left">
-                          {p.name}
+                          {productOptionLabel(p, quantityMode)}
                         </span>
                         {selectedProductId === p.id && (
                           <Check className="h-3.5 w-3.5 text-primary" />
