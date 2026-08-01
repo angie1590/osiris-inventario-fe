@@ -51,6 +51,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { TablePagination } from "@/components/shared/TablePagination";
 import {
   DateRangeFilter,
   type DateRange,
@@ -1264,38 +1265,14 @@ function StockReport({
             </TableBody>
           </Table>
           {(totalRows > 0 || stockValorizadoSummary) && (
-            <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-3 py-2 text-sm whitespace-nowrap">
-              <span className="text-muted-foreground">
-                Mostrando {totalRows === 0 ? 0 : start + 1}-
-                {Math.min(end, totalRows)} de {totalRows}
-              </span>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1 || totalRows === 0}
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                >
-                  Anterior
-                </Button>
-                <span className="min-w-16 text-center text-muted-foreground">
-                  {totalRows === 0 ? 0 : currentPage}/
-                  {totalRows === 0 ? 0 : totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages || totalRows === 0}
-                  onClick={() =>
-                    setPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
+            <TablePagination
+              page={currentPage}
+              pageSize={TABLE_PAGE_SIZE}
+              total={totalRows}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              className="border-t bg-muted/20 px-3 py-2"
+            />
           )}
         </div>
       )}
@@ -1520,36 +1497,13 @@ function StockValorizadoReport({
           </TableBody>
         </Table>
         {totalRows > 0 && (
-          <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
-            <span className="text-muted-foreground">
-              Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              >
-                Anterior
-              </Button>
-              <span className="min-w-16 text-center text-muted-foreground">
-                {currentPage}/{totalPages}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() =>
-                  setPage((prev) => Math.min(totalPages, prev + 1))
-                }
-              >
-                Siguiente
-              </Button>
-            </div>
-          </div>
+          <TablePagination
+            page={currentPage}
+            pageSize={TABLE_PAGE_SIZE}
+            total={totalRows}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
         )}
       </div>
     </div>
@@ -1768,36 +1722,13 @@ function KardexReport({
             </TableBody>
           </Table>
           {totalRows > 0 && (
-            <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
-              <span className="text-muted-foreground">
-                Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                >
-                  Anterior
-                </Button>
-                <span className="min-w-16 text-center text-muted-foreground">
-                  {currentPage}/{totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() =>
-                    setPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
+            <TablePagination
+              page={currentPage}
+              pageSize={TABLE_PAGE_SIZE}
+              total={totalRows}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
           )}
         </div>
       )}
@@ -2081,36 +2012,13 @@ function MovimientosPorUsuarioReport({}: {}) {
             </TableBody>
           </Table>
           {totalRows > 0 && (
-            <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
-              <span className="text-muted-foreground">
-                Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                >
-                  Anterior
-                </Button>
-                <span className="min-w-16 text-center text-muted-foreground">
-                  {currentPage}/{totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() =>
-                    setPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
+            <TablePagination
+              page={currentPage}
+              pageSize={USER_REPORT_PAGE_SIZE}
+              total={totalRows}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
           )}
         </div>
       )}
@@ -2140,8 +2048,16 @@ function MovimientosPorUsuarioReport({}: {}) {
 // ─── Consolidado ──────────────────────────────────────────────────────────────
 function ConsolidadoReport() {
   const [range, setRange] = useState<DateRange>(currentMonthRange());
-  const { data, isLoading, isError, refetch } = useConsolidado(range);
+  const { data, isLoading, isError, error, refetch } = useConsolidado(range);
   const { toast } = useToast();
+  const errorMessage = getApiErrorMessage(
+    error,
+    "No se pudo cargar el reporte consolidado.",
+    {
+      COMPANY_NOT_CONFIGURED:
+        "Configura los datos de la empresa antes de generar reportes.",
+    },
+  );
 
   const visibleMovements = useMemo(
     () => ({ IN: data?.movements?.IN ?? 0, EG: data?.movements?.EG ?? 0 }),
@@ -2344,7 +2260,7 @@ function ConsolidadoReport() {
       {isError && (
         <ErrorState
           className="py-10"
-          message="No se pudo cargar el reporte consolidado."
+          message={errorMessage}
           onRetry={() => void refetch()}
         />
       )}

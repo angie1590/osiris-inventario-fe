@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useAuditUsers } from "@/features/audit/hooks";
-import { useIngresos } from "@/features/inventory/hooks";
+import { useIngresosPage } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
@@ -71,10 +71,10 @@ export default function IngresosPage() {
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
   const [movementType, setMovementType] = useState<string>("");
-  const [cursor, setCursor] = useState<number | undefined>();
+  const [page, setPage] = useState(1);
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
   const { data: users } = useAuditUsers();
-  const resetPage = () => setCursor(undefined);
+  const resetPage = () => setPage(1);
   const hasActiveFilters =
     dateFrom !== defaultRange.date_from ||
     dateTo !== defaultRange.date_to ||
@@ -83,19 +83,14 @@ export default function IngresosPage() {
     setDateFrom(defaultRange.date_from);
     setDateTo(defaultRange.date_to);
     setMovementType("");
-    setCursor(undefined);
+    setPage(1);
   };
 
-  const {
-    data: docs,
-    isLoading,
-    isError,
-    refetch,
-  } = useIngresos({
+  const { data, isLoading, isError, refetch } = useIngresosPage({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     type: movementType || undefined,
-    cursor,
+    page,
   });
 
   const userLabels = new Map(
@@ -267,7 +262,7 @@ export default function IngresosPage() {
 
       <DataTable
         columns={columns}
-        data={docs ?? []}
+        data={data?.items ?? []}
         rowKey={(d) => d.id}
         isLoading={isLoading}
         isError={isError}
@@ -275,26 +270,15 @@ export default function IngresosPage() {
         defaultSort={{ key: "created_at", dir: "desc" }}
         emptyHeading="Sin ingresos"
         emptyDescription="No se encontraron ingresos en el período seleccionado"
+        pagination={{
+          page,
+          pageSize: 10,
+          total: data?.total ?? 0,
+          totalPages: data?.total_pages ?? 0,
+          onPageChange: setPage,
+          itemLabel: "ingresos",
+        }}
       />
-
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!cursor}
-          onClick={() => setCursor(undefined)}
-        >
-          Primera página
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!docs || docs.length < 50}
-          onClick={() => setCursor(docs?.[docs.length - 1]?.id)}
-        >
-          Siguiente →
-        </Button>
-      </div>
 
       {viewDoc && (
         <DocumentDetailModal

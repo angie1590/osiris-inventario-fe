@@ -21,7 +21,7 @@ import {
   currentMonthRange,
 } from "@/features/reports/DateRangeFilter";
 import {
-  useAuditLogs,
+  useAuditLogsPage,
   useAuditUsers,
   type AuditFilters,
 } from "@/features/audit/hooks";
@@ -389,7 +389,7 @@ export default function AuditPage() {
   const [entityTypeOpen, setEntityTypeOpen] = useState(false);
   const [entityTypeQuery, setEntityTypeQuery] = useState("");
   const [entityType, setEntityType] = useState("");
-  const [cursor, setCursor] = useState<number | undefined>();
+  const [page, setPage] = useState(1);
   const [viewLog, setViewLog] = useState<AuditLog | undefined>();
   const { data: users, isLoading: usersLoading } = useAuditUsers(
     userQuery || undefined,
@@ -412,7 +412,7 @@ export default function AuditPage() {
     user_id: userId,
     action,
     entity_type: entityType || undefined,
-    cursor,
+    page,
   };
 
   const selectedEntityTypeLabel = entityType
@@ -428,7 +428,7 @@ export default function AuditPage() {
     );
   });
 
-  const { data: logs, isLoading, isError, refetch } = useAuditLogs(filters);
+  const { data, isLoading, isError, refetch } = useAuditLogsPage(filters);
 
   const columns: Column<AuditLog>[] = [
     {
@@ -560,7 +560,7 @@ export default function AuditPage() {
         <DateRangeFilter
           onApply={(r) => {
             setRange(r);
-            setCursor(undefined);
+            setPage(1);
           }}
           defaultValues={range}
         />
@@ -568,9 +568,10 @@ export default function AuditPage() {
           <Label className="text-xs">Acción</Label>
           <Select
             value={action ?? "__all__"}
-            onValueChange={(v) =>
-              setAction(v === "__all__" ? undefined : (v as AuditAction))
-            }
+            onValueChange={(v) => {
+              setAction(v === "__all__" ? undefined : (v as AuditAction));
+              setPage(1);
+            }}
           >
             <SelectTrigger className="h-8 w-40">
               <SelectValue />
@@ -634,6 +635,7 @@ export default function AuditPage() {
                       setUserId(undefined);
                       setSelectedUserLabel("Todos los usuarios");
                       setUserOpen(false);
+                      setPage(1);
                     }}
                   >
                     <span className="flex-1 truncate text-left">
@@ -665,6 +667,7 @@ export default function AuditPage() {
                             setUserId(u.id);
                             setSelectedUserLabel(label);
                             setUserOpen(false);
+                            setPage(1);
                           }}
                         >
                           <span className="flex-1 truncate text-left">
@@ -733,6 +736,7 @@ export default function AuditPage() {
                     onClick={() => {
                       setEntityType("");
                       setEntityTypeOpen(false);
+                      setPage(1);
                     }}
                   >
                     <span className="flex-1 truncate text-left">
@@ -760,6 +764,7 @@ export default function AuditPage() {
                         onClick={() => {
                           setEntityType(option.value);
                           setEntityTypeOpen(false);
+                          setPage(1);
                         }}
                       >
                         <span className="flex-1 truncate text-left">
@@ -780,7 +785,7 @@ export default function AuditPage() {
 
       <DataTable
         columns={columns}
-        data={logs ?? []}
+        data={data?.items ?? []}
         rowKey={(l) => l.id}
         isLoading={isLoading}
         isError={isError}
@@ -788,26 +793,15 @@ export default function AuditPage() {
         defaultSort={{ key: "timestamp", dir: "desc" }}
         emptyHeading="Sin resultados"
         emptyDescription="Ajusta los filtros para encontrar registros de auditoría."
+        pagination={{
+          page,
+          pageSize: 10,
+          total: data?.total ?? 0,
+          totalPages: data?.total_pages ?? 0,
+          onPageChange: setPage,
+          itemLabel: "registros",
+        }}
       />
-
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!cursor}
-          onClick={() => setCursor(undefined)}
-        >
-          Primera página
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!logs || logs.length < 50}
-          onClick={() => setCursor(logs?.[logs.length - 1]?.id)}
-        >
-          Siguiente →
-        </Button>
-      </div>
 
       {viewLog && (
         <DetailModal

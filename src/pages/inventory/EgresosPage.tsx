@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { SearchInput } from "@/components/shared/SearchInput";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
 import { useAuditUsers } from "@/features/audit/hooks";
 import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
-import { useEgresos } from "@/features/inventory/hooks";
+import { useEgresosPage } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
@@ -73,10 +73,10 @@ export default function EgresosPage() {
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
   const [movementType, setMovementType] = useState<string>("");
   const [purchaseDocumentNumber, setPurchaseDocumentNumber] = useState("");
-  const [cursor, setCursor] = useState<number | undefined>();
+  const [page, setPage] = useState(1);
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
   const { data: users } = useAuditUsers();
-  const resetPage = () => setCursor(undefined);
+  const resetPage = () => setPage(1);
   const hasActiveFilters =
     dateFrom !== defaultRange.date_from ||
     dateTo !== defaultRange.date_to ||
@@ -87,32 +87,15 @@ export default function EgresosPage() {
     setDateTo(defaultRange.date_to);
     setMovementType("");
     setPurchaseDocumentNumber("");
-    setCursor(undefined);
+    setPage(1);
   };
-  const {
-    data: docs,
-    isLoading,
-    isError,
-    refetch,
-  } = useEgresos({
+  const { data, isLoading, isError, refetch } = useEgresosPage({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     type: movementType || undefined,
-    cursor,
+    purchase_document_number: purchaseDocumentNumber || undefined,
+    page,
   });
-  const normalizedDocumentFilter = purchaseDocumentNumber
-    .trim()
-    .toLocaleLowerCase();
-  const filteredDocs = useMemo(() => {
-    const items = docs ?? [];
-    if (!normalizedDocumentFilter) return items;
-    return items.filter((doc) =>
-      (doc.purchase_document_number ?? "")
-        .toLocaleLowerCase()
-        .includes(normalizedDocumentFilter),
-    );
-  }, [docs, normalizedDocumentFilter]);
-
   const userLabels = new Map(
     (users ?? []).map((item) => [item.id, item.username]),
   );
@@ -299,32 +282,22 @@ export default function EgresosPage() {
       </FilterBar>
       <DataTable
         columns={columns}
-        data={filteredDocs}
+        data={data?.items ?? []}
         rowKey={(d) => d.id}
         isLoading={isLoading}
         isError={isError}
         onRetry={refetch}
         defaultSort={{ key: "created_at", dir: "desc" }}
         emptyHeading="Sin egresos"
+        pagination={{
+          page,
+          pageSize: 10,
+          total: data?.total ?? 0,
+          totalPages: data?.total_pages ?? 0,
+          onPageChange: setPage,
+          itemLabel: "egresos",
+        }}
       />
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!cursor}
-          onClick={() => setCursor(undefined)}
-        >
-          Primera página
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!docs || docs.length < 50}
-          onClick={() => setCursor(docs?.[docs.length - 1]?.id)}
-        >
-          Siguiente →
-        </Button>
-      </div>
 
       {viewDoc && (
         <DocumentDetailModal

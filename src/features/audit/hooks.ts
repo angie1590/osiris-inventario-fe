@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { AuditLog, AuditAction } from "@/types/api";
+import type { AuditLog, AuditAction, PageResponse } from "@/types/api";
 
 export interface AuditUserOption {
   id: number;
@@ -16,6 +16,8 @@ export interface AuditFilters {
   entity_type?: string;
   entity_id?: string;
   cursor?: number;
+  page?: number;
+  page_size?: number;
 }
 
 export function useAuditLogs(filters: AuditFilters) {
@@ -27,6 +29,27 @@ export function useAuditLogs(filters: AuditFilters) {
         (k) => params[k] === undefined && delete params[k],
       );
       const res = await api.get<AuditLog[]>("/audit", { params });
+      return res.data;
+    },
+    enabled: !!(filters.date_from && filters.date_to),
+  });
+}
+
+export function useAuditLogsPage(filters: AuditFilters) {
+  return useQuery({
+    queryKey: ["audit", "page", filters],
+    queryFn: async () => {
+      const params: Record<string, unknown> = {
+        ...filters,
+        page: filters.page ?? 1,
+        page_size: filters.page_size ?? 10,
+      };
+      Object.keys(params).forEach(
+        (key) => params[key] === undefined && delete params[key],
+      );
+      const res = await api.get<PageResponse<AuditLog>>("/audit/page", {
+        params,
+      });
       return res.data;
     },
     enabled: !!(filters.date_from && filters.date_to),

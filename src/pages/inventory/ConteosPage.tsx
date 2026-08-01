@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { useConteos } from "@/features/inventory/hooks";
+import { useConteosPage } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CountStatus, InventoryCount } from "@/types/api";
@@ -35,12 +35,12 @@ export default function ConteosPage() {
   const defaultRange = currentMonthRange();
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
-  const [cursor, setCursor] = useState<number | undefined>();
+  const [page, setPage] = useState(1);
 
-  const { data, isLoading, isError, refetch } = useConteos({
+  const { data, isLoading, isError, refetch } = useConteosPage({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
-    cursor,
+    page,
   });
 
   const columns: Column<InventoryCount>[] = [
@@ -124,7 +124,10 @@ export default function ConteosPage() {
             type="date"
             className="h-8 w-40"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -133,38 +136,31 @@ export default function ConteosPage() {
             type="date"
             className="h-8 w-40"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
       </FilterBar>
       <DataTable
         columns={columns}
-        data={data ?? []}
+        data={data?.items ?? []}
         rowKey={(row) => row.id}
         isLoading={isLoading}
         isError={isError}
         onRetry={refetch}
         defaultSort={{ key: "created_at", dir: "desc" }}
         emptyHeading="Sin conteos"
+        pagination={{
+          page,
+          pageSize: 10,
+          total: data?.total ?? 0,
+          totalPages: data?.total_pages ?? 0,
+          onPageChange: setPage,
+          itemLabel: "conteos",
+        }}
       />
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!cursor}
-          onClick={() => setCursor(undefined)}
-        >
-          Primera página
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data || data.length < 50}
-          onClick={() => setCursor(data?.[data.length - 1]?.id)}
-        >
-          Siguiente →
-        </Button>
-      </div>
     </div>
   );
 }

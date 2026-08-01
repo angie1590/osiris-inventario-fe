@@ -9,7 +9,7 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { DocumentDetailModal } from "@/features/inventory/DocumentDetailModal";
-import { useBajas } from "@/features/inventory/hooks";
+import { useBajasPage } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { DocumentStatus, InventoryDocument } from "@/types/api";
@@ -37,17 +37,12 @@ export default function BajasPage() {
   const defaultRange = currentMonthRange();
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);
   const [dateTo, setDateTo] = useState(defaultRange.date_to);
-  const [cursor, setCursor] = useState<number | undefined>();
+  const [page, setPage] = useState(1);
   const [viewDoc, setViewDoc] = useState<InventoryDocument | undefined>();
-  const {
-    data: docs,
-    isLoading,
-    isError,
-    refetch,
-  } = useBajas({
+  const { data, isLoading, isError, refetch } = useBajasPage({
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
-    cursor,
+    page,
   });
 
   const columns: Column<InventoryDocument>[] = [
@@ -136,7 +131,10 @@ export default function BajasPage() {
             type="date"
             className="h-8 w-40"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -145,38 +143,31 @@ export default function BajasPage() {
             type="date"
             className="h-8 w-40"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
       </FilterBar>
       <DataTable
         columns={columns}
-        data={docs ?? []}
+        data={data?.items ?? []}
         rowKey={(d) => d.id}
         isLoading={isLoading}
         isError={isError}
         onRetry={refetch}
         defaultSort={{ key: "created_at", dir: "desc" }}
         emptyHeading="Sin bajas de inventario"
+        pagination={{
+          page,
+          pageSize: 10,
+          total: data?.total ?? 0,
+          totalPages: data?.total_pages ?? 0,
+          onPageChange: setPage,
+          itemLabel: "bajas",
+        }}
       />
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!cursor}
-          onClick={() => setCursor(undefined)}
-        >
-          Primera página
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!docs || docs.length < 50}
-          onClick={() => setCursor(docs?.[docs.length - 1]?.id)}
-        >
-          Siguiente →
-        </Button>
-      </div>
 
       {viewDoc && (
         <DocumentDetailModal

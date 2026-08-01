@@ -8,10 +8,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
+import { TablePagination } from "./TablePagination";
 import { cn } from "@/lib/utils";
 
 export type SortDir = "asc" | "desc";
@@ -53,7 +53,16 @@ interface DataTableProps<T> {
   sort?: SortState | null;
   onSortChange?: (sort: SortState | null) => void;
   pageSize?: number;
-  pagination?: boolean;
+  pagination?:
+    | boolean
+    | {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+        onPageChange: (page: number) => void;
+        itemLabel?: string;
+      };
 }
 
 const SKELETON_ROWS = 5;
@@ -155,16 +164,29 @@ export function DataTable<T>({
   }, [data, columns, effectiveSort, isControlled]);
 
   const totalRows = sortedData.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const serverPagination = typeof pagination === "object" ? pagination : null;
+  const totalPages =
+    serverPagination?.totalPages ??
+    Math.max(1, Math.ceil(totalRows / pageSize));
 
   React.useEffect(() => {
     setPage(1);
   }, [totalRows, effectiveSort?.key, effectiveSort?.dir, pageSize]);
 
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const end = start + pageSize;
-  const pagedData = pagination ? sortedData.slice(start, end) : sortedData;
+  const currentPage = serverPagination?.page ?? Math.min(page, totalPages);
+  const effectivePageSize = serverPagination?.pageSize ?? pageSize;
+  const effectiveTotalRows = serverPagination?.total ?? totalRows;
+  const start = (currentPage - 1) * effectivePageSize;
+  const end = start + effectivePageSize;
+  const pagedData = serverPagination
+    ? sortedData
+    : pagination
+      ? sortedData.slice(start, end)
+      : sortedData;
+  const setCurrentPage = (nextPage: number) => {
+    if (serverPagination) serverPagination.onPageChange(nextPage);
+    else setPage(nextPage);
+  };
 
   return (
     <div className={cn("rounded-md border", className)}>
@@ -253,34 +275,14 @@ export function DataTable<T>({
         </TableBody>
       </Table>
       {pagination && !isLoading && !isError && sortedData.length > 0 && (
-        <div className="flex items-center justify-between border-t px-3 py-2 text-sm">
-          <span className="text-muted-foreground">
-            Mostrando {start + 1}-{Math.min(end, totalRows)} de {totalRows}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-            >
-              Anterior
-            </Button>
-            <span className="min-w-16 text-center text-muted-foreground">
-              {currentPage}/{totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
+        <TablePagination
+          page={currentPage}
+          pageSize={effectivePageSize}
+          total={effectiveTotalRows}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          itemLabel={serverPagination?.itemLabel}
+        />
       )}
     </div>
   );

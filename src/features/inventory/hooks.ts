@@ -21,6 +21,7 @@ import type {
   SaleExchangeResponse,
   UpdateInventoryCountPayload,
   ApplyInventoryCountPayload,
+  PageResponse,
 } from "@/types/api";
 
 export interface DocumentFilters {
@@ -35,6 +36,11 @@ export interface DocumentFilters {
 
 interface QueryOptions {
   enabled?: boolean;
+}
+
+export interface PageFilters extends Omit<DocumentFilters, "cursor"> {
+  page: number;
+  page_size?: number;
 }
 
 const DOC_ENDPOINTS: Record<DocumentType, string> = {
@@ -76,6 +82,53 @@ async function fetchDocuments(
     { params },
   );
   return res.data;
+}
+
+async function fetchDocumentPage(
+  docType: DocumentType,
+  filters: PageFilters,
+): Promise<PageResponse<InventoryDocument>> {
+  const params: Record<string, unknown> = {
+    ...filters,
+    page_size: filters.page_size ?? 10,
+  };
+  Object.keys(params).forEach(
+    (key) => params[key] === undefined && delete params[key],
+  );
+  const res = await api.get<PageResponse<InventoryDocument>>(
+    `/inventory/${DOC_ENDPOINTS[docType]}/page`,
+    { params },
+  );
+  return res.data;
+}
+
+function useDocumentPage(docType: DocumentType, filters: PageFilters) {
+  return useQuery({
+    queryKey: ["inventory", docType, "page", filters],
+    queryFn: () => fetchDocumentPage(docType, filters),
+  });
+}
+
+export const useIngresosPage = (filters: PageFilters) =>
+  useDocumentPage("IN", filters);
+export const useEgresosPage = (filters: PageFilters) =>
+  useDocumentPage("EG", filters);
+export const useBajasPage = (filters: PageFilters) =>
+  useDocumentPage("BI", filters);
+export const useAjustesPage = (filters: PageFilters) =>
+  useDocumentPage("AI", filters);
+
+export function useConteosPage(filters: PageFilters) {
+  return useQuery({
+    queryKey: ["inventory", "counts", "page", filters],
+    queryFn: async () => {
+      const res = await api.get<PageResponse<InventoryCount>>(
+        "/inventory/conteos/page",
+        { params: { ...filters, page_size: filters.page_size ?? 10 } },
+      );
+      return res.data;
+    },
+  });
 }
 
 export function useIngresos(
