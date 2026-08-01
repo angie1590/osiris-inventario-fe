@@ -53,8 +53,10 @@ const PRODUCT_PAGE_SIZE = 10;
 function visiblePages(current: number, total: number) {
   if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
   const pages = new Set([1, total, current - 1, current, current + 1]);
-  const values = [...pages].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
-  return values.flatMap<(number | "ellipsis")>((page, index) =>
+  const values = [...pages]
+    .filter((page) => page >= 1 && page <= total)
+    .sort((a, b) => a - b);
+  return values.flatMap<number | "ellipsis">((page, index) =>
     index > 0 && page - values[index - 1] > 1 ? ["ellipsis", page] : [page],
   );
 }
@@ -128,7 +130,8 @@ export default function ProductsPage() {
   const products = productPage?.items ?? [];
   const totalProducts = productPage?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalProducts / PRODUCT_PAGE_SIZE));
-  const rangeStart = totalProducts === 0 ? 0 : (page - 1) * PRODUCT_PAGE_SIZE + 1;
+  const rangeStart =
+    totalProducts === 0 ? 0 : (page - 1) * PRODUCT_PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PRODUCT_PAGE_SIZE, totalProducts);
   const { data: categories } = useCategories();
   const toggleStatus = useToggleProductStatus();
@@ -453,12 +456,22 @@ export default function ProductsPage() {
           Mostrando {rangeStart} a {rangeEnd} de {totalProducts} productos
         </span>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage(page - 1)}
+          >
             Anterior
           </Button>
           {visiblePages(page, totalPages).map((item, index) =>
             item === "ellipsis" ? (
-              <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">…</span>
+              <span
+                key={`ellipsis-${index}`}
+                className="px-2 text-muted-foreground"
+              >
+                …
+              </span>
             ) : (
               <Button
                 key={item}
@@ -473,7 +486,12 @@ export default function ProductsPage() {
               </Button>
             ),
           )}
-          <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === totalPages}
+            onClick={() => setPage(page + 1)}
+          >
             Siguiente
           </Button>
         </div>
