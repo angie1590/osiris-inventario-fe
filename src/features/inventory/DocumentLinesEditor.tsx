@@ -554,7 +554,7 @@ export function DocumentLinesEditor({
                         unit_cost_locked: false,
                         unit_cost_hint: undefined,
                         ...(autoFillUnitPriceFromProduct
-                          ? { unit_price: String(p.pvp ?? "") }
+                          ? { unit_price: Number(p.pvp ?? 0).toFixed(2) }
                           : {}),
                       });
                       return true;
@@ -666,45 +666,57 @@ export function DocumentLinesEditor({
                 )}
                 {showUnitPrice && (
                   <TableCell className="align-top text-right">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className={cn(
-                        "h-8 w-28 text-right pl-1 pr-2",
-                        showDiscount || lockUnitPrice
-                          ? "bg-muted text-muted-foreground"
-                          : "",
-                      )}
-                      placeholder="0.00"
-                      value={
-                        showDiscount
-                          ? String(line.product_pvp ?? "")
-                          : (line.unit_price ?? "")
-                      }
-                      onChange={(e) => {
-                        if (showDiscount || lockUnitPrice) return;
-                        updateLine(i, { unit_price: e.target.value });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && e.shiftKey) {
+                    <div className="relative w-28">
+                      <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm text-muted-foreground">
+                        $
+                      </span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className={cn(
+                          "h-8 w-28 text-right pl-5 pr-2",
+                          showDiscount || lockUnitPrice
+                            ? "bg-muted text-muted-foreground"
+                            : "",
+                        )}
+                        placeholder="0.00"
+                        value={
+                          showDiscount
+                            ? Number(line.product_pvp ?? 0).toFixed(2)
+                            : (line.unit_price ?? "")
+                        }
+                        onChange={(e) => {
+                          if (showDiscount || lockUnitPrice) return;
+                          updateLine(i, { unit_price: e.target.value });
+                        }}
+                        onBlur={() => {
+                          if (showDiscount || lockUnitPrice || !line.unit_price)
+                            return;
+                          updateLine(i, {
+                            unit_price: Number(line.unit_price).toFixed(2),
+                          });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && e.shiftKey) {
+                            e.preventDefault();
+                            removeLine(i);
+                            return;
+                          }
+                          if (e.key !== "Enter") return;
                           e.preventDefault();
-                          removeLine(i);
-                          return;
+                          if (i === lines.length - 1 && line.product_id) {
+                            addLineAndFocus();
+                          }
+                        }}
+                        readOnly={showDiscount || lockUnitPrice || readOnly}
+                        title={
+                          showDiscount || lockUnitPrice
+                            ? "Precio unitario tomado del producto"
+                            : undefined
                         }
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        if (i === lines.length - 1 && line.product_id) {
-                          addLineAndFocus();
-                        }
-                      }}
-                      readOnly={showDiscount || lockUnitPrice || readOnly}
-                      title={
-                        showDiscount || lockUnitPrice
-                          ? "Precio unitario tomado del producto"
-                          : undefined
-                      }
-                    />
+                      />
+                    </div>
                   </TableCell>
                 )}
                 {showSubtotal && (
