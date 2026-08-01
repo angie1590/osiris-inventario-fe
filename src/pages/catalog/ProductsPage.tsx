@@ -48,6 +48,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/format";
 import type { Product, ProductStatus } from "@/types/api";
 
+const PRODUCT_PAGE_SIZE = 10;
+
 function fmtAttrValue(v: unknown): string {
   if (typeof v === "boolean") return v ? "Sí" : "No";
   if (v === null || v === undefined || v === "") return "—";
@@ -74,10 +76,13 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [status, setStatus] = useState<ProductStatus | undefined>("active");
   const [bajoStock, setBajoStock] = useState(false);
-  const [cursor, setCursor] = useState<number | undefined>();
+  const [cursorHistory, setCursorHistory] = useState<(number | undefined)[]>([
+    undefined,
+  ]);
+  const cursor = cursorHistory[cursorHistory.length - 1];
 
   // Any filter change must reset pagination so we never land on a stale page.
-  const resetPage = () => setCursor(undefined);
+  const resetPage = () => setCursorHistory([undefined]);
   const hasActiveFilters =
     name !== "" || categoryId !== null || status !== "active" || bajoStock;
   const clearFilters = () => {
@@ -85,7 +90,7 @@ export default function ProductsPage() {
     setCategoryId(null);
     setStatus("active");
     setBajoStock(false);
-    setCursor(undefined);
+    resetPage();
   };
   const [viewProduct, setViewProduct] = useState<Product | undefined>();
   const [toggleTarget, setToggleTarget] = useState<Product | undefined>();
@@ -112,7 +117,10 @@ export default function ProductsPage() {
     bajo_stock: bajoStock || undefined,
     stock_desc: true,
     cursor,
+    limit: PRODUCT_PAGE_SIZE + 1,
   });
+  const pageProducts = products?.slice(0, PRODUCT_PAGE_SIZE) ?? [];
+  const hasNextPage = (products?.length ?? 0) > PRODUCT_PAGE_SIZE;
   const { data: categories } = useCategories();
   const toggleStatus = useToggleProductStatus();
 
@@ -420,7 +428,7 @@ export default function ProductsPage() {
 
       <DataTable
         columns={columns}
-        data={products ?? []}
+        data={pageProducts}
         rowKey={(p) => p.id}
         isLoading={isLoading}
         isError={isError}
@@ -431,22 +439,30 @@ export default function ProductsPage() {
         emptyDescription="No se encontraron productos para los filtros seleccionados."
       />
 
-      <div className="flex gap-2">
+      <div className="flex items-center justify-end gap-2">
         <Button
           variant="outline"
           size="sm"
-          disabled={!cursor}
-          onClick={() => setCursor(undefined)}
+          disabled={cursorHistory.length === 1}
+          onClick={() => setCursorHistory((history) => history.slice(0, -1))}
         >
-          Primera página
+          Anterior
         </Button>
+        <span className="min-w-16 text-center text-sm text-muted-foreground">
+          Página {cursorHistory.length}
+        </span>
         <Button
           variant="outline"
           size="sm"
-          disabled={!products || products.length < 50}
-          onClick={() => setCursor(products?.[products.length - 1]?.id)}
+          disabled={!hasNextPage}
+          onClick={() =>
+            setCursorHistory((history) => [
+              ...history,
+              pageProducts[pageProducts.length - 1]?.id,
+            ])
+          }
         >
-          Siguiente →
+          Siguiente
         </Button>
       </div>
 
