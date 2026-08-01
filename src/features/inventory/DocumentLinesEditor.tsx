@@ -128,6 +128,7 @@ function ProductCombobox({
   const { data: products, isLoading } = useProducts({
     name: search || undefined,
     status: "active",
+    stock_desc: prioritizeInStock,
   });
 
   const updateMenuPosition = () => {
@@ -175,15 +176,14 @@ function ProductCombobox({
   const productItems = useMemo(() => {
     const list = [...(products ?? [])];
     list.sort((a, b) => {
-      if (prioritizeInStock && !search.trim()) {
-        const aHasStock = Number(a.stock_actual) > 0 ? 1 : 0;
-        const bHasStock = Number(b.stock_actual) > 0 ? 1 : 0;
-        if (aHasStock !== bHasStock) return bHasStock - aHasStock;
+      if (prioritizeInStock) {
+        const stockDifference = Number(b.stock_actual) - Number(a.stock_actual);
+        if (stockDifference !== 0) return stockDifference;
       }
       return a.name.localeCompare(b.name, "es-EC", { sensitivity: "base" });
     });
     return list;
-  }, [products, prioritizeInStock, search]);
+  }, [products, prioritizeInStock]);
 
   useEffect(() => {
     if (!open) return;
