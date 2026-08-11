@@ -5,6 +5,7 @@ import {
   Check,
   KeyRound,
   LogOut,
+  Menu,
   ShieldAlert,
   User,
   UserCog,
@@ -38,6 +39,8 @@ interface TopbarProps {
   fullName?: string;
   role?: string;
   hasApprovalCode?: boolean;
+  showMenuButton?: boolean;
+  onMenuToggle?: () => void;
   onRefreshUser: () => Promise<void>;
   onLogout: () => void | Promise<void>;
 }
@@ -47,6 +50,8 @@ export function Topbar({
   fullName,
   role,
   hasApprovalCode,
+  showMenuButton = false,
+  onMenuToggle,
   onRefreshUser,
   onLogout,
 }: TopbarProps) {
@@ -206,33 +211,46 @@ export function Topbar({
 
   return (
     <>
-      <header className="z-topbar sticky top-0 flex h-16 shrink-0 items-center justify-between border-b border-cyan-700/40 bg-[hsl(var(--topbar-bg))] px-5 text-[hsl(var(--topbar-fg))] shadow-token-sm">
-        <div className="flex items-center gap-3 text-sm">
+      <header className="z-topbar sticky top-0 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-cyan-700/40 bg-[hsl(var(--topbar-bg))] px-3 text-[hsl(var(--topbar-fg))] shadow-token-sm sm:px-5">
+        <div className="flex min-w-0 items-center gap-3 text-sm">
+          {showMenuButton && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMenuToggle}
+              title="Abrir menú"
+              className="text-cyan-50 hover:bg-cyan-800/60 hover:text-white lg:hidden"
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          )}
           <div className="rounded-lg bg-cyan-400/15 p-1.5">
             <Building2 className="h-4 w-4 text-cyan-200" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/80">
               OSIRIS Inventario
             </p>
-            <p className="font-semibold text-white">{currentSection}</p>
+            <p className="truncate font-semibold text-white">
+              {currentSection}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {canConfigurePin && !hasApprovalCode && (
-            <Badge className="border border-orange-300/70 bg-orange-100 text-orange-900">
+            <Badge className="hidden border border-orange-300/70 bg-orange-100 text-orange-900 sm:inline-flex">
               <ShieldAlert className="mr-1 h-3.5 w-3.5" /> PIN no definido
             </Badge>
           )}
           <button
             type="button"
-            className="flex items-center gap-3 rounded-lg px-2.5 py-1.5 text-left hover:bg-cyan-800/45"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-cyan-800/45 sm:gap-3 sm:px-2.5"
             onClick={() => setAccountOpen(true)}
             title="Abrir menú de cuenta"
           >
             <User className="h-4 w-4 text-cyan-100/90" />
-            <span className="text-sm font-medium text-white">
+            <span className="hidden text-sm font-medium text-white md:inline">
               {fullName || username}
             </span>
             <Badge

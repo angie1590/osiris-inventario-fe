@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ListChecks,
   Truck,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -144,10 +145,20 @@ const SECTION_LABELS: Record<Section, string> = {
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  mobile?: boolean;
+  mobileOpen?: boolean;
+  onNavigate?: () => void;
   style?: React.CSSProperties;
 }
 
-export function Sidebar({ collapsed, onToggle, style }: SidebarProps) {
+export function Sidebar({
+  collapsed,
+  onToggle,
+  mobile = false,
+  mobileOpen = false,
+  onNavigate,
+  style,
+}: SidebarProps) {
   const { user } = useAuth();
   const role = user?.role;
 
@@ -166,8 +177,13 @@ export function Sidebar({ collapsed, onToggle, style }: SidebarProps) {
     <aside
       style={style}
       className={cn(
-        "flex flex-col border-r border-cyan-900/30 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] shadow-token-md transition-all duration-200",
-        collapsed ? "w-16" : "w-64",
+        "flex min-h-0 shrink-0 flex-col border-r border-cyan-900/30 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] shadow-token-md transition-all duration-200",
+        mobile
+          ? "fixed inset-y-0 left-0 z-drawer w-64"
+          : collapsed
+            ? "w-16"
+            : "w-64",
+        mobile && (mobileOpen ? "translate-x-0" : "-translate-x-full"),
       )}
     >
       <div className="flex h-16 items-center justify-between border-b border-cyan-700/35 px-3">
@@ -184,9 +200,17 @@ export function Sidebar({ collapsed, onToggle, style }: SidebarProps) {
         <button
           onClick={onToggle}
           className="ml-auto rounded-md p-1 text-[hsl(var(--sidebar-muted))] hover:bg-cyan-800/60 hover:text-white"
-          aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
+          aria-label={
+            mobile
+              ? "Cerrar menú"
+              : collapsed
+                ? "Expandir sidebar"
+                : "Colapsar sidebar"
+          }
         >
-          {collapsed ? (
+          {mobile ? (
+            <X className="h-4 w-4" />
+          ) : collapsed ? (
             <ChevronRight className="h-4 w-4" />
           ) : (
             <ChevronLeft className="h-4 w-4" />
@@ -194,7 +218,7 @@ export function Sidebar({ collapsed, onToggle, style }: SidebarProps) {
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
         {sections.map((section) => {
           const sectionItems = visibleItems.filter(
             (item) => item.section === section,
@@ -214,19 +238,20 @@ export function Sidebar({ collapsed, onToggle, style }: SidebarProps) {
                     key={item.to}
                     to={item.to}
                     end={item.to === "/"}
+                    onClick={onNavigate}
                     className={({ isActive }) =>
                       cn(
                         "relative mx-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all",
                         isActive
                           ? "bg-[hsl(var(--sidebar-active))] text-[hsl(var(--sidebar-active-fg))] shadow-token-sm before:absolute before:inset-y-1 before:left-0 before:w-1 before:rounded-r before:bg-cyan-200"
                           : "text-[hsl(var(--sidebar-fg))] hover:bg-cyan-800/45 hover:text-white",
-                        collapsed && "justify-center px-2.5",
+                        !mobile && collapsed && "justify-center px-2.5",
                       )
                     }
-                    title={collapsed ? item.label : undefined}
+                    title={!mobile && collapsed ? item.label : undefined}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    {!collapsed && (
+                    {(mobile || !collapsed) && (
                       <span className="truncate font-medium">{item.label}</span>
                     )}
                   </NavLink>
