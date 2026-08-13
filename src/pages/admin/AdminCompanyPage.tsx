@@ -670,7 +670,7 @@ export default function AdminCompanyPage() {
                   (type) => (
                     <label
                       key={type}
-                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                      className="relative flex items-start gap-3 rounded-lg border p-3 text-sm"
                     >
                       <Checkbox
                         checked={
@@ -715,7 +715,7 @@ export default function AdminCompanyPage() {
                   (type) => (
                     <label
                       key={type}
-                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                      className="relative flex items-start gap-3 rounded-lg border p-3 text-sm"
                     >
                       <Checkbox
                         checked={
@@ -760,7 +760,7 @@ export default function AdminCompanyPage() {
                   (type) => (
                     <label
                       key={type}
-                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                      className="relative flex items-start gap-3 rounded-lg border p-3 text-sm"
                     >
                       <Checkbox
                         checked={
