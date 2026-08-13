@@ -11,8 +11,10 @@ import {
   type CountDraftLine,
 } from "@/features/inventory/CountLinesEditor";
 import { useCreateConteo } from "@/features/inventory/hooks";
+import { useFitsScreen } from "@/hooks/use-fits-screen";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 
 function normalizeLines(lines: CountDraftLine[]) {
   return lines.filter(
@@ -27,6 +29,7 @@ export default function ConteoNewPage() {
   const [description, setDescription] = useState("");
   const [lines, setLines] = useState<CountDraftLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const fitsScreen = useFitsScreen();
 
   const onSubmit = async () => {
     setFormError(null);
@@ -72,8 +75,9 @@ export default function ConteoNewPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className={cn("flex flex-col gap-4", fitsScreen && "h-full")}>
       <PageHeader
+        className="mb-0 shrink-0"
         title="Nuevo conteo"
         description="La fecha de registro y la secuencia se asignan automáticamente."
         actions={
@@ -83,21 +87,28 @@ export default function ConteoNewPage() {
         }
       />
       {formError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
       )}
-      <Section title="Cabecera">
+      <Section title="Cabecera" className="shrink-0">
         <Input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Descripción del conteo"
         />
       </Section>
-      <Section title="Productos">
-        <CountLinesEditor lines={lines} onChange={setLines} />
+      <Section
+        title="Productos"
+        className={cn(fitsScreen && "flex min-h-0 flex-1 flex-col")}
+      >
+        <CountLinesEditor
+          fillHeight={fitsScreen}
+          lines={lines}
+          onChange={setLines}
+        />
       </Section>
-      <div className="flex gap-2">
+      <div className="flex shrink-0 gap-2">
         <Button onClick={onSubmit} isLoading={create.isPending}>
           Guardar conteo
         </Button>

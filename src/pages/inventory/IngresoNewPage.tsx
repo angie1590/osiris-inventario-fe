@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,7 +53,9 @@ import {
   PURCHASE_DOCUMENT_TYPE_LABELS,
 } from "@/features/inventory/documentTypes";
 import { useCompanyConfig } from "@/features/admin/hooks";
+import { useFitsScreen } from "@/hooks/use-fits-screen";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { getApiErrorMessage } from "@/lib/api-error";
 import type {
   CreateIngresoPayload,
@@ -338,6 +340,9 @@ export default function IngresoNewPage() {
 
   const [lines, setLines] = useState<DocumentLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [headerOpen, setHeaderOpen] = useState(true);
+  const autoCollapsedRef = useRef(false);
+  const fitsScreen = useFitsScreen();
   const [attachment, setAttachment] = useState<File | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmRows, setConfirmRows] = useState<ConfirmRow[]>([]);
@@ -441,6 +446,28 @@ export default function IngresoNewPage() {
   const adjustmentPositivePreview = useAdjustmentIncrementCostPreview(
     isAdjustmentPositive ? lines.map((line) => line.product_id) : [],
   );
+
+  useEffect(() => {
+    if (lines.length === 0 || autoCollapsedRef.current) return;
+    autoCollapsedRef.current = true;
+    setHeaderOpen(false);
+  }, [lines.length]);
+
+  useEffect(() => {
+    if (formError) setHeaderOpen(true);
+  }, [formError]);
+
+  const supplierName = suppliers?.find(
+    (s) => String(s.id) === watch("supplier_id"),
+  )?.trade_name;
+  const headerSummary = [
+    INGRESO_TYPE_LABELS[ingresoType],
+    supplierName,
+    PURCHASE_DOCUMENT_TYPE_LABELS[purchaseDocumentType],
+    watch("purchase_document_number"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   useEffect(() => {
     if (allowedDocumentTypes.includes(purchaseDocumentType)) return;
@@ -737,8 +764,9 @@ export default function IngresoNewPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className={cn("flex flex-col gap-4", fitsScreen && "h-full")}>
       <PageHeader
+        className="mb-0 shrink-0"
         title="Nuevo Ingreso"
         actions={
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -747,15 +775,47 @@ export default function IngresoNewPage() {
         }
       />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={handleSubmit(onSubmit, () => setHeaderOpen(true))}
+        className={cn("flex flex-col gap-4", fitsScreen && "min-h-0 flex-1")}
+      >
         {formError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="shrink-0">
             <AlertDescription>{formError}</AlertDescription>
           </Alert>
         )}
 
-        <Section title="Cabecera del ingreso">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Section className="shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Cabecera del ingreso</h2>
+              {!headerOpen && (
+                <p className="truncate text-sm text-muted-foreground">
+                  {headerSummary}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setHeaderOpen((open) => !open)}
+            >
+              {headerOpen ? (
+                <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {headerOpen ? "Contraer" : "Editar"}
+            </Button>
+          </div>
+          <div
+            className={cn(
+              "grid gap-4 sm:grid-cols-2 lg:grid-cols-3",
+              !headerOpen && "hidden",
+            )}
+          >
             <div className="space-y-1.5">
               <FieldLabel label="Tipo de ingreso" required />
               <Select
@@ -901,8 +961,12 @@ export default function IngresoNewPage() {
           </div>
         </Section>
 
-        <Section title="Detalle de productos">
+        <Section
+          title="Detalle de productos"
+          className={cn(fitsScreen && "flex min-h-0 flex-1 flex-col")}
+        >
           <DocumentLinesEditor
+            fillHeight={fitsScreen}
             lines={lines}
             onChange={setLines}
             showUnitCost
@@ -912,7 +976,7 @@ export default function IngresoNewPage() {
           />
         </Section>
 
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button type="submit" isLoading={isSubmitting || create.isPending}>
             Guardar ingreso
           </Button>

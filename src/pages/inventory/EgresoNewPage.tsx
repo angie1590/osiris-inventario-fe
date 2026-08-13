@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -48,8 +48,10 @@ import {
 } from "@/features/inventory/documentTypes";
 import { useCreateEgreso } from "@/features/inventory/hooks";
 import { useCompanyConfig } from "@/features/admin/hooks";
+import { useFitsScreen } from "@/hooks/use-fits-screen";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import type {
   BajaReason,
@@ -252,6 +254,9 @@ export default function EgresoNewPage() {
   const { data: company } = useCompanyConfig();
   const [lines, setLines] = useState<DocumentLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [headerOpen, setHeaderOpen] = useState(true);
+  const autoCollapsedRef = useRef(false);
+  const fitsScreen = useFitsScreen();
   const [consumerFinal, setConsumerFinal] = useState(true);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
@@ -504,6 +509,31 @@ export default function EgresoNewPage() {
   const isPurchaseDocumentNumberRequired =
     egresoType === "sale" && purchaseDocumentType !== "none";
 
+  useEffect(() => {
+    if (lines.length === 0 || autoCollapsedRef.current) return;
+    autoCollapsedRef.current = true;
+    setHeaderOpen(false);
+  }, [lines.length]);
+
+  useEffect(() => {
+    if (formError) setHeaderOpen(true);
+  }, [formError]);
+
+  const headerSummary = [
+    EGRESO_TYPE_LABELS[egresoType],
+    egresoType === "sale" ? watch("seller_name") : null,
+    isBajaReasonRequired(egresoType) && watch("baja_reason")
+      ? BAJA_REASON_LABELS[watch("baja_reason") as BajaReason]
+      : null,
+    isAdjustmentReasonRequired(egresoType) && watch("adjustment_reason")
+      ? ADJUSTMENT_REASON_LABELS[watch("adjustment_reason") as AdjustmentReason]
+      : null,
+    PURCHASE_DOCUMENT_TYPE_LABELS[purchaseDocumentType],
+    watch("purchase_document_number"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const acceptCustomer = () => {
     if (!customer.name.trim() || !customer.ruc.trim()) {
       setCustomerError("Nombre y RUC son obligatorios");
@@ -694,8 +724,9 @@ export default function EgresoNewPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className={cn("flex flex-col gap-4", fitsScreen && "h-full")}>
       <PageHeader
+        className="mb-0 shrink-0"
         title="Nuevo Egreso"
         actions={
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -704,14 +735,49 @@ export default function EgresoNewPage() {
         }
       />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={handleSubmit(onSubmit, () => setHeaderOpen(true))}
+        className={cn(
+          "flex flex-col gap-4",
+          fitsScreen && "min-h-0 flex-1",
+        )}
+      >
         {formError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="shrink-0">
             <AlertDescription>{formError}</AlertDescription>
           </Alert>
         )}
-        <Section title="Cabecera">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Section className="shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Cabecera</h2>
+              {!headerOpen && (
+                <p className="truncate text-sm text-muted-foreground">
+                  {headerSummary}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setHeaderOpen((open) => !open)}
+            >
+              {headerOpen ? (
+                <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {headerOpen ? "Contraer" : "Editar"}
+            </Button>
+          </div>
+          <div
+            className={cn(
+              "grid gap-4 sm:grid-cols-2 lg:grid-cols-3",
+              !headerOpen && "hidden",
+            )}
+          >
             <div className="space-y-1.5">
               <FieldLabel label="Tipo de egreso" required />
               <Select
@@ -908,8 +974,12 @@ export default function EgresoNewPage() {
           </div>
         </Section>
 
-        <Section title="Ítems">
+        <Section
+          title="Ítems"
+          className={cn(fitsScreen && "flex min-h-0 flex-1 flex-col")}
+        >
           <DocumentLinesEditor
+            fillHeight={fitsScreen}
             lines={lines}
             onChange={setLines}
             defaultDiscountType="fixed"
@@ -933,7 +1003,7 @@ export default function EgresoNewPage() {
           />
         </Section>
 
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button type="submit" isLoading={isSubmitting}>
             Guardar egreso
           </Button>

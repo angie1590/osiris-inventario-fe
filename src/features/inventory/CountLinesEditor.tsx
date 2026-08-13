@@ -206,12 +206,22 @@ export function CountLinesEditor({
   lines,
   onChange,
   readOnly = false,
+  fillHeight = false,
 }: {
   lines: CountDraftLine[];
   onChange: (lines: CountDraftLine[]) => void;
   readOnly?: boolean;
+  fillHeight?: boolean;
 }) {
   const { integerMode } = useStockMode();
+  const scrollBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToLastLine = () => {
+    window.setTimeout(() => {
+      const box = scrollBoxRef.current;
+      if (box) box.scrollTop = box.scrollHeight;
+    }, 0);
+  };
 
   const focusProductSearchAt = (lineIndex: number) => {
     requestAnimationFrame(() => {
@@ -234,6 +244,7 @@ export function CountLinesEditor({
       afterIndex < 0 ||
       afterIndex >= lines.length
     ) {
+      scrollToLastLine();
       onChange([...lines, nextLine]);
       focusProductSearchAt(lines.length);
       return;
@@ -257,10 +268,20 @@ export function CountLinesEditor({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+    <div className={cn("space-y-2", fillHeight && "flex min-h-0 flex-1 flex-col")}>
+      <div
+        className={cn("rounded-md border", fillHeight && "flex min-h-0 flex-1")}
+      >
+        <Table
+          containerRef={scrollBoxRef}
+          containerClassName={cn(fillHeight && "min-h-0 flex-1 overflow-y-auto")}
+        >
+          <TableHeader
+            className={cn(
+              fillHeight &&
+                "[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[hsl(var(--table-head))]",
+            )}
+          >
             <TableRow>
               <TableHead className="w-[70%]">Producto</TableHead>
               <TableHead className="w-32 text-center">
@@ -338,7 +359,12 @@ export function CountLinesEditor({
         </Table>
       </div>
       {!readOnly && (
-        <Button type="button" variant="outline" onClick={() => addLine()}>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(fillHeight && "self-start")}
+          onClick={() => addLine()}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Agregar producto
         </Button>

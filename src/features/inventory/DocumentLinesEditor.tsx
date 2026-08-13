@@ -50,6 +50,7 @@ interface Props {
   readOnly?: boolean;
   readOnlyUnitCost?: boolean;
   maxLines?: number;
+  fillHeight?: boolean;
   unitPriceLabel?: string;
   subtotalLabel?: string;
   totalsAmountLabel?: string;
@@ -340,6 +341,7 @@ export function DocumentLinesEditor({
   readOnly = false,
   readOnlyUnitCost = false,
   maxLines,
+  fillHeight = false,
   unitPriceLabel = "Precio unit.",
   subtotalLabel = "Subtotal",
   totalsAmountLabel = "Total del ingreso",
@@ -358,10 +360,19 @@ export function DocumentLinesEditor({
     index: number;
   } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  const scrollBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToLastLine = () => {
+    window.setTimeout(() => {
+      const box = scrollBoxRef.current;
+      if (box) box.scrollTop = box.scrollHeight;
+    }, 0);
+  };
 
   const addLine = () => {
     if (maxLines !== undefined && lines.length >= maxLines) return;
     setLastDeletedLine(null);
+    scrollToLastLine();
     onChange([
       ...lines,
       {
@@ -480,10 +491,25 @@ export function DocumentLinesEditor({
   );
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+    <div
+      className={cn(
+        "space-y-2",
+        fillHeight && "flex min-h-0 flex-1 flex-col",
+      )}
+    >
+      <div
+        className={cn("rounded-md border", fillHeight && "flex min-h-0 flex-1")}
+      >
+        <Table
+          containerRef={scrollBoxRef}
+          containerClassName={cn(fillHeight && "min-h-0 flex-1 overflow-y-auto")}
+        >
+          <TableHeader
+            className={cn(
+              fillHeight &&
+                "[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[hsl(var(--table-head))]",
+            )}
+          >
             <TableRow>
               <TableHead className="w-[35%] text-center">Producto</TableHead>
               <TableHead className="w-24 text-center">Cantidad</TableHead>
@@ -994,6 +1020,7 @@ export function DocumentLinesEditor({
         type="button"
         variant="outline"
         size="sm"
+        className={cn(fillHeight && "self-start")}
         onClick={addLine}
         disabled={
           readOnly || (maxLines !== undefined && lines.length >= maxLines)
