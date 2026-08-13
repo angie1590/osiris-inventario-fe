@@ -64,7 +64,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex min-h-dvh bg-[hsl(var(--content-bg))]">
+    <div className="flex h-dvh overflow-hidden bg-[hsl(var(--content-bg))]">
       {mobile && mobileSidebarOpen && (
         <button
           type="button"
@@ -83,7 +83,7 @@ export default function AppLayout() {
         style={{ zIndex: "var(--z-drawer)" }}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
         <Topbar
           fullName={user?.full_name}
           username={user?.username}
@@ -168,7 +168,7 @@ export default function AppLayout() {
           </div>
         )}
 
-        <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-5 pt-4 sm:px-5 lg:overflow-visible">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-5 pt-4 sm:px-5">
           <div className="mx-auto w-full max-w-345">
             <Outlet />
           </div>
