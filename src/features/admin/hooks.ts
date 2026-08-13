@@ -129,6 +129,17 @@ export function useDeleteUser() {
   });
 }
 
+export function useResetUserPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await api.post<User>(`/admin/users/${id}/reset-password`);
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
+
 export function useSystemParams() {
   return useQuery({
     queryKey: ["system-params"],

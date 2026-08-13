@@ -30,7 +30,6 @@ const ROLES: UserRole[] = ["admin", "operator", "supervisor"];
 const createSchema = z.object({
   username: z.string().min(3, "Mínimo 3 caracteres"),
   full_name: z.string().min(1, "Requerido"),
-  password: z.string().min(8, "Mínimo 8 caracteres"),
   role: z.enum(["admin", "operator", "supervisor"]),
   is_active: z.boolean(),
 });
@@ -96,7 +95,6 @@ export function UserFormModal({ user, onClose }: Props) {
           data as {
             username: string;
             full_name: string;
-            password: string;
             role: UserRole;
             is_active?: boolean;
           },
@@ -105,7 +103,7 @@ export function UserFormModal({ user, onClose }: Props) {
         toast({
           variant: "success",
           title: "Creación exitosa",
-          description: `Usuario ${payload.username} creado.`,
+          description: `Usuario ${payload.username} creado con la clave usuario123. Deberá cambiarla al iniciar sesión.`,
         });
       }
       onClose();
@@ -154,13 +152,10 @@ export function UserFormModal({ user, onClose }: Props) {
               <Input {...register("full_name")} />
             </FormField>
             {!isEdit && (
-              <FormField
-                label="Contraseña"
-                required
-                error={errors.password?.message}
-              >
-                <Input type="password" {...register("password")} />
-              </FormField>
+              <p className="text-sm text-muted-foreground">
+                Se asignará la clave <strong>usuario123</strong>. El usuario
+                deberá cambiarla al iniciar sesión.
+              </p>
             )}
             <FormField label="Rol" required error={errors.role?.message}>
               <Controller

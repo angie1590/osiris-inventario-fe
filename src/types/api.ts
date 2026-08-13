@@ -136,7 +136,6 @@ export interface User {
 export interface CreateUserPayload {
   username: string;
   full_name: string;
-  password: string;
   role: UserRole;
   is_active?: boolean;
 }

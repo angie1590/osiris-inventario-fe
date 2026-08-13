@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,7 +15,11 @@ import { SearchInput } from "@/components/shared/SearchInput";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { DetailModal } from "@/components/shared/DetailModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { useUsers, useDeleteUser } from "@/features/admin/hooks";
+import {
+  useUsers,
+  useDeleteUser,
+  useResetUserPassword,
+} from "@/features/admin/hooks";
 import { UserFormModal } from "@/features/admin/UserFormModal";
 import { useToast } from "@/hooks/use-toast";
 import type { User, UserRole } from "@/types/api";
@@ -47,6 +51,7 @@ export default function AdminUsersPage() {
   const [editUser, setEditUser] = useState<User | undefined>();
   const [viewUser, setViewUser] = useState<User | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<User | undefined>();
+  const [resetTarget, setResetTarget] = useState<User | undefined>();
 
   const {
     data: users,
@@ -55,6 +60,25 @@ export default function AdminUsersPage() {
     refetch,
   } = useUsers(search || undefined, role);
   const deleteUser = useDeleteUser();
+  const resetPassword = useResetUserPassword();
+
+  const handleReset = async (u: User) => {
+    try {
+      await resetPassword.mutateAsync(u.id);
+      toast({
+        variant: "success",
+        title: "Clave restaurada",
+        description: `La clave de ${u.username} es usuario123. Deberá cambiarla al iniciar sesión.`,
+      });
+    } catch (err: unknown) {
+      toast({
+        variant: "destructive",
+        title: "Error al restaurar clave",
+        description: `No se pudo restaurar la clave de ${u.username}.`,
+      });
+      throw err;
+    }
+  };
 
   const handleDelete = async (u: User) => {
     try {
@@ -148,6 +172,16 @@ export default function AdminUsersPage() {
             aria-label="Editar usuario"
           >
             <Pencil className="h-4 w-4 text-primary" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setResetTarget(u)}
+            title="Restaurar clave"
+            aria-label="Restaurar clave"
+          >
+            <KeyRound className="h-4 w-4 text-primary" />
           </Button>
           <Button
             variant="ghost"
@@ -253,6 +287,23 @@ export default function AdminUsersPage() {
               ],
             },
           ]}
+        />
+      )}
+
+      {resetTarget && (
+        <ConfirmDialog
+          open
+          onClose={() => setResetTarget(undefined)}
+          title="Restaurar clave"
+          description={
+            <>
+              ¿Restaurar la clave de <strong>{resetTarget.username}</strong> a{" "}
+              <strong>usuario123</strong>? Se cerrarán sus sesiones y deberá
+              cambiarla al iniciar sesión.
+            </>
+          }
+          confirmLabel="Restaurar"
+          onConfirm={() => handleReset(resetTarget)}
         />
       )}
 
