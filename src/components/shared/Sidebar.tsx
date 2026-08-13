@@ -177,7 +177,7 @@ export function Sidebar({
     <aside
       style={style}
       className={cn(
-        "flex min-h-0 shrink-0 flex-col border-r border-cyan-900/30 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] shadow-token-md transition-all duration-200",
+        "flex shrink-0 self-start flex-col border-r border-cyan-900/30 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] shadow-token-md transition-all duration-200",
         mobile
           ? "fixed inset-y-0 left-0 z-drawer w-64"
           : collapsed
@@ -218,7 +218,9 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+      <nav
+        className={cn("flex-1 px-2 py-3", mobile && "min-h-0 overflow-y-auto")}
+      >
         {sections.map((section) => {
           const sectionItems = visibleItems.filter(
             (item) => item.section === section,
