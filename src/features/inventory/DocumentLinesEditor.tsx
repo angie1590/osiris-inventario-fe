@@ -399,6 +399,16 @@ export function DocumentLinesEditor({
     }, 0);
   };
 
+  const focusLineQuantity = (lineIndex: number) => {
+    window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        `[data-quantity-index="${lineIndex}"]`,
+      );
+      input?.focus();
+      input?.select?.();
+    }, 0);
+  };
+
   const addLineAndFocus = () => {
     const nextLineIndex = lines.length;
     addLine();
@@ -492,17 +502,16 @@ export function DocumentLinesEditor({
 
   return (
     <div
-      className={cn(
-        "space-y-2",
-        fillHeight && "flex min-h-0 flex-1 flex-col",
-      )}
+      className={cn("space-y-2", fillHeight && "flex min-h-0 flex-1 flex-col")}
     >
       <div
         className={cn("rounded-md border", fillHeight && "flex min-h-0 flex-1")}
       >
         <Table
           containerRef={scrollBoxRef}
-          containerClassName={cn(fillHeight && "min-h-0 flex-1 overflow-y-auto")}
+          containerClassName={cn(
+            fillHeight && "min-h-0 flex-1 overflow-y-auto",
+          )}
         >
           <TableHeader
             className={cn(
@@ -569,9 +578,34 @@ export function DocumentLinesEditor({
                       );
                       if (duplicateIndex >= 0) {
                         const confirmed = window.confirm(
-                          `El producto "${p.name}" ya fue agregado en otra línea. ¿Deseas agregarlo nuevamente?`,
+                          `El producto "${p.name}" ya está en la lista. Se aumentará su cantidad en 1.`,
                         );
                         if (!confirmed) return false;
+                        const current = Number(
+                          lines[duplicateIndex].quantity ?? 0,
+                        );
+                        const nextQuantity = Number.isFinite(current)
+                          ? current + 1
+                          : 1;
+                        clearUndo();
+                        onChange(
+                          lines
+                            .map((currentLine, currentIndex) =>
+                              currentIndex === duplicateIndex
+                                ? {
+                                    ...currentLine,
+                                    quantity: String(nextQuantity),
+                                  }
+                                : currentLine,
+                            )
+                            .filter((_, currentIndex) => currentIndex !== i),
+                        );
+                        focusLineQuantity(
+                          duplicateIndex > i
+                            ? duplicateIndex - 1
+                            : duplicateIndex,
+                        );
+                        return false;
                       }
                       clearUndo();
                       updateLine(i, {
@@ -603,6 +637,7 @@ export function DocumentLinesEditor({
                       <div className="relative flex flex-col items-center">
                         <Input
                           type="number"
+                          data-quantity-index={i}
                           min={integerMode ? "1" : "0.0001"}
                           step={integerMode ? "1" : "0.0001"}
                           disabled={!line.product_id || readOnly}
