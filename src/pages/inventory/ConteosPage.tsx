@@ -31,7 +31,10 @@ const STATUS_VARIANTS: Record<
 export default function ConteosPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canCreate = user?.role === "admin" || user?.role === "operator";
+  const canCreate =
+    user?.role === "admin" ||
+    user?.role === "operator" ||
+    user?.role === "supervisor";
   const defaultRange = currentMonthRange();
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);
   const [dateTo, setDateTo] = useState(defaultRange.date_to);

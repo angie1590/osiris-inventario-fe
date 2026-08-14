@@ -21,6 +21,7 @@ import {
   useResetUserPassword,
 } from "@/features/admin/hooks";
 import { UserFormModal } from "@/features/admin/UserFormModal";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { User, UserRole } from "@/types/api";
 
@@ -30,6 +31,12 @@ const ROLE_VARIANTS: Record<UserRole, "default" | "secondary" | "destructive"> =
     operator: "secondary",
     supervisor: "secondary",
   };
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Administrador",
+  supervisor: "Supervisor",
+  operator: "Vendedor",
+};
 
 function fmtDate(value: string) {
   return new Date(value).toLocaleDateString("es-EC");
@@ -45,6 +52,8 @@ function StatusBadge({ active }: { active: boolean }) {
 
 export default function AdminUsersPage() {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<string | undefined>();
   const [showCreate, setShowCreate] = useState(false);
@@ -127,7 +136,9 @@ export default function AdminUsersPage() {
       header: "Rol",
       sortable: true,
       sortAccessor: (u) => u.role,
-      cell: (u) => <Badge variant={ROLE_VARIANTS[u.role]}>{u.role}</Badge>,
+      cell: (u) => (
+        <Badge variant={ROLE_VARIANTS[u.role]}>{ROLE_LABELS[u.role]}</Badge>
+      ),
     },
     {
       key: "is_active",
@@ -225,9 +236,9 @@ export default function AdminUsersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos los roles</SelectItem>
-            <SelectItem value="admin">admin</SelectItem>
-            <SelectItem value="operator">operator</SelectItem>
-            <SelectItem value="supervisor">supervisor</SelectItem>
+            {isAdmin && <SelectItem value="admin">Administrador</SelectItem>}
+            <SelectItem value="supervisor">Supervisor</SelectItem>
+            <SelectItem value="operator">Vendedor</SelectItem>
           </SelectContent>
         </Select>
       </FilterBar>
@@ -267,7 +278,7 @@ export default function AdminUsersPage() {
                   label: "Rol",
                   value: (
                     <Badge variant={ROLE_VARIANTS[viewUser.role]}>
-                      {viewUser.role}
+                      {ROLE_LABELS[viewUser.role]}
                     </Badge>
                   ),
                 },

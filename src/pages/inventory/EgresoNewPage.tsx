@@ -50,6 +50,7 @@ import { useCreateEgreso } from "@/features/inventory/hooks";
 import { useCompanyConfig } from "@/features/admin/hooks";
 import { useFitsScreen } from "@/hooks/use-fits-screen";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -250,6 +251,8 @@ const EMPTY_CUSTOMER = {
 export default function EgresoNewPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const saleOnly = user?.role === "operator";
   const create = useCreateEgreso();
   const { data: company } = useCompanyConfig();
   const [lines, setLines] = useState<DocumentLine[]>([]);
@@ -264,9 +267,11 @@ export default function EgresoNewPage() {
   const [createdDocument, setCreatedDocument] =
     useState<InventoryDocument | null>(null);
   const costSyncRef = useRef(0);
-  const enabledEgresoTypes = company?.enabled_egreso_types?.length
-    ? company.enabled_egreso_types
-    : ALL_EGRESO_TYPES;
+  const enabledEgresoTypes = saleOnly
+    ? (["sale"] as EgresoType[])
+    : company?.enabled_egreso_types?.length
+      ? company.enabled_egreso_types
+      : ALL_EGRESO_TYPES;
   const enabledBajaReasons: BajaReason[] = company?.enabled_baja_reasons?.length
     ? company.enabled_baja_reasons
     : [
@@ -737,10 +742,7 @@ export default function EgresoNewPage() {
 
       <form
         onSubmit={handleSubmit(onSubmit, () => setHeaderOpen(true))}
-        className={cn(
-          "flex flex-col gap-4",
-          fitsScreen && "min-h-0 flex-1",
-        )}
+        className={cn("flex flex-col gap-4", fitsScreen && "min-h-0 flex-1")}
       >
         {formError && (
           <Alert variant="destructive" className="shrink-0">

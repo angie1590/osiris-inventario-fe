@@ -65,7 +65,7 @@ const STATUS_VARIANTS: Record<
 export default function IngresosPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canCreate = user?.role === "admin" || user?.role === "operator";
+  const canCreate = user?.role === "admin" || user?.role === "supervisor";
   const defaultRange = currentMonthRange();
 
   const [dateFrom, setDateFrom] = useState(defaultRange.date_from);

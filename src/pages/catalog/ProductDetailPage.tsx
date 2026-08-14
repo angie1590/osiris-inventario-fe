@@ -35,7 +35,10 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const canEdit = user?.role === "admin" || user?.role === "operator";
+  const canEdit =
+    user?.role === "admin" ||
+    user?.role === "operator" ||
+    user?.role === "supervisor";
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [reactivate, setReactivate] = useState(false);
   const [photoZoomOpen, setPhotoZoomOpen] = useState(false);

@@ -400,7 +400,10 @@ function SupplierFormDialog({
 export default function SuppliersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const canManage = user?.role === "admin" || user?.role === "operator";
+  const canManage =
+    user?.role === "admin" ||
+    user?.role === "operator" ||
+    user?.role === "supervisor";
   const { data, isLoading, isError, refetch } = useSuppliers(true);
   const removeSupplier = useDeleteSupplier();
 

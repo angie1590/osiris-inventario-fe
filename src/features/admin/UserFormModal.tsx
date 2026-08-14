@@ -22,10 +22,15 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/shared/FormField";
 import { useCreateUser, useUpdateUser } from "./hooks";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { User, UserRole } from "@/types/api";
 
-const ROLES: UserRole[] = ["admin", "operator", "supervisor"];
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Administrador",
+  supervisor: "Supervisor",
+  operator: "Vendedor",
+};
 
 const createSchema = z.object({
   username: z.string().min(3, "Mínimo 3 caracteres"),
@@ -50,7 +55,12 @@ export function UserFormModal({ user, onClose }: Props) {
   const create = useCreateUser();
   const update = useUpdateUser();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const isEdit = !!user;
+  const roles: UserRole[] =
+    currentUser?.role === "admin"
+      ? ["admin", "supervisor", "operator"]
+      : ["supervisor", "operator"];
 
   const {
     register,
@@ -170,9 +180,9 @@ export function UserFormModal({ user, onClose }: Props) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {ROLES.map((r) => (
+                      {roles.map((r) => (
                         <SelectItem key={r} value={r}>
-                          {r}
+                          {ROLE_LABELS[r]}
                         </SelectItem>
                       ))}
                     </SelectContent>

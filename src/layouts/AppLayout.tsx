@@ -21,7 +21,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { data: company } = useCompanyConfig();
   const showBanner = !company || !company.is_complete;
-  const canRecategorize = user?.role === "admin" || user?.role === "operator";
+  const canRecategorize = user?.role === "admin" || user?.role === "supervisor";
   const { data: pendingProducts } = usePendingRecategorization();
   const pendingRecategorization = canRecategorize
     ? (pendingProducts?.length ?? 0)

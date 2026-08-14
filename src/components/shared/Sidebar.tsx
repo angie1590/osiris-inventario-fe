@@ -52,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/categories",
     label: "Categorías",
     icon: Tags,
-    roles: ["admin", "operator", "supervisor"],
+    roles: ["admin", "supervisor"],
     section: "catalogo",
   },
   {
@@ -73,14 +73,14 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/inventory/ingresos",
     label: "Ingresos",
     icon: ArrowDownToLine,
-    roles: ["admin", "operator"],
+    roles: ["admin", "supervisor"],
     section: "movimientos",
   },
   {
     to: "/inventory/egresos",
     label: "Egresos",
     icon: ArrowUpFromLine,
-    roles: ["admin", "operator"],
+    roles: ["admin", "operator", "supervisor"],
     section: "movimientos",
   },
   {
@@ -94,7 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/kardex",
     label: "Kardex",
     icon: BookOpen,
-    roles: ["admin", "operator", "supervisor"],
+    roles: ["admin", "supervisor"],
     section: "analisis",
   },
   {
@@ -115,7 +115,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/admin/users",
     label: "Usuarios",
     icon: Users,
-    roles: ["admin"],
+    roles: ["admin", "supervisor"],
     section: "admin",
   },
   {
@@ -129,7 +129,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/admin/company",
     label: "Empresa",
     icon: Building2,
-    roles: ["admin"],
+    roles: ["admin", "supervisor"],
     section: "admin",
   },
 ];
@@ -218,9 +218,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3"
-      >
+      <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">
         {sections.map((section) => {
           const sectionItems = visibleItems.filter(
             (item) => item.section === section,

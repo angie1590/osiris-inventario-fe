@@ -71,7 +71,10 @@ export default function ProductsPage() {
 
   const { user } = useAuth();
   const { toast } = useToast();
-  const canEdit = user?.role === "admin" || user?.role === "operator";
+  const canEdit =
+    user?.role === "admin" ||
+    user?.role === "operator" ||
+    user?.role === "supervisor";
 
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);

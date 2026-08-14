@@ -71,7 +71,11 @@ export default function App() {
 
             {/* Protected app routes */}
             <Route element={<ProtectedRoute />}>
-              <Route element={<RoleGuard roles={["admin", "operator"]} />}>
+              <Route
+                element={
+                  <RoleGuard roles={["admin", "operator", "supervisor"]} />
+                }
+              >
                 <Route
                   path="/inventory/egresos/:id/print"
                   element={<EgresoPrintPage />}
@@ -90,8 +94,8 @@ export default function App() {
                   path="/products/:id/edit"
                   element={<ProductFormPage />}
                 />
-                {/* Recategorization + attribute remap - admin + operator (product write) */}
-                <Route element={<RoleGuard roles={["admin", "operator"]} />}>
+                {/* Recategorization + attribute remap - admin + supervisor */}
+                <Route element={<RoleGuard roles={["admin", "supervisor"]} />}>
                   <Route path="/recategorize" element={<RecategorizePage />} />
                   <Route path="/remap" element={<RemapPage />} />
                 </Route>
@@ -100,8 +104,8 @@ export default function App() {
                   <Route path="/catalogs" element={<CatalogsPage />} />
                 </Route>
 
-                {/* Inventory movements - admin + operator */}
-                <Route element={<RoleGuard roles={["admin", "operator"]} />}>
+                {/* Ingresos, bajas y ajustes - admin + supervisor */}
+                <Route element={<RoleGuard roles={["admin", "supervisor"]} />}>
                   <Route
                     path="/inventory/ingresos"
                     element={<IngresosPage />}
@@ -113,19 +117,6 @@ export default function App() {
                   <Route
                     path="/inventory/ingresos/:id"
                     element={<IngresoDetailPage />}
-                  />
-                  <Route path="/inventory/egresos" element={<EgresosPage />} />
-                  <Route
-                    path="/inventory/egresos/new"
-                    element={<EgresoNewPage />}
-                  />
-                  <Route
-                    path="/inventory/egresos/:id"
-                    element={<EgresoDetailPage />}
-                  />
-                  <Route
-                    path="/inventory/conteos/new"
-                    element={<ConteoNewPage />}
                   />
                   <Route
                     path="/inventory/bajas"
@@ -153,14 +144,32 @@ export default function App() {
                   />
                 </Route>
 
+                {/* Egresos y conteos - todos los roles */}
+                <Route path="/inventory/egresos" element={<EgresosPage />} />
+                <Route
+                  path="/inventory/egresos/new"
+                  element={<EgresoNewPage />}
+                />
+                <Route
+                  path="/inventory/egresos/:id"
+                  element={<EgresoDetailPage />}
+                />
+                <Route
+                  path="/inventory/conteos/new"
+                  element={<ConteoNewPage />}
+                />
+
                 <Route path="/inventory/conteos" element={<ConteosPage />} />
                 <Route
                   path="/inventory/conteos/:id"
                   element={<ConteoDetailPage />}
                 />
 
-                <Route path="/kardex" element={<KardexPage />} />
-                <Route path="/kardex/:productId" element={<KardexPage />} />
+                {/* Kardex - admin + supervisor */}
+                <Route element={<RoleGuard roles={["admin", "supervisor"]} />}>
+                  <Route path="/kardex" element={<KardexPage />} />
+                  <Route path="/kardex/:productId" element={<KardexPage />} />
+                </Route>
 
                 {/* Reports + Audit - admin + supervisor */}
                 <Route element={<RoleGuard roles={["admin", "supervisor"]} />}>
@@ -168,11 +177,13 @@ export default function App() {
                   <Route path="/audit" element={<AuditPage />} />
                 </Route>
 
-                {/* Admin - admin only */}
-                <Route element={<RoleGuard roles={["admin"]} />}>
+                {/* Admin */}
+                <Route element={<RoleGuard roles={["admin", "supervisor"]} />}>
                   <Route path="/admin/users" element={<AdminUsersPage />} />
-                  <Route path="/admin/params" element={<AdminParamsPage />} />
                   <Route path="/admin/company" element={<AdminCompanyPage />} />
+                </Route>
+                <Route element={<RoleGuard roles={["admin"]} />}>
+                  <Route path="/admin/params" element={<AdminParamsPage />} />
                 </Route>
               </Route>
             </Route>

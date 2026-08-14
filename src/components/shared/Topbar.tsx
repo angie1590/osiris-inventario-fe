@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
-  operator: "Operador",
+  operator: "Vendedor",
   supervisor: "Supervisor",
 };
 

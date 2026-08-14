@@ -126,7 +126,9 @@ export default function ConteoDetailPage() {
 
   const editable =
     count.status === "draft" &&
-    (user?.role === "admin" || user?.role === "operator");
+    (user?.role === "admin" ||
+      user?.role === "operator" ||
+      user?.role === "supervisor");
 
   const save = async () => {
     setFormError(null);

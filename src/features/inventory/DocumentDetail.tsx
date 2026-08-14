@@ -180,7 +180,7 @@ export function DocumentDetail({
   const canCancel =
     (doc.doc_type === "BI" || doc.doc_type === "AI") &&
     doc.status === "pending" &&
-    (user?.role === "admin" || user?.role === "operator");
+    (user?.role === "admin" || user?.role === "supervisor");
 
   const canVoid =
     doc.status === "approved" &&
