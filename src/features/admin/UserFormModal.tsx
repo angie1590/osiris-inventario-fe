@@ -156,9 +156,7 @@ export function UserFormModal({ user, onClose }: Props) {
               >
                 <Input
                   {...register("username", {
-                    onChange: (event) => {
-                      event.target.value = event.target.value.toUpperCase();
-                    },
+                    setValueAs: (value: string) => value.toUpperCase(),
                   })}
                   className="uppercase"
                 />

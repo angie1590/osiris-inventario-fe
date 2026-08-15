@@ -85,9 +85,7 @@ export default function LoginPage() {
             <Input
               id="username"
               {...register("username", {
-                onChange: (event) => {
-                  event.target.value = event.target.value.toUpperCase();
-                },
+                setValueAs: (value: string) => value.toUpperCase(),
               })}
               className="uppercase"
               autoComplete="username"
