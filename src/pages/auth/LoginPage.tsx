@@ -11,7 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const schema = z.object({
-  username: z.string().min(1, "Requerido"),
+  username: z
+    .string()
+    .min(1, "Requerido")
+    .regex(/^[A-Z0-9_]+$/, "Usa mayúsculas, números o guion bajo"),
   password: z.string().min(1, "Requerido"),
 });
 type FormData = z.infer<typeof schema>;
@@ -81,7 +84,12 @@ export default function LoginPage() {
             <Label htmlFor="username">Usuario</Label>
             <Input
               id="username"
-              {...register("username")}
+              {...register("username", {
+                onChange: (event) => {
+                  event.target.value = event.target.value.toUpperCase();
+                },
+              })}
+              className="uppercase"
               autoComplete="username"
             />
             {errors.username && (

@@ -33,7 +33,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 const createSchema = z.object({
-  username: z.string().min(3, "Mínimo 3 caracteres"),
+  username: z
+    .string()
+    .min(3, "Mínimo 3 caracteres")
+    .regex(/^[A-Z0-9_]+$/, "Usa mayúsculas, números o guion bajo"),
   full_name: z.string().min(1, "Requerido"),
   role: z.enum(["admin", "operator", "supervisor"]),
   is_active: z.boolean(),
@@ -151,7 +154,14 @@ export function UserFormModal({ user, onClose }: Props) {
                 required
                 error={errors.username?.message}
               >
-                <Input {...register("username")} />
+                <Input
+                  {...register("username", {
+                    onChange: (event) => {
+                      event.target.value = event.target.value.toUpperCase();
+                    },
+                  })}
+                  className="uppercase"
+                />
               </FormField>
             )}
             <FormField
