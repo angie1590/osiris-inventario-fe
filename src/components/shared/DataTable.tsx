@@ -1,5 +1,11 @@
 import * as React from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -52,6 +58,7 @@ interface DataTableProps<T> {
    */
   sort?: SortState | null;
   onSortChange?: (sort: SortState | null) => void;
+  expandableRow?: (row: T) => React.ReactNode;
   pageSize?: number;
   pagination?:
     | boolean
@@ -132,6 +139,7 @@ export function DataTable<T>({
   defaultSort,
   sort,
   onSortChange,
+  expandableRow,
   pageSize = 10,
   pagination = true,
 }: DataTableProps<T>) {
@@ -139,6 +147,9 @@ export function DataTable<T>({
   const [internalSort, setInternalSort] = React.useState<SortState | null>(
     defaultSort ?? null,
   );
+  const [expandedRowKey, setExpandedRowKey] = React.useState<
+    string | number | null
+  >(null);
   const [page, setPage] = React.useState(1);
   const effectiveSort = isControlled ? (sort ?? null) : internalSort;
 
@@ -183,6 +194,15 @@ export function DataTable<T>({
     : pagination
       ? sortedData.slice(start, end)
       : sortedData;
+
+  React.useEffect(() => {
+    if (
+      expandedRowKey != null &&
+      !data.some((row) => rowKey(row) === expandedRowKey)
+    ) {
+      setExpandedRowKey(null);
+    }
+  }, [data, expandedRowKey, rowKey]);
   const setCurrentPage = (nextPage: number) => {
     if (serverPagination) serverPagination.onPageChange(nextPage);
     else setPage(nextPage);
@@ -193,6 +213,7 @@ export function DataTable<T>({
       <Table>
         <TableHeader>
           <TableRow>
+            {expandableRow && <TableHead className="w-10" />}
             {columns.map((col) => {
               const sortState =
                 effectiveSort?.key === col.key ? effectiveSort.dir : null;
@@ -232,6 +253,7 @@ export function DataTable<T>({
           {isLoading ? (
             Array.from({ length: SKELETON_ROWS }).map((_, i) => (
               <TableRow key={i}>
+                {expandableRow && <TableCell />}
                 {columns.map((col) => (
                   <TableCell key={col.key}>
                     <Skeleton className="h-4 w-full" />
@@ -241,13 +263,19 @@ export function DataTable<T>({
             ))
           ) : isError ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="p-0">
+              <TableCell
+                colSpan={columns.length + (expandableRow ? 1 : 0)}
+                className="p-0"
+              >
                 <ErrorState onRetry={onRetry} />
               </TableCell>
             </TableRow>
           ) : sortedData.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="p-0">
+              <TableCell
+                colSpan={columns.length + (expandableRow ? 1 : 0)}
+                className="p-0"
+              >
                 <EmptyState
                   heading={emptyHeading}
                   description={emptyDescription}
@@ -256,21 +284,60 @@ export function DataTable<T>({
               </TableCell>
             </TableRow>
           ) : (
-            pagedData.map((row) => (
-              <TableRow key={rowKey(row)}>
-                {columns.map((col) => (
-                  <TableCell
-                    key={col.key}
-                    className={cn(
-                      col.align && ALIGN_CLASS[col.align],
-                      col.className,
+            pagedData.map((row) => {
+              const key = rowKey(row);
+              const isExpanded = expandedRowKey === key;
+              return (
+                <React.Fragment key={key}>
+                  <TableRow>
+                    {expandableRow && (
+                      <TableCell className="w-10 px-2">
+                        <button
+                          type="button"
+                          className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() =>
+                            setExpandedRowKey(isExpanded ? null : key)
+                          }
+                          aria-label={
+                            isExpanded
+                              ? "Colapsar detalles"
+                              : "Expandir detalles"
+                          }
+                          aria-expanded={isExpanded}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+                      </TableCell>
                     )}
-                  >
-                    {col.cell(row)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+                    {columns.map((col) => (
+                      <TableCell
+                        key={col.key}
+                        className={cn(
+                          col.align && ALIGN_CLASS[col.align],
+                          col.className,
+                        )}
+                      >
+                        {col.cell(row)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  {isExpanded && expandableRow && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={columns.length + 1}
+                        className="bg-muted/30 p-4"
+                      >
+                        {expandableRow(row)}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              );
+            })
           )}
         </TableBody>
       </Table>

@@ -57,6 +57,13 @@ function fmtAttrValue(v: unknown): string {
   return String(v);
 }
 
+function formatProductDate(value: string): string {
+  return new Intl.DateTimeFormat("es-EC", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 function StatusBadge({ status }: { status: ProductStatus }) {
   return (
     <Badge variant={status === "active" ? "success" : "secondary"}>
@@ -353,6 +360,35 @@ export default function ProductsPage() {
     },
   ];
 
+  const expandedProduct = (product: Product) => (
+    <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      {internalCodeEnabled && (
+        <div>
+          <p className="text-muted-foreground">Código interno</p>
+          <p className="font-medium">{product.codigo_interno || "—"}</p>
+        </div>
+      )}
+      <div className="sm:col-span-2 lg:col-span-3">
+        <p className="text-muted-foreground">Descripción</p>
+        <p className="whitespace-pre-wrap">{product.description || "—"}</p>
+      </div>
+      <div>
+        <p className="text-muted-foreground">Creado</p>
+        <p>{formatProductDate(product.created_at)}</p>
+      </div>
+      <div>
+        <p className="text-muted-foreground">Actualizado</p>
+        <p>{formatProductDate(product.updated_at)}</p>
+      </div>
+      {Object.entries(product.custom_attributes ?? {}).map(([key, value]) => (
+        <div key={key}>
+          <p className="text-muted-foreground">{key}</p>
+          <p>{fmtAttrValue(value)}</p>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -432,6 +468,7 @@ export default function ProductsPage() {
         columns={columns}
         data={products}
         rowKey={(p) => p.id}
+        expandableRow={expandedProduct}
         isLoading={isLoading}
         isError={isError}
         onRetry={refetch}
