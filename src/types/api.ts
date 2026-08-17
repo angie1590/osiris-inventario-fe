@@ -344,6 +344,10 @@ export interface InventoryDocument {
   purchase_document_type?: PurchaseDocumentType | null;
   purchase_document_number?: string | null;
   seller_name?: string | null;
+  payment_method?: string | null;
+  bank_name?: string | null;
+  amount_received?: number | null;
+  change_amount?: number | null;
   purchase_document_date?: string | null;
   reference: string | null;
   notes: string | null;
@@ -383,6 +387,9 @@ export interface CreateEgresoPayload {
   purchase_document_type?: PurchaseDocumentType;
   purchase_document_number?: string;
   seller_name?: string;
+  payment_method?: string;
+  bank_name?: string;
+  amount_received?: string | number;
   purchase_document_date?: string;
   baja_reason?: BajaReason;
   adjustment_reason?: AdjustmentReason;
@@ -660,10 +667,24 @@ export interface CompanyConfig {
   enabled_egreso_types: EgresoType[];
   enabled_baja_reasons: BajaReason[];
   sellers: string[];
+  payment_methods: PaymentMethodConfig[];
+  banks: BankConfig[];
   is_complete: boolean;
   created_at: string;
   updated_at: string;
   updated_by: number | null;
+}
+
+export interface PaymentMethodConfig {
+  name: string;
+  active: boolean;
+  default: boolean;
+  requires_bank?: boolean;
+}
+
+export interface BankConfig {
+  name: string;
+  active: boolean;
 }
 
 export interface CreateCompanyPayload {
@@ -678,6 +699,8 @@ export interface CreateCompanyPayload {
   enabled_egreso_types?: EgresoType[];
   enabled_baja_reasons?: BajaReason[];
   sellers?: string[];
+  payment_methods?: PaymentMethodConfig[];
+  banks?: BankConfig[];
 }
 
 export interface UpdateCompanyPayload {
@@ -692,6 +715,8 @@ export interface UpdateCompanyPayload {
   enabled_egreso_types?: EgresoType[];
   enabled_baja_reasons?: BajaReason[];
   sellers?: string[];
+  payment_methods?: PaymentMethodConfig[];
+  banks?: BankConfig[];
 }
 
 // Pagination helpers

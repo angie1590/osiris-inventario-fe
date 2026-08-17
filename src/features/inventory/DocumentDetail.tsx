@@ -577,6 +577,35 @@ export function DocumentDetail({
                 {formatCurrency(egresoFinal)}
               </span>
             </p>
+            <p>
+              Forma de pago:{" "}
+              <span className="font-semibold">{doc.payment_method || "—"}</span>
+            </p>
+            {doc.payment_method?.toUpperCase() === "TRANSFERENCIA" ? (
+              <p>
+                Banco:{" "}
+                <span className="font-semibold">{doc.bank_name || "—"}</span>
+              </p>
+            ) : (
+              <>
+                <p>
+                  Valor recibido:{" "}
+                  <span className="font-semibold tabular-nums">
+                    {doc.amount_received == null
+                      ? "—"
+                      : formatCurrency(doc.amount_received)}
+                  </span>
+                </p>
+                <p>
+                  Cambio:{" "}
+                  <span className="font-semibold tabular-nums">
+                    {doc.change_amount == null
+                      ? "—"
+                      : formatCurrency(doc.change_amount)}
+                  </span>
+                </p>
+              </>
+            )}
           </>
         ) : isEgreso ? (
           <>

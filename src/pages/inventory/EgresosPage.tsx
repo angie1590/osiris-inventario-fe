@@ -148,10 +148,16 @@ export default function EgresosPage() {
     },
     {
       key: "created_by",
-      header: "Usuario",
+      header: "Vendedor / Usuario",
       sortable: true,
-      sortAccessor: (d) => userLabels.get(d.created_by) ?? String(d.created_by),
-      cell: (d) => userLabels.get(d.created_by) ?? `#${d.created_by}`,
+      sortAccessor: (d) =>
+        d.egreso_type === "sale"
+          ? (d.seller_name ?? "")
+          : (userLabels.get(d.created_by) ?? String(d.created_by)),
+      cell: (d) =>
+        d.egreso_type === "sale"
+          ? d.seller_name || "—"
+          : (userLabels.get(d.created_by) ?? `#${d.created_by}`),
     },
     {
       key: "lines",

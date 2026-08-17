@@ -24,6 +24,7 @@ export interface DocumentLine {
   product_id: number;
   product_name: string;
   product_stock?: number;
+  product_code?: string | null;
   product_pvp?: number;
   quantity: string;
   unit_cost?: string;
@@ -54,6 +55,9 @@ interface Props {
   unitPriceLabel?: string;
   subtotalLabel?: string;
   totalsAmountLabel?: string;
+  showProductCode?: boolean;
+  productCodeLabel?: string;
+  productCodeMode?: "internal" | "barcode";
 }
 
 /** Calcula el total final aplicando el descuento al subtotal. */
@@ -108,13 +112,17 @@ function ProductCombobox({
   value,
   onChange,
   onDeleteLine,
+  onScan,
   prioritizeInStock = false,
+  integerMode = true,
 }: {
   lineIndex: number;
   value: number | null;
   onChange: (p: Product) => boolean | void;
   onDeleteLine: () => void;
+  onScan?: () => void;
   prioritizeInStock?: boolean;
+  integerMode?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -198,13 +206,25 @@ function ProductCombobox({
   }, [activeIndex]);
 
   const selectActiveMatch = () => {
-    const option = productItems[activeIndex] ?? productItems[0];
+    const normalizedSearch = search.trim().toLowerCase();
+    const exactCode = productItems.filter(
+      (item) =>
+        normalizedSearch &&
+        [item.isbn, item.codigo_interno].some(
+          (code) => code?.trim().toLowerCase() === normalizedSearch,
+        ),
+    );
+    const option =
+      exactCode.length === 1
+        ? exactCode[0]
+        : (productItems[activeIndex] ?? productItems[0]);
     if (!option) return;
+    const scanned = exactCode.length === 1 && exactCode[0].id === option.id;
     if (onChange(option) === false) return;
     setSearch(option.name);
     setOpen(false);
+    if (scanned) onScan?.();
   };
-
   return (
     <div className="relative" ref={rootRef} data-line-index={lineIndex}>
       <div className="flex items-center gap-1 rounded-md border px-2 focus-within:ring-1 focus-within:ring-ring">
@@ -249,6 +269,7 @@ function ProductCombobox({
             }
             if (e.key === "Enter") {
               e.preventDefault();
+              selectActiveMatch();
               selectActiveMatch();
             }
             if (e.key === "Escape") {
@@ -314,7 +335,11 @@ function ProductCombobox({
                   </p>
                 </div>
                 <span className="ml-3 shrink-0 text-xs text-muted-foreground">
-                  Stock: {p.stock_actual}
+                  Stock:{" "}
+                  {formatQty(
+                    p.stock_actual,
+                    integerMode ? "integer" : "decimal",
+                  )}
                 </span>
               </button>
             ))}
@@ -345,6 +370,9 @@ export function DocumentLinesEditor({
   unitPriceLabel = "Precio unit.",
   subtotalLabel = "Subtotal",
   totalsAmountLabel = "Total del ingreso",
+  showProductCode = false,
+  productCodeLabel = "Código",
+  productCodeMode = "internal",
 }: Props) {
   const { data: settings } = useQuery<{
     stock_quantity_mode: "integer" | "decimal";
@@ -521,6 +549,11 @@ export function DocumentLinesEditor({
           >
             <TableRow>
               <TableHead className="w-[35%] text-center">Producto</TableHead>
+              {showProductCode && (
+                <TableHead className="w-28 text-center">
+                  {productCodeLabel}
+                </TableHead>
+              )}
               <TableHead className="w-24 text-center">Cantidad</TableHead>
               {showUnitCost && (
                 <TableHead className="w-28 text-center">
@@ -552,6 +585,7 @@ export function DocumentLinesEditor({
                 <TableCell
                   colSpan={
                     3 +
+                    (showProductCode ? 1 : 0) +
                     (showUnitCost ? 1 : 0) +
                     (showUnitPrice ? 1 : 0) +
                     (showSubtotal ? 1 : 0) +
@@ -571,6 +605,11 @@ export function DocumentLinesEditor({
                     value={line.product_id || null}
                     prioritizeInStock={prioritizeInStock}
                     onDeleteLine={() => removeLine(i)}
+                    integerMode={integerMode}
+                    onScan={() => {
+                      if (i !== lines.length - 1) return;
+                      addLineAndFocus();
+                    }}
                     onChange={(p) => {
                       const duplicateIndex = lines.findIndex(
                         (currentLine, currentIndex) =>
@@ -612,6 +651,11 @@ export function DocumentLinesEditor({
                         product_id: p.id,
                         product_name: p.name,
                         product_stock: Number(p.stock_actual),
+                        product_code: showProductCode
+                          ? productCodeMode === "internal"
+                            ? p.codigo_interno
+                            : p.isbn
+                          : null,
                         product_pvp: Number(p.pvp ?? 0),
                         unit_cost: "",
                         unit_cost_locked: false,
@@ -624,6 +668,11 @@ export function DocumentLinesEditor({
                     }}
                   />
                 </TableCell>
+                {showProductCode && (
+                  <TableCell className="align-middle text-center text-sm">
+                    {line.product_code || "—"}
+                  </TableCell>
+                )}
                 <TableCell className="align-middle text-center">
                   {(() => {
                     const quantityNumber = Number(line.quantity);
@@ -672,7 +721,11 @@ export function DocumentLinesEditor({
                         />
                         {typeof line.product_stock === "number" && (
                           <p className="text-[11px] text-center text-muted-foreground">
-                            Disp: {line.product_stock}
+                            Disp:{" "}
+                            {formatQty(
+                              line.product_stock,
+                              integerMode ? "integer" : "decimal",
+                            )}
                           </p>
                         )}
                         {exceedsStock && (
@@ -978,6 +1031,15 @@ export function DocumentLinesEditor({
               <p className="font-semibold">Totales:</p>
               <p>
                 Ítems. <span className="font-semibold">{lines.length}</span>
+              </p>
+              <p>
+                Productos.{" "}
+                <span className="font-semibold">
+                  {formatQty(
+                    totals.totalUnits,
+                    integerMode ? "integer" : "decimal",
+                  )}
+                </span>
               </p>
               <p>
                 Subtotal.{" "}

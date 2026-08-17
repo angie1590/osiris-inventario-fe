@@ -590,6 +590,33 @@ export function DocumentDetailModal({
                       label: "PVP Final",
                       value: formatCurrency(egresoFinal),
                     },
+                    ...(doc.egreso_type === "sale"
+                      ? [
+                          {
+                            label: "Forma de pago",
+                            value: doc.payment_method || "—",
+                          },
+                          ...(doc.payment_method?.toUpperCase() ===
+                          "TRANSFERENCIA"
+                            ? [{ label: "Banco", value: doc.bank_name || "—" }]
+                            : [
+                                {
+                                  label: "Valor recibido",
+                                  value:
+                                    doc.amount_received == null
+                                      ? "—"
+                                      : formatCurrency(doc.amount_received),
+                                },
+                                {
+                                  label: "Cambio",
+                                  value:
+                                    doc.change_amount == null
+                                      ? "—"
+                                      : formatCurrency(doc.change_amount),
+                                },
+                              ]),
+                        ]
+                      : []),
                   ],
                 },
               ]

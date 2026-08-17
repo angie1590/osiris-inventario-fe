@@ -4,6 +4,7 @@ import api from "@/lib/api";
 interface AppSettings {
   stock_quantity_mode: "integer" | "decimal";
   internal_code_enabled?: boolean;
+  sale_product_code_display?: "internal" | "barcode";
   barcode_required?: boolean;
   isbn_required?: boolean;
 }
@@ -27,6 +28,12 @@ export function useStockMode() {
 export function useInternalCodeEnabled() {
   const { data } = useSettings();
   return data?.internal_code_enabled ?? true;
+}
+
+/** Reads the code displayed in sale document lines. */
+export function useSaleProductCodeDisplay() {
+  const { data } = useSettings();
+  return data?.sale_product_code_display === "barcode" ? "barcode" : "internal";
 }
 
 /** Whether barcode/ISBN is mandatory on products (system param). */

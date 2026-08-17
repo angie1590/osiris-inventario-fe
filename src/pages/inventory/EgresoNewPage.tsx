@@ -49,6 +49,7 @@ import {
 import { useCreateEgreso } from "@/features/inventory/hooks";
 import { useCompanyConfig } from "@/features/admin/hooks";
 import { useFitsScreen } from "@/hooks/use-fits-screen";
+import { useSaleProductCodeDisplay } from "@/hooks/useStockMode";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -192,6 +193,9 @@ const schema = z
     ]),
     purchase_document_number: z.string().optional(),
     seller_name: z.string().optional(),
+    payment_method: z.string().optional(),
+    bank_name: z.string().optional(),
+    amount_received: z.string().optional(),
     purchase_document_date: z
       .string()
       .optional()
@@ -255,9 +259,11 @@ export default function EgresoNewPage() {
   const saleOnly = user?.role === "operator";
   const create = useCreateEgreso();
   const { data: company } = useCompanyConfig();
+  const saleProductCodeDisplay = useSaleProductCodeDisplay();
   const [lines, setLines] = useState<DocumentLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [headerOpen, setHeaderOpen] = useState(true);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const autoCollapsedRef = useRef(false);
   const fitsScreen = useFitsScreen();
   const [consumerFinal, setConsumerFinal] = useState(true);
@@ -288,6 +294,25 @@ export default function EgresoNewPage() {
   const enabledAdjustmentReasons: AdjustmentReason[] =
     ADJUSTMENT_REASON_OPTIONS;
   const enabledSellers = company?.sellers?.length ? company.sellers : [];
+  const activePaymentMethods = useMemo(
+    () =>
+      (
+        company?.payment_methods ?? [
+          { name: "EFECTIVO", active: true, default: true },
+          {
+            name: "TRANSFERENCIA",
+            active: true,
+            default: false,
+            requires_bank: true,
+          },
+        ]
+      ).filter((item) => item.active),
+    [company?.payment_methods],
+  );
+  const activeBanks = useMemo(
+    () => (company?.banks ?? []).filter((item) => item.active),
+    [company?.banks],
+  );
 
   const {
     register,
@@ -301,6 +326,9 @@ export default function EgresoNewPage() {
       egreso_type: "sale",
       purchase_document_type: "sales_note",
       seller_name: undefined,
+      payment_method: "EFECTIVO",
+      bank_name: undefined,
+      amount_received: "",
       purchase_document_date: getNowDateTimeLocalInput(),
       baja_reason: getDefaultBajaReason(),
       adjustment_reason: getDefaultAdjustmentReason(),
@@ -372,6 +400,41 @@ export default function EgresoNewPage() {
   }, [egresoType, enabledSellers, setValue, watch]);
 
   useEffect(() => {
+    if (egresoType !== "sale") return;
+    const current = watch("payment_method");
+    if (current && activePaymentMethods.some((item) => item.name === current))
+      return;
+    setValue(
+      "payment_method",
+      activePaymentMethods.find((item) => item.default)?.name ??
+        activePaymentMethods[0]?.name ??
+        "EFECTIVO",
+      { shouldDirty: true, shouldValidate: true },
+    );
+  }, [activePaymentMethods, egresoType, setValue, watch]);
+
+  const paymentMethod = watch("payment_method") || "EFECTIVO";
+  const selectedPaymentMethod = activePaymentMethods.find(
+    (item) => item.name === paymentMethod,
+  );
+  const paymentRequiresBank =
+    selectedPaymentMethod?.requires_bank === true ||
+    paymentMethod === "TRANSFERENCIA";
+  useEffect(() => {
+    if (!paymentRequiresBank) {
+      setValue("bank_name", undefined, { shouldDirty: true });
+      return;
+    }
+    setValue("amount_received", "", { shouldDirty: true });
+    const current = watch("bank_name");
+    if (current && activeBanks.some((item) => item.name === current)) return;
+    setValue("bank_name", activeBanks[0]?.name, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [activeBanks, paymentRequiresBank, setValue, watch]);
+
+  useEffect(() => {
     if (egresoType !== "baja") {
       setValue("baja_reason", undefined, { shouldDirty: true });
       return;
@@ -400,6 +463,29 @@ export default function EgresoNewPage() {
 
   const isCommercialEgreso = isCommercialEgresoType(egresoType);
   const isInventoryEgreso = isInventoryEgresoType(egresoType);
+  const saleTotal = useMemo(
+    () =>
+      lines.reduce((total, line) => {
+        const quantity = Number(line.quantity || 0);
+        const price = Number(line.product_pvp ?? line.unit_price ?? 0);
+        if (!Number.isFinite(quantity) || !Number.isFinite(price)) return total;
+        const subtotal = quantity * price;
+        return (
+          total +
+          (isCommercialEgreso
+            ? applyDiscount(
+                subtotal,
+                line.discount_type ?? "fixed",
+                line.discount_value ?? "",
+              )
+            : Number(line.unit_cost || 0) * quantity)
+        );
+      }, 0),
+    [isCommercialEgreso, lines],
+  );
+  const receivedValue = Number(watch("amount_received") || saleTotal);
+  const changeValue = Math.max(0, receivedValue - saleTotal);
+  const missingValue = Math.max(0, saleTotal - receivedValue);
 
   useEffect(() => {
     if (!isInventoryEgreso || lines.length === 0) return;
@@ -521,7 +607,10 @@ export default function EgresoNewPage() {
   }, [lines.length]);
 
   useEffect(() => {
-    if (formError) setHeaderOpen(true);
+    if (formError) {
+      setHeaderOpen(true);
+      setPaymentOpen(false);
+    }
   }, [formError]);
 
   const headerSummary = [
@@ -608,6 +697,23 @@ export default function EgresoNewPage() {
       setFormError("Número de documento es obligatorio para ventas");
       return;
     }
+    if (data.egreso_type === "sale") {
+      const received = Number(data.amount_received || saleTotal);
+      if (!Number.isFinite(received) || received < 0) {
+        setFormError("Valor recibido inválido");
+        return;
+      }
+      if (received < saleTotal) {
+        setFormError(
+          `El valor recibido es menor al total de la factura. Faltante: ${(saleTotal - received).toFixed(2)}`,
+        );
+        return;
+      }
+      if (paymentRequiresBank && !data.bank_name) {
+        setFormError("Banco es obligatorio para transferencias");
+        return;
+      }
+    }
 
     const parsedPurchaseDocumentDate =
       data.purchase_document_type !== "none"
@@ -639,6 +745,13 @@ export default function EgresoNewPage() {
             : undefined,
         seller_name:
           data.egreso_type === "sale" ? normalizedSellerName : undefined,
+        payment_method:
+          data.egreso_type === "sale" ? data.payment_method : undefined,
+        bank_name: data.egreso_type === "sale" ? data.bank_name : undefined,
+        amount_received:
+          data.egreso_type === "sale" && !paymentRequiresBank
+            ? data.amount_received || String(saleTotal)
+            : undefined,
         purchase_document_date: parsedPurchaseDocumentDate,
         reference: data.reference || undefined,
         notes: data.notes || undefined,
@@ -720,6 +833,8 @@ export default function EgresoNewPage() {
           PURCHASE_DOCUMENT_NUMBER_DUPLICATE:
             "Número de documento ya registrado en otra venta",
           INSUFFICIENT_STOCK: "Stock insuficiente en uno de los productos",
+          BANK_REQUIRED: "Banco es obligatorio para transferencias",
+          BANK_NOT_ALLOWED: "El banco no está habilitado para la empresa",
           PRODUCT_NOT_FOUND: "Uno de los productos no fue encontrado",
           DOCUMENT_REQUIRES_LINES: "Agrega al menos una línea al documento",
           SALES_NOTE_LINE_LIMIT: "La Nota de Venta admite máximo 9 productos",
@@ -741,7 +856,10 @@ export default function EgresoNewPage() {
       />
 
       <form
-        onSubmit={handleSubmit(onSubmit, () => setHeaderOpen(true))}
+        onSubmit={handleSubmit(onSubmit, () => {
+          setHeaderOpen(true);
+          setPaymentOpen(false);
+        })}
         className={cn("flex flex-col gap-4", fitsScreen && "min-h-0 flex-1")}
       >
         {formError && (
@@ -764,7 +882,10 @@ export default function EgresoNewPage() {
               variant="outline"
               size="sm"
               className="shrink-0"
-              onClick={() => setHeaderOpen((open) => !open)}
+              onClick={() => {
+                setHeaderOpen((open) => !open);
+                setPaymentOpen(false);
+              }}
             >
               {headerOpen ? (
                 <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
@@ -1001,8 +1122,131 @@ export default function EgresoNewPage() {
             prioritizeInStock
             enforceStockLimit
             autoFillUnitPriceFromProduct={isCommercialEgreso}
+            showProductCode
+            productCodeLabel={
+              saleProductCodeDisplay === "internal"
+                ? "Código interno"
+                : "Código de barras"
+            }
+            productCodeMode={saleProductCodeDisplay}
             maxLines={purchaseDocumentType === "sales_note" ? 9 : undefined}
           />
+          {isCommercialEgreso && (
+            <div className="mt-3 rounded-md border bg-muted/10">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <h3 className="text-sm font-semibold">
+                  Pago y resumen de venta
+                </h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPaymentOpen((open) => !open);
+                    setHeaderOpen(false);
+                  }}
+                >
+                  {paymentOpen ? "Contraer" : "Editar pago"}
+                </Button>
+              </div>
+              {paymentOpen && (
+                <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr_1fr]">
+                  <div className="space-y-3">
+                    <h3 className="text-center text-base font-bold">Pago</h3>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-center gap-3">
+                        <FieldLabel label="Forma de pago" required />
+                        <Select
+                          value={paymentMethod}
+                          onValueChange={(value) =>
+                            setValue("payment_method", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="justify-center text-center">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {activePaymentMethods.map((item) => (
+                              <SelectItem key={item.name} value={item.name}>
+                                {item.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {paymentRequiresBank && (
+                        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-center gap-3">
+                          <FieldLabel label="Banco" required />
+                          <Select
+                            value={watch("bank_name") || undefined}
+                            onValueChange={(value) =>
+                              setValue("bank_name", value, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="justify-center text-center">
+                              <SelectValue placeholder="Selecciona un banco" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {activeBanks.map((item) => (
+                                <SelectItem key={item.name} value={item.name}>
+                                  {item.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-center text-base font-bold">
+                      Recibido y Cambio
+                    </h3>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-center gap-3">
+                      <FieldLabel label="Valor recibido" />
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={saleTotal.toFixed(2)}
+                        className="text-center font-semibold"
+                        disabled={paymentRequiresBank}
+                        {...register("amount_received")}
+                      />
+                    </div>
+                    {missingValue > 0 && (
+                      <p className="text-center text-xs font-semibold text-destructive">
+                        Faltante: {missingValue.toFixed(2)}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-center gap-3 rounded-md border bg-background px-3 py-2 text-sm">
+                      <span className="font-semibold">Cambio:</span>
+                      <span className="text-center font-bold tabular-nums">
+                        {changeValue.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-center text-base font-bold">
+                      Resumen en Venta
+                    </h3>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-center gap-x-4 gap-y-3 text-sm">
+                      <span className="font-semibold">Total:</span>
+                      <span className="text-center font-bold tabular-nums">
+                        {saleTotal.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </Section>
 
         <div className="flex shrink-0 gap-2">

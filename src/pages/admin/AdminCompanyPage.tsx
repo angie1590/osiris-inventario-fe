@@ -18,7 +18,13 @@ import {
   useUpdateCompany,
 } from "@/features/admin/hooks";
 import { useToast } from "@/hooks/use-toast";
-import type { BajaReason, EgresoType, IngresoType } from "@/types/api";
+import type {
+  BankConfig,
+  BajaReason,
+  EgresoType,
+  IngresoType,
+  PaymentMethodConfig,
+} from "@/types/api";
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_INGRESO_TYPES: IngresoType[] = [
@@ -49,6 +55,10 @@ const DEFAULT_BAJA_REASONS: BajaReason[] = [
   "destruction",
   "sample",
   "other",
+];
+const DEFAULT_PAYMENT_METHODS: PaymentMethodConfig[] = [
+  { name: "EFECTIVO", active: true, default: true, requires_bank: false },
+  { name: "TRANSFERENCIA", active: true, default: false, requires_bank: true },
 ];
 const INGRESO_TYPE_LABELS: Record<IngresoType, string> = {
   purchase: "Compra",
@@ -298,6 +308,10 @@ export default function AdminCompanyPage() {
   const [logoFileName, setLogoFileName] = useState("");
   const [logoTab, setLogoTab] = useState<"file" | "url">("file");
   const [formError, setFormError] = useState<string | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>(
+    DEFAULT_PAYMENT_METHODS,
+  );
+  const [banks, setBanks] = useState<BankConfig[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isEdit = !!company;
@@ -353,6 +367,8 @@ export default function AdminCompanyPage() {
     setLogoUrl("");
     setLogoFileName("");
     setLogoTab("file");
+    setPaymentMethods(company?.payment_methods ?? DEFAULT_PAYMENT_METHODS);
+    setBanks(company?.banks ?? []);
     setEditing(true);
   }
 
@@ -412,6 +428,12 @@ export default function AdminCompanyPage() {
       enabled_egreso_types: data.enabled_egreso_types,
       enabled_baja_reasons: data.enabled_baja_reasons,
       sellers: parseSellersText(data.sellers_text || ""),
+      payment_methods: paymentMethods
+        .map((item) => ({ ...item, name: item.name.trim().toUpperCase() }))
+        .filter((item) => item.name),
+      banks: banks
+        .map((item) => ({ ...item, name: item.name.trim().toUpperCase() }))
+        .filter((item) => item.name),
       ...(logoValue !== undefined && { logo: logoValue }),
     };
 
@@ -814,6 +836,153 @@ export default function AdminCompanyPage() {
                 })}
               />
             </FormField>
+
+            <div className="col-span-2 grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Formas de pago</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setPaymentMethods((items) => [
+                        ...items,
+                        {
+                          name: "",
+                          active: true,
+                          default: false,
+                          requires_bank: false,
+                        },
+                      ])
+                    }
+                  >
+                    Agregar
+                  </Button>
+                </div>
+                {paymentMethods.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={item.name}
+                      placeholder="Nombre"
+                      onChange={(event) =>
+                        setPaymentMethods((items) =>
+                          items.map((current, currentIndex) =>
+                            currentIndex === index
+                              ? { ...current, name: event.target.value }
+                              : current,
+                          ),
+                        )
+                      }
+                    />
+                    <label className="flex shrink-0 items-center gap-1 text-xs">
+                      <Checkbox
+                        checked={item.active}
+                        onCheckedChange={(checked) =>
+                          setPaymentMethods((items) =>
+                            items.map((current, currentIndex) =>
+                              currentIndex === index
+                                ? { ...current, active: checked === true }
+                                : current,
+                            ),
+                          )
+                        }
+                      />
+                      Activa
+                    </label>
+                    <label className="flex shrink-0 items-center gap-1 text-xs">
+                      <Checkbox
+                        checked={item.default}
+                        onCheckedChange={(checked) =>
+                          setPaymentMethods((items) =>
+                            items.map((current, currentIndex) => ({
+                              ...current,
+                              default:
+                                checked === true && currentIndex === index,
+                            })),
+                          )
+                        }
+                      />
+                      Defecto
+                    </label>
+                    <label className="flex shrink-0 items-center gap-1 text-xs">
+                      <Checkbox
+                        checked={
+                          item.requires_bank === true ||
+                          item.name.trim().toUpperCase() === "TRANSFERENCIA"
+                        }
+                        disabled={
+                          item.name.trim().toUpperCase() === "TRANSFERENCIA"
+                        }
+                        onCheckedChange={(checked) =>
+                          setPaymentMethods((items) =>
+                            items.map((current, currentIndex) =>
+                              currentIndex === index
+                                ? {
+                                    ...current,
+                                    requires_bank: checked === true,
+                                  }
+                                : current,
+                            ),
+                          )
+                        }
+                      />
+                      Banco
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Bancos</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setBanks((items) => [
+                        ...items,
+                        { name: "", active: true },
+                      ])
+                    }
+                  >
+                    Agregar
+                  </Button>
+                </div>
+                {banks.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={item.name}
+                      placeholder="Nombre del banco"
+                      onChange={(event) =>
+                        setBanks((items) =>
+                          items.map((current, currentIndex) =>
+                            currentIndex === index
+                              ? { ...current, name: event.target.value }
+                              : current,
+                          ),
+                        )
+                      }
+                    />
+                    <label className="flex shrink-0 items-center gap-1 text-xs">
+                      <Checkbox
+                        checked={item.active}
+                        onCheckedChange={(checked) =>
+                          setBanks((items) =>
+                            items.map((current, currentIndex) =>
+                              currentIndex === index
+                                ? { ...current, active: checked === true }
+                                : current,
+                            ),
+                          )
+                        }
+                      />
+                      Activo
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </Section>
 
