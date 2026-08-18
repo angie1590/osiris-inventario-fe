@@ -3910,15 +3910,24 @@ function DailyClosingReport() {
   const [paymentFilter, setPaymentFilter] = useState("__all__");
   const [bankFilter, setBankFilter] = useState("__all__");
   const [viewDocumentId, setViewDocumentId] = useState<number | null>(null);
-  const [viewDocumentKind, setViewDocumentKind] = useState<"sale" | "customer_return" | null>(null);
+  const [viewDocumentKind, setViewDocumentKind] = useState<
+    "sale" | "customer_return" | null
+  >(null);
   const { data, isLoading, isError, refetch } = useDailyClosing(selectedDate);
-  const detailEndpoint = viewDocumentKind === "customer_return" ? "ingresos" : "egresos";
-  const { data: detailDoc, isLoading: detailLoading } = useQuery<InventoryDocument>({
-    queryKey: ["reports", "cierre-dia-detail", detailEndpoint, viewDocumentId],
-    queryFn: async () =>
-      (await api.get(`/inventory/${detailEndpoint}/${viewDocumentId}`)).data,
-    enabled: Boolean(viewDocumentId && viewDocumentKind),
-  });
+  const detailEndpoint =
+    viewDocumentKind === "customer_return" ? "ingresos" : "egresos";
+  const { data: detailDoc, isLoading: detailLoading } =
+    useQuery<InventoryDocument>({
+      queryKey: [
+        "reports",
+        "cierre-dia-detail",
+        detailEndpoint,
+        viewDocumentId,
+      ],
+      queryFn: async () =>
+        (await api.get(`/inventory/${detailEndpoint}/${viewDocumentId}`)).data,
+      enabled: Boolean(viewDocumentId && viewDocumentKind),
+    });
 
   const summary = data?.summary;
   const paymentOptions = useMemo(
@@ -4051,40 +4060,153 @@ function DailyClosingReport() {
           </div>
         )}
         <p className="max-w-xl text-sm text-muted-foreground">
-          El neto considera ventas aprobadas menos devoluciones de clientes aprobadas del día seleccionado.
+          El neto considera ventas aprobadas menos devoluciones de clientes
+          aprobadas del día seleccionado.
         </p>
       </div>
 
       {isLoading ? (
         <Skeleton className="h-40" />
       ) : isError || !data || !summary ? (
-        <ErrorState message="No se pudo cargar el cierre diario." onRetry={refetch} />
+        <ErrorState
+          message="No se pudo cargar el cierre diario."
+          onRetry={refetch}
+        />
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Número de ventas</p><p className="text-2xl font-semibold">{filteredSummary.salesCount}</p><p className="text-xs text-muted-foreground">{fmtCurrency(filteredSummary.salesTotal)} vendido</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total efectivo</p><p className="text-2xl font-semibold tabular-nums">{fmtCurrency(filteredSummary.cashTotal)}</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total transferencias</p><p className="text-2xl font-semibold tabular-nums">{fmtCurrency(filteredSummary.transferTotal)}</p><p className="text-xs text-muted-foreground">{fmtCurrency(summary.unclassified_total)} no clasificado en el día</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Neto de caja</p><p className="text-2xl font-semibold tabular-nums">{fmtCurrency(filteredSummary.netTotal)}</p><p className="text-xs text-muted-foreground">Devoluciones: {fmtCurrency(filteredSummary.returnsTotal)}</p></CardContent></Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">
+                  Número de ventas
+                </p>
+                <p className="text-2xl font-semibold">
+                  {filteredSummary.salesCount}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {fmtCurrency(filteredSummary.salesTotal)} vendido
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Total efectivo</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {fmtCurrency(filteredSummary.cashTotal)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">
+                  Total transferencias
+                </p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {fmtCurrency(filteredSummary.transferTotal)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {fmtCurrency(summary.unclassified_total)} no clasificado en el
+                  día
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Neto de caja</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {fmtCurrency(filteredSummary.netTotal)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Devoluciones: {fmtCurrency(filteredSummary.returnsTotal)}
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)]">
             <div className="rounded-lg border bg-card">
-              <div className="border-b p-4"><h2 className="font-semibold">Ventas y devoluciones</h2><p className="text-sm text-muted-foreground">Documentos aprobados del día, ordenados del más reciente al más antiguo.</p></div>
+              <div className="border-b p-4">
+                <h2 className="font-semibold">Ventas y devoluciones</h2>
+                <p className="text-sm text-muted-foreground">
+                  Documentos aprobados del día, ordenados del más reciente al
+                  más antiguo.
+                </p>
+              </div>
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Fecha y hora</TableHead><TableHead>Tipo</TableHead><TableHead>Documento</TableHead><TableHead>Pago / banco</TableHead><TableHead className="text-right">Total</TableHead><TableHead /></TableRow></TableHeader>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha y hora</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Pago / banco</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
-                    {filteredDocuments.length === 0 ? <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Sin documentos para los filtros seleccionados.</TableCell></TableRow> : filteredDocuments.map((row) => (
-                      <TableRow key={`${row.kind}-${row.id}`}>
-                        <TableCell className="whitespace-nowrap text-sm">{formatClosingDateTime(row.created_at)}</TableCell>
-                        <TableCell><Badge variant="outline" className={row.kind === "customer_return" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-sky-300 bg-sky-50 text-sky-800"}>{row.kind_label}</Badge></TableCell>
-                        <TableCell><span className="font-mono text-sm">{row.number}</span></TableCell>
-                        <TableCell className="text-sm">{row.kind === "sale" ? <>{row.payment_method || "No clasificado"}{row.bank_name ? ` · ${row.bank_name}` : ""}</> : "—"}</TableCell>
-                        <TableCell className="text-right font-medium tabular-nums">{fmtCurrency(row.total)}</TableCell>
-                        <TableCell className="text-right"><Button variant="ghost" size="icon" title="Ver documento" aria-label="Ver documento" onClick={() => { setViewDocumentId(row.id); setViewDocumentKind(row.kind); }}><Eye className="h-4 w-4" /></Button></TableCell>
+                    {filteredDocuments.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="py-8 text-center text-muted-foreground"
+                        >
+                          Sin documentos para los filtros seleccionados.
+                        </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      filteredDocuments.map((row) => (
+                        <TableRow key={`${row.kind}-${row.id}`}>
+                          <TableCell className="whitespace-nowrap text-sm">
+                            {formatClosingDateTime(row.created_at)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                row.kind === "customer_return"
+                                  ? "border-amber-300 bg-amber-50 text-amber-800"
+                                  : "border-sky-300 bg-sky-50 text-sky-800"
+                              }
+                            >
+                              {row.kind_label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-sm">
+                              {row.number}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {row.kind === "sale" ? (
+                              <>
+                                {row.payment_method || "No clasificado"}
+                                {row.bank_name ? ` · ${row.bank_name}` : ""}
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {fmtCurrency(row.total)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Ver documento"
+                              aria-label="Ver documento"
+                              onClick={() => {
+                                setViewDocumentId(row.id);
+                                setViewDocumentKind(row.kind);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -4093,42 +4215,123 @@ function DailyClosingReport() {
             <div className="rounded-lg border bg-card p-4">
               <h2 className="font-semibold">Transferencias por banco</h2>
               <div className="mt-3 space-y-2">
-                {data.transfers_by_bank.length === 0 ? <p className="text-sm text-muted-foreground">Sin transferencias.</p> : data.transfers_by_bank.map((bank) => <div key={bank.bank_name} className="flex justify-between gap-3 text-sm"><span>{bank.bank_name}</span><span className="font-semibold tabular-nums">{fmtCurrency(bank.total)}</span></div>)}
+                {data.transfers_by_bank.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sin transferencias.
+                  </p>
+                ) : (
+                  data.transfers_by_bank.map((bank) => (
+                    <div
+                      key={bank.bank_name}
+                      className="flex justify-between gap-3 text-sm"
+                    >
+                      <span>{bank.bank_name}</span>
+                      <span className="font-semibold tabular-nums">
+                        {fmtCurrency(bank.total)}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-5 border-t pt-4">
-                <h3 className="text-sm font-semibold">Distribución por forma de pago</h3>
+                <h3 className="text-sm font-semibold">
+                  Distribución por forma de pago
+                </h3>
                 {pieData.length === 0 ? (
-                  <p className="mt-3 text-sm text-muted-foreground">Sin ventas para graficar.</p>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Sin ventas para graficar.
+                  </p>
                 ) : (
                   <div className="mt-2 h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
+                        <Pie
+                          data={pieData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={48}
+                          outerRadius={78}
+                          paddingAngle={2}
+                        >
                           {pieData.map((entry, index) => (
-                            <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
+                            <Cell
+                              key={entry.name}
+                              fill={pieColors[index % pieColors.length]}
+                            />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => fmtCurrency(Number(value))} />
+                        <Tooltip
+                          formatter={(value) => fmtCurrency(Number(value))}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 )}
                 <div className="space-y-1">
                   {pieData.map((entry, index) => (
-                    <div key={entry.name} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: pieColors[index % pieColors.length] }} /><span className="truncate">{entry.name}</span></span>
-                      <span className="font-medium tabular-nums">{fmtCurrency(entry.value)}</span>
+                    <div
+                      key={entry.name}
+                      className="flex items-center justify-between gap-2 text-xs"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                          style={{
+                            backgroundColor:
+                              pieColors[index % pieColors.length],
+                          }}
+                        />
+                        <span className="truncate">{entry.name}</span>
+                      </span>
+                      <span className="font-medium tabular-nums">
+                        {fmtCurrency(entry.value)}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
-              {summary.returns_count > 0 && <div className="mt-5 border-t pt-3 text-sm"><div className="flex justify-between"><span>Devoluciones</span><span className="font-semibold tabular-nums">{summary.returns_count}</span></div><div className="flex justify-between"><span>Total devuelto</span><span className="font-semibold tabular-nums">{fmtCurrency(summary.returns_total)}</span></div></div>}
+              {summary.returns_count > 0 && (
+                <div className="mt-5 border-t pt-3 text-sm">
+                  <div className="flex justify-between">
+                    <span>Devoluciones</span>
+                    <span className="font-semibold tabular-nums">
+                      {summary.returns_count}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total devuelto</span>
+                    <span className="font-semibold tabular-nums">
+                      {fmtCurrency(summary.returns_total)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </>
       )}
 
-      {viewDocumentId && (detailLoading || !detailDoc ? <Dialog open onOpenChange={(open) => !open && setViewDocumentId(null)}><DialogContent><Skeleton className="h-48" /></DialogContent></Dialog> : <DocumentDetailModal doc={detailDoc} onClose={() => { setViewDocumentId(null); setViewDocumentKind(null); }} showCost showPrice={detailDoc.doc_type === "EG"} />)}
+      {viewDocumentId &&
+        (detailLoading || !detailDoc ? (
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setViewDocumentId(null)}
+          >
+            <DialogContent>
+              <Skeleton className="h-48" />
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <DocumentDetailModal
+            doc={detailDoc}
+            onClose={() => {
+              setViewDocumentId(null);
+              setViewDocumentKind(null);
+            }}
+            showCost
+            showPrice={detailDoc.doc_type === "EG"}
+          />
+        ))}
     </div>
   );
 }
