@@ -3906,7 +3906,7 @@ function VendedoresDashboardReport() {
 }
 
 function DailyClosingReport() {
-  const pageSize = 20;
+  const pageSize = 10;
   const [selectedDate, setSelectedDate] = useState(todayIsoDate);
   const [paymentFilter, setPaymentFilter] = useState("__all__");
   const [bankFilter, setBankFilter] = useState("__all__");

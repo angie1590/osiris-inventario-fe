@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface TablePaginationProps {
   page: number;
@@ -30,9 +32,27 @@ export function TablePagination({
   itemLabel,
   className = "border-t px-3 py-2",
 }: TablePaginationProps) {
+  const [editingPage, setEditingPage] = useState(false);
+  const [pageInput, setPageInput] = useState(String(page));
+  const pageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingPage) pageInputRef.current?.select();
+  }, [editingPage]);
+
+  useEffect(() => {
+    if (!editingPage) setPageInput(String(page));
+  }, [editingPage, page]);
+
   if (total === 0) return null;
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
+  const submitPage = () => {
+    const target = Number(pageInput);
+    if (Number.isInteger(target) && target >= 1 && target <= totalPages)
+      onPageChange(target);
+    setEditingPage(false);
+  };
 
   return (
     <div
@@ -52,28 +72,47 @@ export function TablePagination({
         >
           Anterior
         </Button>
-        {visiblePages(page, totalPages).map((item, index) =>
-          item === "ellipsis" ? (
-            <span
-              key={`ellipsis-${index}`}
-              className="px-1 text-muted-foreground"
-            >
-              …
-            </span>
-          ) : (
-            <Button
-              key={item}
-              type="button"
-              variant={item === page ? "default" : "outline"}
-              size="sm"
-              className="min-w-9 px-2"
-              aria-label={`Página ${item}`}
-              aria-current={item === page ? "page" : undefined}
-              onClick={() => onPageChange(item)}
-            >
-              {item}
-            </Button>
-          ),
+        {editingPage ? (
+          <Input
+            ref={pageInputRef}
+            type="number"
+            min={1}
+            max={totalPages}
+            value={pageInput}
+            className="h-9 w-16 px-2 text-center"
+            aria-label={`Ir a página, entre 1 y ${totalPages}`}
+            onChange={(event) => setPageInput(event.target.value)}
+            onBlur={submitPage}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitPage();
+              if (event.key === "Escape") setEditingPage(false);
+            }}
+          />
+        ) : (
+          visiblePages(page, totalPages).map((item, index) =>
+            item === "ellipsis" ? (
+              <span
+                key={`ellipsis-${index}`}
+                className="px-1 text-muted-foreground"
+              >
+                …
+              </span>
+            ) : (
+              <Button
+                key={item}
+                type="button"
+                variant={item === page ? "default" : "outline"}
+                size="sm"
+                className="min-w-9 px-2"
+                aria-label={`Página ${item}`}
+                aria-current={item === page ? "page" : undefined}
+                onClick={() => onPageChange(item)}
+                onDoubleClick={() => item === page && setEditingPage(true)}
+              >
+                {item}
+              </Button>
+            ),
+          )
         )}
         <Button
           type="button"
