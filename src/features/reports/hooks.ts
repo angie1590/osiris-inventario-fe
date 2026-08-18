@@ -5,6 +5,7 @@ import type {
   VentasReport,
   StockValorizadoReport,
   Product,
+  DailyClosingReport,
 } from "@/types/api";
 
 export interface ReportFilters {
@@ -14,6 +15,19 @@ export interface ReportFilters {
   user_id?: number;
   category_id?: number;
   bajo_stock?: boolean;
+}
+
+export function useDailyClosing(date?: string) {
+  return useQuery({
+    queryKey: ["reports", "cierre-dia", date],
+    queryFn: async () => {
+      const res = await api.get<DailyClosingReport>("/reports/cierre-dia", {
+        params: { date },
+      });
+      return res.data;
+    },
+    enabled: Boolean(date),
+  });
 }
 
 interface QueryOptions {

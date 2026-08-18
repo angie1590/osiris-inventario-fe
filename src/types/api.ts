@@ -653,6 +653,33 @@ export interface StockValorizadoReport {
   total_value: number;
 }
 
+export interface DailyClosingDocument {
+  id: number;
+  kind: "sale" | "customer_return";
+  kind_label: string;
+  created_at: string;
+  number: string;
+  total: number;
+  payment_method: string | null;
+  bank_name: string | null;
+}
+
+export interface DailyClosingReport {
+  date: string;
+  summary: {
+    sales_count: number;
+    sales_total: number;
+    cash_total: number;
+    transfer_total: number;
+    unclassified_total: number;
+    returns_count: number;
+    returns_total: number;
+    net_total: number;
+  };
+  transfers_by_bank: Array<{ bank_name: string; total: number }>;
+  documents: DailyClosingDocument[];
+}
+
 // Company config
 export interface CompanyConfig {
   id: number;

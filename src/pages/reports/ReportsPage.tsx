@@ -7,6 +7,9 @@ import {
   CartesianGrid,
   LineChart,
   Line,
+  Pie,
+  PieChart,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -59,6 +62,7 @@ import {
 } from "@/features/reports/DateRangeFilter";
 import {
   useConsolidado,
+  useDailyClosing,
   useVentas,
   useStockReport,
   useStockValorizado,
@@ -87,6 +91,23 @@ type ConsolidadoMetric = "quantity" | "monetary";
 const TABLE_PAGE_SIZE = 10;
 const MOVEMENT_TABLE_PAGE_SIZE = 8;
 const USER_REPORT_PAGE_SIZE = 8;
+
+function todayIsoDate() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function formatClosingDateTime(value: string) {
+  return new Date(value).toLocaleString("es-EC", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
@@ -3884,12 +3905,241 @@ function VendedoresDashboardReport() {
   );
 }
 
+function DailyClosingReport() {
+  const [selectedDate, setSelectedDate] = useState(todayIsoDate);
+  const [paymentFilter, setPaymentFilter] = useState("__all__");
+  const [bankFilter, setBankFilter] = useState("__all__");
+  const [viewDocumentId, setViewDocumentId] = useState<number | null>(null);
+  const [viewDocumentKind, setViewDocumentKind] = useState<"sale" | "customer_return" | null>(null);
+  const { data, isLoading, isError, refetch } = useDailyClosing(selectedDate);
+  const detailEndpoint = viewDocumentKind === "customer_return" ? "ingresos" : "egresos";
+  const { data: detailDoc, isLoading: detailLoading } = useQuery<InventoryDocument>({
+    queryKey: ["reports", "cierre-dia-detail", detailEndpoint, viewDocumentId],
+    queryFn: async () =>
+      (await api.get(`/inventory/${detailEndpoint}/${viewDocumentId}`)).data,
+    enabled: Boolean(viewDocumentId && viewDocumentKind),
+  });
+
+  const summary = data?.summary;
+  const paymentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (data?.documents ?? [])
+            .filter((row) => row.kind === "sale")
+            .map((row) => row.payment_method || "NO CLASIFICADO"),
+        ),
+      ).sort(),
+    [data],
+  );
+  const bankOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (data?.documents ?? [])
+            .filter(
+              (row) =>
+                row.kind === "sale" &&
+                row.payment_method?.toUpperCase() === "TRANSFERENCIA",
+            )
+            .map((row) => row.bank_name || "SIN BANCO"),
+        ),
+      ).sort(),
+    [data],
+  );
+  const filteredDocuments = useMemo(
+    () =>
+      (data?.documents ?? []).filter((row) => {
+        if (paymentFilter === "__all__") return true;
+        if (row.kind !== "sale") return false;
+        const method = row.payment_method || "NO CLASIFICADO";
+        if (method !== paymentFilter) return false;
+        if (paymentFilter !== "TRANSFERENCIA" || bankFilter === "__all__")
+          return true;
+        return (row.bank_name || "SIN BANCO") === bankFilter;
+      }),
+    [bankFilter, data, paymentFilter],
+  );
+  const filteredSummary = useMemo(() => {
+    const sales = filteredDocuments.filter((row) => row.kind === "sale");
+    const returns = filteredDocuments.filter(
+      (row) => row.kind === "customer_return",
+    );
+    const salesTotal = sales.reduce((total, row) => total + row.total, 0);
+    const returnsTotal = returns.reduce((total, row) => total + row.total, 0);
+    return {
+      salesCount: sales.length,
+      salesTotal,
+      cashTotal: sales
+        .filter((row) => row.payment_method?.toUpperCase() === "EFECTIVO")
+        .reduce((total, row) => total + row.total, 0),
+      transferTotal: sales
+        .filter((row) => row.payment_method?.toUpperCase() === "TRANSFERENCIA")
+        .reduce((total, row) => total + row.total, 0),
+      returnsCount: returns.length,
+      returnsTotal,
+      netTotal: salesTotal - returnsTotal,
+    };
+  }, [filteredDocuments]);
+  const pieData = useMemo(() => {
+    if (!data) return [];
+    const rows = [
+      { name: "Efectivo", value: data.summary.cash_total },
+      ...data.transfers_by_bank.map((bank) => ({
+        name: `Transferencia · ${bank.bank_name}`,
+        value: bank.total,
+      })),
+      { name: "No clasificado", value: data.summary.unclassified_total },
+    ];
+    return rows.filter((row) => row.value > 0);
+  }, [data]);
+  const pieColors = ["#0ea5e9", "#14b8a6", "#f59e0b", "#64748b", "#e11d48"];
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border bg-card p-3">
+        <div className="space-y-1.5">
+          <label htmlFor="daily-closing-date" className="text-xs font-medium">
+            Día del cierre
+          </label>
+          <Input
+            id="daily-closing-date"
+            type="date"
+            value={selectedDate}
+            max={todayIsoDate()}
+            onChange={(event) => setSelectedDate(event.target.value)}
+            className="h-9 w-44"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium">Forma de pago</span>
+          <Select
+            value={paymentFilter}
+            onValueChange={(value) => {
+              setPaymentFilter(value);
+              setBankFilter("__all__");
+            }}
+          >
+            <SelectTrigger className="h-9 w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todas</SelectItem>
+              {paymentOptions.map((method) => (
+                <SelectItem key={method} value={method}>
+                  {method}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {paymentFilter === "TRANSFERENCIA" && (
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium">Banco</span>
+            <Select value={bankFilter} onValueChange={setBankFilter}>
+              <SelectTrigger className="h-9 w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos los bancos</SelectItem>
+                {bankOptions.map((bank) => (
+                  <SelectItem key={bank} value={bank}>
+                    {bank}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <p className="max-w-xl text-sm text-muted-foreground">
+          El neto considera ventas aprobadas menos devoluciones de clientes aprobadas del día seleccionado.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-40" />
+      ) : isError || !data || !summary ? (
+        <ErrorState message="No se pudo cargar el cierre diario." onRetry={refetch} />
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Número de ventas</p><p className="text-2xl font-semibold">{filteredSummary.salesCount}</p><p className="text-xs text-muted-foreground">{fmtCurrency(filteredSummary.salesTotal)} vendido</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total efectivo</p><p className="text-2xl font-semibold tabular-nums">{fmtCurrency(filteredSummary.cashTotal)}</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total transferencias</p><p className="text-2xl font-semibold tabular-nums">{fmtCurrency(filteredSummary.transferTotal)}</p><p className="text-xs text-muted-foreground">{fmtCurrency(summary.unclassified_total)} no clasificado en el día</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Neto de caja</p><p className="text-2xl font-semibold tabular-nums">{fmtCurrency(filteredSummary.netTotal)}</p><p className="text-xs text-muted-foreground">Devoluciones: {fmtCurrency(filteredSummary.returnsTotal)}</p></CardContent></Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)]">
+            <div className="rounded-lg border bg-card">
+              <div className="border-b p-4"><h2 className="font-semibold">Ventas y devoluciones</h2><p className="text-sm text-muted-foreground">Documentos aprobados del día, ordenados del más reciente al más antiguo.</p></div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Fecha y hora</TableHead><TableHead>Tipo</TableHead><TableHead>Documento</TableHead><TableHead>Pago / banco</TableHead><TableHead className="text-right">Total</TableHead><TableHead /></TableRow></TableHeader>
+                  <TableBody>
+                    {filteredDocuments.length === 0 ? <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Sin documentos para los filtros seleccionados.</TableCell></TableRow> : filteredDocuments.map((row) => (
+                      <TableRow key={`${row.kind}-${row.id}`}>
+                        <TableCell className="whitespace-nowrap text-sm">{formatClosingDateTime(row.created_at)}</TableCell>
+                        <TableCell><Badge variant="outline" className={row.kind === "customer_return" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-sky-300 bg-sky-50 text-sky-800"}>{row.kind_label}</Badge></TableCell>
+                        <TableCell><span className="font-mono text-sm">{row.number}</span></TableCell>
+                        <TableCell className="text-sm">{row.kind === "sale" ? <>{row.payment_method || "No clasificado"}{row.bank_name ? ` · ${row.bank_name}` : ""}</> : "—"}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">{fmtCurrency(row.total)}</TableCell>
+                        <TableCell className="text-right"><Button variant="ghost" size="icon" title="Ver documento" aria-label="Ver documento" onClick={() => { setViewDocumentId(row.id); setViewDocumentKind(row.kind); }}><Eye className="h-4 w-4" /></Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-4">
+              <h2 className="font-semibold">Transferencias por banco</h2>
+              <div className="mt-3 space-y-2">
+                {data.transfers_by_bank.length === 0 ? <p className="text-sm text-muted-foreground">Sin transferencias.</p> : data.transfers_by_bank.map((bank) => <div key={bank.bank_name} className="flex justify-between gap-3 text-sm"><span>{bank.bank_name}</span><span className="font-semibold tabular-nums">{fmtCurrency(bank.total)}</span></div>)}
+              </div>
+              <div className="mt-5 border-t pt-4">
+                <h3 className="text-sm font-semibold">Distribución por forma de pago</h3>
+                {pieData.length === 0 ? (
+                  <p className="mt-3 text-sm text-muted-foreground">Sin ventas para graficar.</p>
+                ) : (
+                  <div className="mt-2 h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
+                          {pieData.map((entry, index) => (
+                            <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => fmtCurrency(Number(value))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  {pieData.map((entry, index) => (
+                    <div key={entry.name} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: pieColors[index % pieColors.length] }} /><span className="truncate">{entry.name}</span></span>
+                      <span className="font-medium tabular-nums">{fmtCurrency(entry.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {summary.returns_count > 0 && <div className="mt-5 border-t pt-3 text-sm"><div className="flex justify-between"><span>Devoluciones</span><span className="font-semibold tabular-nums">{summary.returns_count}</span></div><div className="flex justify-between"><span>Total devuelto</span><span className="font-semibold tabular-nums">{fmtCurrency(summary.returns_total)}</span></div></div>}
+            </div>
+          </div>
+        </>
+      )}
+
+      {viewDocumentId && (detailLoading || !detailDoc ? <Dialog open onOpenChange={(open) => !open && setViewDocumentId(null)}><DialogContent><Skeleton className="h-48" /></DialogContent></Dialog> : <DocumentDetailModal doc={detailDoc} onClose={() => { setViewDocumentId(null); setViewDocumentKind(null); }} showCost showPrice={detailDoc.doc_type === "EG"} />)}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 const TABS = [
   ...DOC_REPORT_TYPES.map((t) => ({ value: t.value, label: t.label })),
   { value: "stock", label: "Stock" },
   { value: "movimientos-por-usuario", label: "Por usuario" },
   { value: "ventas", label: "Ventas" },
+  { value: "cierre-dia", label: "Cierre de Día" },
   { value: "vendedores", label: "Vendedores" },
   { value: "consolidado", label: "Consolidado" },
 ];
@@ -3940,6 +4190,9 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="ventas" className="mt-4">
           <VentasReport />
+        </TabsContent>
+        <TabsContent value="cierre-dia" className="mt-4">
+          <DailyClosingReport />
         </TabsContent>
         <TabsContent value="vendedores" className="mt-4">
           <VendedoresDashboardReport />
