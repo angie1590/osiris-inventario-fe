@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 export interface SearchableSelectOption {
   value: string;
   label: string;
+  description?: string;
+  meta?: string;
 }
 
 interface Props {
@@ -15,10 +17,13 @@ interface Props {
   onChange: (value: string) => void;
   options: SearchableSelectOption[] | string[];
   placeholder?: string;
+  searchPlaceholder?: string;
   emptyText?: string;
   disabled?: boolean;
   className?: string;
   triggerRef?: React.Ref<HTMLButtonElement>;
+  /** When set, filtering is delegated to the caller (server-side search). */
+  onSearch?: (query: string) => void;
 }
 
 /** Flat, searchable, scrollable single-select combobox (works inside dialogs). */
@@ -27,10 +32,12 @@ export function SearchableSelect({
   onChange,
   options,
   placeholder = "Seleccionar…",
+  searchPlaceholder = "Buscar…",
   emptyText = "Sin valores",
   disabled,
   className,
   triggerRef,
+  onSearch,
 }: Props) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -46,12 +53,14 @@ export function SearchableSelect({
   const selected = normalized.find((o) => o.value === value);
   const filtered = React.useMemo(
     () =>
-      query
+      query && !onSearch
         ? normalized.filter((o) =>
-            o.label.toLowerCase().includes(query.toLowerCase()),
+            `${o.label} ${o.description ?? ""}`
+              .toLowerCase()
+              .includes(query.toLowerCase()),
           )
         : normalized,
-    [normalized, query],
+    [normalized, query, onSearch],
   );
 
   React.useEffect(() => {
@@ -66,9 +75,19 @@ export function SearchableSelect({
     });
   }, [open, value, query, filtered.length]);
 
+  const onSearchRef = React.useRef(onSearch);
+
   React.useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 40);
-    else setQuery("");
+    onSearchRef.current = onSearch;
+  });
+
+  React.useEffect(() => {
+    if (open) {
+      setTimeout(() => searchRef.current?.focus(), 40);
+    } else {
+      setQuery("");
+      onSearchRef.current?.("");
+    }
   }, [open]);
 
   React.useEffect(() => {
@@ -152,8 +171,9 @@ export function SearchableSelect({
               onChange={(e) => {
                 setQuery(e.target.value);
                 setActiveIndex(0);
+                onSearch?.(e.target.value);
               }}
-              placeholder="Buscar…"
+              placeholder={searchPlaceholder}
               className="h-7 border-none p-0 text-sm shadow-none focus-visible:ring-0"
               onKeyDown={(e) => {
                 if (e.key === "ArrowDown") {
@@ -217,7 +237,19 @@ export function SearchableSelect({
                     setOpen(false);
                   }}
                 >
-                  <span className="flex-1 truncate">{o.label}</span>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="truncate">{o.label}</p>
+                    {o.description && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {o.description}
+                      </p>
+                    )}
+                  </div>
+                  {o.meta && (
+                    <span className="ml-3 shrink-0 text-xs text-muted-foreground">
+                      {o.meta}
+                    </span>
+                  )}
                   {o.value === value && (
                     <Check className="h-3 w-3 shrink-0 text-primary" />
                   )}

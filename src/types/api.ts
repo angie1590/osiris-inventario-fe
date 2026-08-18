@@ -187,6 +187,7 @@ export interface CreateCategoryPayload {
   name: string;
   description?: string;
   parent_id?: number | null;
+  reset_custom_attributes?: boolean;
 }
 
 export interface CreateAttributePayload {

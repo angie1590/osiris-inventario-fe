@@ -1136,13 +1136,18 @@ export default function EgresoNewPage() {
             </FormField>
 
             <FormField
-              label="Observaciones"
+              label={egresoType === "sale" ? "Cliente" : "Observaciones"}
               required={isOtherDocument}
               className="sm:col-span-2"
             >
               <Input
                 {...register("notes")}
-                placeholder="Observaciones (opcional)"
+                disabled={egresoType === "sale"}
+                placeholder={
+                  egresoType === "sale"
+                    ? "CONSUMIDOR FINAL"
+                    : "Observaciones (opcional)"
+                }
               />
             </FormField>
 

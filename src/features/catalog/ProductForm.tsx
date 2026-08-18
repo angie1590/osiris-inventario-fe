@@ -199,13 +199,24 @@ function CatalogAttributeField({
   triggerRef?: React.Ref<HTMLButtonElement>;
 }) {
   const { data: values } = useCatalogValues(attr.catalog_id);
+  const current = value != null && value !== "" ? String(value) : null;
   const active = (values ?? []).filter((v) => v.is_active).map((v) => v.value);
+  // Un valor guardado que ya no está activo debe seguir visible al editar.
+  const canonical =
+    current &&
+    active.find((v) => v.trim().toLowerCase() === current.trim().toLowerCase());
+  const options = [
+    ...active.map((v) => ({ value: v, label: v })),
+    ...(current && !canonical
+      ? [{ value: current, label: `${current} (inactivo)` }]
+      : []),
+  ];
   return (
     <FormField label={attr.name} required={attr.is_required} error={error}>
       <SearchableSelect
-        value={value != null ? String(value) : null}
+        value={canonical || current}
         onChange={onChange}
-        options={active}
+        options={options}
         placeholder={`Seleccionar ${attr.name}`}
         emptyText="Catálogo sin valores"
         triggerRef={triggerRef}

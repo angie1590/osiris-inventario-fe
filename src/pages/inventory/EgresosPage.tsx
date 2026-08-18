@@ -22,6 +22,7 @@ import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentType
 import { useEgresosPage } from "@/features/inventory/hooks";
 import { currentMonthRange } from "@/features/reports/DateRangeFilter";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatCurrency } from "@/lib/format";
 import type {
   DocumentStatus,
   EgresoType,
@@ -63,6 +64,15 @@ const STATUS_VARIANTS: Record<
   cancelled: "secondary",
   voided: "destructive",
 };
+
+const documentTotal = (doc: InventoryDocument) =>
+  doc.lines.reduce(
+    (acc, line) =>
+      acc +
+      Number(line.quantity ?? 0) *
+        Number(line.unit_price || line.unit_cost || 0),
+    0,
+  );
 
 export default function EgresosPage() {
   const navigate = useNavigate();
@@ -148,7 +158,7 @@ export default function EgresosPage() {
     },
     {
       key: "created_by",
-      header: "Vendedor / Usuario",
+      header: "Vendedor",
       sortable: true,
       sortAccessor: (d) =>
         d.egreso_type === "sale"
@@ -160,12 +170,12 @@ export default function EgresosPage() {
           : (userLabels.get(d.created_by) ?? `#${d.created_by}`),
     },
     {
-      key: "lines",
-      header: "ítems",
-      align: "center",
+      key: "total",
+      header: "Total",
+      align: "right",
       sortable: true,
-      sortAccessor: (d) => d.lines.length,
-      cell: (d) => d.lines.length,
+      sortAccessor: (d) => documentTotal(d),
+      cell: (d) => formatCurrency(documentTotal(d)),
     },
     {
       key: "status",

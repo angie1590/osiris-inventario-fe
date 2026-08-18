@@ -35,7 +35,14 @@ type ReturnedRow = {
   quantity: string;
   return_condition: "available" | "damaged" | "requires_review";
 };
-type NewRow = { product_id: string; quantity: string; unit_price: string };
+type NewRow = {
+  product_id: string;
+  quantity: string;
+  unit_price: string;
+  product_label?: string;
+  product_barcode?: string;
+  product_stock?: number;
+};
 
 interface Props {
   doc: InventoryDocument;
@@ -47,7 +54,13 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const exchange = useExchangeSale();
-  const { data: products } = useProducts({ status: "active", limit: 200 });
+  const [productSearch, setProductSearch] = useState("");
+  const { data: products } = useProducts({
+    name: productSearch || undefined,
+    status: "active",
+    limit: 200,
+    stock_desc: true,
+  });
 
   const [returnedRows, setReturnedRows] = useState<ReturnedRow[]>([
     {
@@ -131,16 +144,52 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
   }, [doc.lines]);
 
   const productMap = useMemo(() => {
-    const map = new Map<number, { name: string; pvp: number; stock: number }>();
+    const map = new Map<
+      number,
+      { name: string; barcode: string; pvp: number; stock: number }
+    >();
     for (const p of products ?? []) {
       map.set(Number(p.id), {
         name: p.name,
+        barcode: p.isbn || "—",
         pvp: Number(p.pvp || 0),
         stock: Number(p.stock_actual || 0),
       });
     }
     return map;
   }, [products]);
+
+  // La búsqueda se resuelve en el servidor: la opción elegida se conserva
+  // aunque salga del listado filtrado.
+  const buildNewProductOptions = (row: NewRow) => {
+    const options = (products ?? [])
+      .filter((p) => {
+        const id = Number(p.id);
+        return (
+          id === Number(row.product_id || 0) ||
+          !returnedSelectedProductIds.has(id)
+        );
+      })
+      .slice()
+      .sort((a, b) => Number(b.stock_actual || 0) - Number(a.stock_actual || 0))
+      .map((p) => ({
+        value: String(p.id),
+        label: p.name,
+        description: `Código de barras: ${p.isbn || "—"}`,
+        meta: `Stock: ${Number(p.stock_actual || 0)}`,
+      }));
+
+    const selected = Number(row.product_id || 0);
+    if (selected > 0 && !options.some((o) => o.value === String(selected))) {
+      options.unshift({
+        value: String(selected),
+        label: row.product_label ?? `#${selected}`,
+        description: `Código de barras: ${row.product_barcode ?? "—"}`,
+        meta: `Stock: ${row.product_stock ?? 0}`,
+      });
+    }
+    return options;
+  };
 
   const availableByProduct = useMemo(() => {
     const byProduct = new Map<number, number>();
@@ -173,10 +222,13 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
     return returnedRows.reduce((acc, row) => {
       const productId = Number(row.product_id || 0);
       const qty = Number(row.quantity || 0);
-      const pvp = productMap.get(productId)?.pvp ?? 0;
+      const pvp =
+        productMap.get(productId)?.pvp ??
+        soldUnitPriceByProduct.get(productId) ??
+        0;
       return acc + qty * pvp;
     }, 0);
-  }, [returnedRows, productMap]);
+  }, [returnedRows, productMap, soldUnitPriceByProduct]);
 
   const newTotal = useMemo(() => {
     return newRows.reduce((acc, row) => {
@@ -215,6 +267,7 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
         product_id: Number(row.product_id || 0),
         quantity: Number(row.quantity || 0),
         unit_price: Number(row.unit_price || 0),
+        stock: row.product_stock ?? 0,
       }))
       .filter(
         (row) => row.product_id > 0 && row.quantity > 0 && row.unit_price >= 0,
@@ -259,7 +312,10 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
     }
 
     for (const [productId, qty] of newByProduct.entries()) {
-      const maxQty = productMap.get(productId)?.stock ?? 0;
+      const maxQty =
+        productMap.get(productId)?.stock ??
+        parsedNew.find((row) => row.product_id === productId)?.stock ??
+        0;
       if (qty > maxQty) {
         setError("La cantidad de productos nuevos excede el stock actual.");
         return;
@@ -583,7 +639,9 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
                   {newRows.map((row, idx) => {
                     const selectedProductId = Number(row.product_id || 0);
                     const stockQty = selectedProductId
-                      ? (productMap.get(selectedProductId)?.stock ?? 0)
+                      ? (productMap.get(selectedProductId)?.stock ??
+                        row.product_stock ??
+                        0)
                       : 0;
                     const usedByOthers = newRows.reduce(
                       (acc, current, rowIndex) => {
@@ -619,8 +677,7 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
                                 );
                                 return;
                               }
-                              const suggested =
-                                productMap.get(productId)?.pvp ?? 0;
+                              const picked = productMap.get(productId);
                               setError(null);
                               setNewRows((prev) =>
                                 prev.map((item, i) =>
@@ -628,24 +685,18 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
                                     ? {
                                         ...item,
                                         product_id: value,
-                                        unit_price: String(suggested),
+                                        unit_price: String(picked?.pvp ?? 0),
+                                        product_label: picked?.name,
+                                        product_barcode: picked?.barcode,
+                                        product_stock: picked?.stock,
                                       }
                                     : item,
                                 ),
                               );
                             }}
-                            options={(products ?? [])
-                              .filter((p) => {
-                                const id = Number(p.id);
-                                return (
-                                  id === Number(row.product_id || 0) ||
-                                  !returnedSelectedProductIds.has(id)
-                                );
-                              })
-                              .map((p) => ({
-                                value: String(p.id),
-                                label: `${p.name} (${p.isbn || "-"})`,
-                              }))}
+                            onSearch={setProductSearch}
+                            searchPlaceholder="Buscar por nombre o código de barras..."
+                            options={buildNewProductOptions(row)}
                             placeholder="Producto nuevo"
                           />
                         </TableCell>
