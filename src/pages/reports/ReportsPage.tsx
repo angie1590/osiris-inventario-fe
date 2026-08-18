@@ -3906,9 +3906,11 @@ function VendedoresDashboardReport() {
 }
 
 function DailyClosingReport() {
+  const pageSize = 20;
   const [selectedDate, setSelectedDate] = useState(todayIsoDate);
   const [paymentFilter, setPaymentFilter] = useState("__all__");
   const [bankFilter, setBankFilter] = useState("__all__");
+  const [page, setPage] = useState(1);
   const [viewDocumentId, setViewDocumentId] = useState<number | null>(null);
   const [viewDocumentKind, setViewDocumentKind] = useState<
     "sale" | "customer_return" | null
@@ -3969,6 +3971,17 @@ function DailyClosingReport() {
       }),
     [bankFilter, data, paymentFilter],
   );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredDocuments.length / pageSize),
+  );
+  const paginatedDocuments = useMemo(
+    () => filteredDocuments.slice((page - 1) * pageSize, page * pageSize),
+    [filteredDocuments, page],
+  );
+  useEffect(() => {
+    setPage(1);
+  }, [selectedDate, paymentFilter, bankFilter]);
   const filteredSummary = useMemo(() => {
     const sales = filteredDocuments.filter((row) => row.kind === "sale");
     const returns = filteredDocuments.filter(
@@ -4155,7 +4168,7 @@ function DailyClosingReport() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredDocuments.map((row) => (
+                      paginatedDocuments.map((row) => (
                         <TableRow key={`${row.kind}-${row.id}`}>
                           <TableCell className="whitespace-nowrap text-sm">
                             {formatClosingDateTime(row.created_at)}
@@ -4210,6 +4223,14 @@ function DailyClosingReport() {
                   </TableBody>
                 </Table>
               </div>
+              <TablePagination
+                page={page}
+                pageSize={pageSize}
+                total={filteredDocuments.length}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                itemLabel="documentos"
+              />
             </div>
 
             <div className="rounded-lg border bg-card p-4">
