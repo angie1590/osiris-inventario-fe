@@ -22,7 +22,11 @@ type FormData = z.infer<typeof schema>;
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(() => {
+    const notice = sessionStorage.getItem("auth_notice");
+    sessionStorage.removeItem("auth_notice");
+    return notice;
+  });
 
   const {
     register,
@@ -39,14 +43,22 @@ export default function LoginPage() {
       navigate(resp.require_password_change ? "/change-password" : "/");
     } catch (err: unknown) {
       const apiErr = err as {
-        response?: { status?: number; data?: { code?: string } };
+        response?: {
+          status?: number;
+          data?: { code?: string; detail?: { code?: string } };
+        };
         request?: unknown;
       };
-      const code = apiErr?.response?.data?.code;
+      const code =
+        apiErr?.response?.data?.code ?? apiErr?.response?.data?.detail?.code;
       const status = apiErr?.response?.status;
 
       if (code === "ACCOUNT_INACTIVE") {
         setLoginError("Usuario inactivo. Contacta al administrador.");
+      } else if (code === "SESSION_ALREADY_ACTIVE") {
+        setLoginError(
+          "La sesión se cerró en todos los dispositivos. Vuelve a iniciar sesión.",
+        );
       } else if (code === "INVALID_CREDENTIALS" || status === 401) {
         setLoginError("Usuario o contraseña incorrectos");
       } else if (!apiErr?.response) {

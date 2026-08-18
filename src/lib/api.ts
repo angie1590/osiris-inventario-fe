@@ -53,9 +53,15 @@ api.interceptors.response.use(
       error.response?.data?.code ?? error.response?.data?.detail?.code;
 
     if (status === 401 && !original._retry) {
-      if (code === "SESSION_EXPIRED") {
+      if (code === "SESSION_EXPIRED" || code === "SESSION_REPLACED") {
         accessToken = null;
         localStorage.removeItem("refresh_token");
+        if (code === "SESSION_REPLACED") {
+          sessionStorage.setItem(
+            "auth_notice",
+            "Tu sesión se cerró porque se intentó iniciar sesión desde otro dispositivo. Vuelve a iniciar sesión.",
+          );
+        }
         window.dispatchEvent(new Event("session-expired"));
         return Promise.reject(error);
       }
