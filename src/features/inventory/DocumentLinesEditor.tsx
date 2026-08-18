@@ -201,6 +201,20 @@ function ProductCombobox({
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
   }, [open, productItems, value]);
 
+  const selectProduct = (product: Product) => {
+    if (onChange(product) === false) return;
+    setSearch(product.name);
+    setOpen(false);
+    inputRef.current?.blur();
+  };
+
+  useEffect(() => {
+    if (!open || !search.trim() || productItems.length !== 1) return;
+    const onlyProduct = productItems[0];
+    if (value === onlyProduct.id) return;
+    selectProduct(onlyProduct);
+  }, [open, productItems, search, value]);
+
   useEffect(() => {
     optionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
@@ -223,6 +237,7 @@ function ProductCombobox({
     if (onChange(option) === false) return;
     setSearch(option.name);
     setOpen(false);
+    inputRef.current?.blur();
     if (scanned) onScan?.();
   };
   return (
@@ -326,6 +341,7 @@ function ProductCombobox({
                   if (onChange(p) === false) return;
                   setSearch(p.name);
                   setOpen(false);
+                  inputRef.current?.blur();
                 }}
               >
                 <div className="min-w-0 text-left">
@@ -1118,7 +1134,7 @@ export function DocumentLinesEditor({
         variant="outline"
         size="sm"
         className={cn(fillHeight && "self-start")}
-        onClick={addLine}
+        onClick={addLineAndFocus}
         disabled={
           readOnly || (maxLines !== undefined && lines.length >= maxLines)
         }

@@ -64,15 +64,16 @@ const DialogHeader = ({
 );
 DialogHeader.displayName = "DialogHeader";
 
-const DialogBody = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+const DialogBody = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
   <div
+    ref={ref}
     className={cn("min-h-0 flex-1 overflow-y-auto px-6 py-5", className)}
     {...props}
   />
-);
+));
 DialogBody.displayName = "DialogBody";
 
 const DialogFooter = ({

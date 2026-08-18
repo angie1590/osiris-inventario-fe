@@ -18,6 +18,7 @@ interface Props {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
+  triggerRef?: React.Ref<HTMLButtonElement>;
 }
 
 /** Flat, searchable, scrollable single-select combobox (works inside dialogs). */
@@ -29,6 +30,7 @@ export function SearchableSelect({
   emptyText = "Sin valores",
   disabled,
   className,
+  triggerRef,
 }: Props) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -105,6 +107,7 @@ export function SearchableSelect({
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
         <Button
+          ref={triggerRef}
           type="button"
           variant="outline"
           role="combobox"

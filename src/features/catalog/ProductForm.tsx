@@ -190,11 +190,13 @@ function CatalogAttributeField({
   value,
   onChange,
   error,
+  triggerRef,
 }: {
   attr: CategoryAttribute;
   value: unknown;
   onChange: (v: unknown) => void;
   error?: string;
+  triggerRef?: React.Ref<HTMLButtonElement>;
 }) {
   const { data: values } = useCatalogValues(attr.catalog_id);
   const active = (values ?? []).filter((v) => v.is_active).map((v) => v.value);
@@ -206,6 +208,7 @@ function CatalogAttributeField({
         options={active}
         placeholder={`Seleccionar ${attr.name}`}
         emptyText="Catálogo sin valores"
+        triggerRef={triggerRef}
       />
     </FormField>
   );
@@ -216,11 +219,13 @@ function AttributeField({
   value,
   onChange,
   error,
+  inputRef,
 }: {
   attr: CategoryAttribute;
   value: unknown;
   onChange: (v: unknown) => void;
   error?: string;
+  inputRef?: React.Ref<HTMLInputElement | HTMLButtonElement>;
 }) {
   switch (attr.data_type) {
     case "catalog":
@@ -230,6 +235,7 @@ function AttributeField({
           value={value}
           onChange={onChange}
           error={error}
+          triggerRef={inputRef as React.Ref<HTMLButtonElement>}
         />
       );
     case "boolean":
@@ -239,6 +245,7 @@ function AttributeField({
             checked={!!value}
             onCheckedChange={onChange}
             id={`attr-${attr.id}`}
+            ref={inputRef as React.Ref<HTMLButtonElement>}
           />
           <label htmlFor={`attr-${attr.id}`} className="cursor-pointer text-sm">
             {attr.name}
@@ -252,7 +259,10 @@ function AttributeField({
       return (
         <FormField label={attr.name} required={attr.is_required} error={error}>
           <Select value={String(value ?? "")} onValueChange={onChange}>
-            <SelectTrigger aria-invalid={!!error}>
+            <SelectTrigger
+              ref={inputRef as React.Ref<HTMLButtonElement>}
+              aria-invalid={!!error}
+            >
               <SelectValue placeholder={`Seleccionar ${attr.name}`} />
             </SelectTrigger>
             <SelectContent>
@@ -269,6 +279,7 @@ function AttributeField({
       return (
         <FormField label={attr.name} required={attr.is_required} error={error}>
           <Input
+            ref={inputRef as React.Ref<HTMLInputElement>}
             type={
               attr.data_type === "integer" || attr.data_type === "decimal"
                 ? "number"
@@ -325,6 +336,9 @@ export function ProductForm({
   const [customAttrs, setCustomAttrs] = useState<Record<string, unknown>>({});
   // Per-attribute validation errors shown in red on submit.
   const [attrErrors, setAttrErrors] = useState<Record<string, string>>({});
+  const [pendingAttributeFocus, setPendingAttributeFocus] = useState<
+    string | undefined
+  >();
   // Prompt shown when changing a product's category drops attribute values.
   const [orphanPrompt, setOrphanPrompt] = useState<{
     targetCategory: number;
@@ -347,6 +361,8 @@ export function ProductForm({
     null,
   );
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const attributeRefs = useRef<Record<string, HTMLElement | null>>({});
+  const dialogBodyRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -357,9 +373,11 @@ export function ProductForm({
     formState: { errors, isSubmitting },
     setError,
     reset,
+    getValues,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { stock_minimo: "0" },
+    shouldFocusError: false,
   });
 
   // The category whose attribute values are currently consistent (for revert).
@@ -450,8 +468,9 @@ export function ProductForm({
     setOrphanPrompt(null);
   };
 
-  // Validate required/numeric custom attributes; set red errors. Returns true if ok.
-  const validateCustomAttrs = (): boolean => {
+  // Validate required/numeric custom attributes; set red errors. Returns the
+  // first attribute key with an error, so the focus can land on the actual bad field.
+  const validateCustomAttrs = (): string | undefined => {
     const errs: Record<string, string> = {};
     for (const a of attrs ?? []) {
       const v = customAttrs[a.name];
@@ -471,13 +490,71 @@ export function ProductForm({
       }
     }
     setAttrErrors(errs);
-    return Object.keys(errs).length === 0;
+    return Object.keys(errs)[0];
   };
 
-  // Runs when RHF's own validation fails — still flag custom attributes in red.
+  useEffect(() => {
+    if (!pendingAttributeFocus) return;
+    const field = attributeRefs.current[pendingAttributeFocus];
+    if (!field) return;
+    const control = field.querySelector<HTMLElement>(
+      "input:not([disabled]), button:not([disabled]), [role='combobox']:not([disabled])",
+    );
+    if (!control) return;
+    const body = dialogBodyRef.current;
+    if (body) {
+      const bodyRect = body.getBoundingClientRect();
+      const fieldRect = field.getBoundingClientRect();
+      body.scrollTo({
+        top:
+          body.scrollTop +
+          fieldRect.top -
+          bodyRect.top -
+          body.clientHeight / 2 +
+          fieldRect.height / 2,
+        behavior: "smooth",
+      });
+    } else {
+      field.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    control.focus({ preventScroll: true });
+    setPendingAttributeFocus(undefined);
+  }, [pendingAttributeFocus]);
+
+  const validateAdditionalFields = (data: FormData) => {
+    let hasError = false;
+    let isbnVal = (data.isbn ?? "").trim();
+    if (useInternalCodeAsIsbn) {
+      isbnVal = (data.codigo_interno ?? "").trim();
+    }
+    if (!data.category_id || data.category_id < 1) {
+      setError("category_id", { message: "Categoría requerida" });
+      hasError = true;
+    }
+    if (barcodeRequired && !isbnVal) {
+      setError("isbn", { message: "Código de barras requerido" });
+      hasError = true;
+    } else if (isbnVal && (isbnVal.length < 5 || isbnVal.length > 32)) {
+      setError("isbn", { message: "Debe tener entre 5 y 32 caracteres" });
+      hasError = true;
+    }
+    const firstCustomAttrError = validateCustomAttrs();
+    return {
+      hasError: hasError || !!firstCustomAttrError,
+      isbnVal,
+      firstCustomAttrError,
+    };
+  };
+
   const onInvalid = () => {
-    validateCustomAttrs();
+    const { firstCustomAttrError } = validateAdditionalFields(getValues());
     setFormError("Revisa los campos marcados en rojo.");
+    toast({
+      variant: "destructive",
+      title: "No se pudo guardar el producto",
+      description: "Revisa los campos marcados en rojo.",
+    });
+    setPendingAttributeFocus(firstCustomAttrError);
   };
 
   const savePayload = async (payload: ProductPayload) => {
@@ -522,25 +599,16 @@ export function ProductForm({
     setFormError(null);
     setPhotoError(null);
 
-    // Validate category is selected
-    if (!data.category_id || data.category_id < 1) {
-      setError("category_id", { message: "Categoría requerida" });
-      setFormError("Selecciona una categoría para continuar.");
-      return;
-    }
-
-    // Barcode: required is parametrizable; length only enforced when provided.
-    // If using internal code as barcode, copy the value
-    let isbnVal = (data.isbn ?? "").trim();
-    if (useInternalCodeAsIsbn) {
-      isbnVal = (data.codigo_interno ?? "").trim();
-    }
-    if (barcodeRequired && !isbnVal) {
-      setError("isbn", { message: "Código de barras requerido" });
-      return;
-    }
-    if (isbnVal && (isbnVal.length < 10 || isbnVal.length > 32)) {
-      setError("isbn", { message: "Debe tener entre 10 y 32 caracteres" });
+    const { hasError, isbnVal, firstCustomAttrError } =
+      validateAdditionalFields(data);
+    if (hasError) {
+      setFormError("Revisa los campos marcados en rojo.");
+      toast({
+        variant: "destructive",
+        title: "No se pudo guardar el producto",
+        description: "Revisa los campos marcados en rojo.",
+      });
+      setPendingAttributeFocus(firstCustomAttrError);
       return;
     }
 
@@ -588,12 +656,6 @@ export function ProductForm({
     }
 
     setPhotoWarnings([]);
-
-    // Validate custom attributes inline (required + numeric/negative).
-    if (!validateCustomAttrs()) {
-      setFormError("Revisa los atributos marcados en rojo.");
-      return;
-    }
 
     const payload = {
       isbn: isbnVal || undefined,
@@ -966,21 +1028,27 @@ export function ProductForm({
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {(attrs ?? []).map((attr) => (
-                <AttributeField
+                <div
                   key={attr.id}
-                  attr={attr}
-                  value={customAttrs[attr.name]}
-                  error={attrErrors[attr.name]}
-                  onChange={(v) => {
-                    setCustomAttrs((prev) => ({ ...prev, [attr.name]: v }));
-                    setAttrErrors((prev) => {
-                      if (!prev[attr.name]) return prev;
-                      const next = { ...prev };
-                      delete next[attr.name];
-                      return next;
-                    });
+                  ref={(node) => {
+                    attributeRefs.current[attr.name] = node;
                   }}
-                />
+                >
+                  <AttributeField
+                    attr={attr}
+                    value={customAttrs[attr.name]}
+                    error={attrErrors[attr.name]}
+                    onChange={(v) => {
+                      setCustomAttrs((prev) => ({ ...prev, [attr.name]: v }));
+                      setAttrErrors((prev) => {
+                        if (!prev[attr.name]) return prev;
+                        const next = { ...prev };
+                        delete next[attr.name];
+                        return next;
+                      });
+                    }}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -1060,7 +1128,9 @@ export function ProductForm({
     return (
       <>
         <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="contents">
-          <DialogBody className="space-y-5">{body}</DialogBody>
+          <DialogBody ref={dialogBodyRef} className="space-y-5">
+            {body}
+          </DialogBody>
           <DialogFooter>{footer}</DialogFooter>
         </form>
         {orphanDialog}
