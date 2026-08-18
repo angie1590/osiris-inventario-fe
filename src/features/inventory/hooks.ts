@@ -15,6 +15,9 @@ import type {
   InventorySupplier,
   CreateSupplierPayload,
   UpdateSupplierPayload,
+  InventoryCustomer,
+  CreateCustomerPayload,
+  UpdateCustomerPayload,
   InventoryDocumentAttachment,
   SetApprovalCodePayload,
   SaleExchangePayload,
@@ -310,6 +313,65 @@ export function useDeleteSupplier() {
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["inventory", "suppliers"] }),
+  });
+}
+
+export function useCustomers(activeOnly = true) {
+  return useQuery({
+    queryKey: ["inventory", "customers", activeOnly],
+    queryFn: async () => {
+      const res = await api.get<InventoryCustomer[]>("/inventory/customers", {
+        params: { active_only: activeOnly },
+      });
+      return res.data;
+    },
+  });
+}
+
+export function useCreateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateCustomerPayload) => {
+      const res = await api.post<InventoryCustomer>(
+        "/inventory/customers",
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["inventory", "customers"] }),
+  });
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: UpdateCustomerPayload;
+    }) => {
+      const res = await api.patch<InventoryCustomer>(
+        `/inventory/customers/${id}`,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["inventory", "customers"] }),
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/inventory/customers/${id}`);
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["inventory", "customers"] }),
   });
 }
 

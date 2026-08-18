@@ -25,6 +25,7 @@ const ProductFormPage = lazy(() => import("@/pages/catalog/ProductFormPage"));
 const RecategorizePage = lazy(() => import("@/pages/catalog/RecategorizePage"));
 const CatalogsPage = lazy(() => import("@/pages/catalog/CatalogsPage"));
 const SuppliersPage = lazy(() => import("@/pages/catalog/SuppliersPage"));
+const CustomersPage = lazy(() => import("@/pages/catalog/CustomersPage"));
 const RemapPage = lazy(() => import("@/pages/catalog/RemapPage"));
 const IngresosPage = lazy(() => import("@/pages/inventory/IngresosPage"));
 const IngresoNewPage = lazy(() => import("@/pages/inventory/IngresoNewPage"));
@@ -88,6 +89,7 @@ export default function App() {
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/suppliers" element={<SuppliersPage />} />
+                <Route path="/customers" element={<CustomersPage />} />
                 <Route path="/products/new" element={<ProductFormPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route

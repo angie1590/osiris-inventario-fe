@@ -20,6 +20,7 @@ import {
 import { FormField } from "@/components/shared/FormField";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Section } from "@/components/shared/Section";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import {
   Select,
   SelectContent,
@@ -47,12 +48,19 @@ import {
   isEgresoNotesRequired,
 } from "@/features/inventory/documentTypes";
 import { useCreateEgreso } from "@/features/inventory/hooks";
+import { useCreateCustomer, useCustomers } from "@/features/inventory/hooks";
 import { useCompanyConfig } from "@/features/admin/hooks";
 import { useFitsScreen } from "@/hooks/use-fits-screen";
 import { useSaleProductCodeDisplay } from "@/hooks/useStockMode";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { getApiErrorMessage } from "@/lib/api-error";
+import {
+  ID_TYPE_LABEL,
+  getIdentificationError,
+  identificationMaxLength,
+  normalizeIdentificationInput,
+} from "@/lib/identification";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import type {
@@ -60,9 +68,11 @@ import type {
   AdjustmentReason,
   CreateEgresoPayload,
   EgresoType,
+  InventoryCustomer,
   InventoryDocument,
   PurchaseDocumentType,
   KardexResponse,
+  SupplierIdentificationType,
 } from "@/types/api";
 
 const ALL_EGRESO_TYPES: EgresoType[] = [
@@ -246,11 +256,15 @@ const schema = z
 type FormData = z.infer<typeof schema>;
 
 const EMPTY_CUSTOMER = {
+  identification_type: "cedula" as SupplierIdentificationType,
+  identification_number: "",
   name: "",
-  ruc: "",
   phone: "",
   address: "",
 };
+
+const customerNotes = (customer: InventoryCustomer) =>
+  `Nombre: ${customer.name} | RUC: ${customer.identification_number} | Teléfono: ${customer.phone ?? ""} | Dirección: ${customer.address ?? ""}`;
 
 export default function EgresoNewPage() {
   const navigate = useNavigate();
@@ -270,6 +284,12 @@ export default function EgresoNewPage() {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
   const [customerError, setCustomerError] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerMode, setCustomerMode] = useState<"select" | "create">(
+    "select",
+  );
+  const { data: customers } = useCustomers(true);
+  const createCustomer = useCreateCustomer();
   const [createdDocument, setCreatedDocument] =
     useState<InventoryDocument | null>(null);
   const costSyncRef = useRef(0);
@@ -388,6 +408,8 @@ export default function EgresoNewPage() {
       setValue("seller_name", undefined, { shouldDirty: true });
       setConsumerFinal(true);
       setCustomer(EMPTY_CUSTOMER);
+      setCustomerId(null);
+      setCustomerMode("select");
       setCustomerDialogOpen(false);
       return;
     }
@@ -628,24 +650,68 @@ export default function EgresoNewPage() {
     .filter(Boolean)
     .join(" · ");
 
-  const acceptCustomer = () => {
-    if (!customer.name.trim() || !customer.ruc.trim()) {
-      setCustomerError("Nombre y RUC son obligatorios");
-      return;
-    }
-    setValue(
-      "notes",
-      `Nombre: ${customer.name.trim()} | RUC: ${customer.ruc.trim()} | Teléfono: ${customer.phone.trim()} | Dirección: ${customer.address.trim()}`,
-      { shouldDirty: true, shouldValidate: true },
-    );
+  const applyCustomer = (selected: InventoryCustomer) => {
+    setCustomerId(selected.id);
+    setValue("notes", customerNotes(selected), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     setConsumerFinal(false);
     setCustomerError(null);
     setCustomerDialogOpen(false);
   };
 
+  const acceptCustomer = async () => {
+    if (customerMode === "select") {
+      const selected = (customers ?? []).find((c) => c.id === customerId);
+      if (!selected) {
+        setCustomerError("Selecciona un cliente");
+        return;
+      }
+      applyCustomer(selected);
+      return;
+    }
+
+    const identificationError = getIdentificationError(
+      customer.identification_type,
+      customer.identification_number.trim(),
+    );
+    if (identificationError) {
+      setCustomerError(identificationError);
+      return;
+    }
+    if (!customer.name.trim()) {
+      setCustomerError("Nombre es obligatorio");
+      return;
+    }
+    try {
+      const created = await createCustomer.mutateAsync({
+        identification_type: customer.identification_type,
+        identification_number: customer.identification_number
+          .trim()
+          .toUpperCase(),
+        name: customer.name.trim().toUpperCase(),
+        address: customer.address.trim().toUpperCase() || null,
+        phone: customer.phone.trim() || null,
+      });
+      setCustomer(EMPTY_CUSTOMER);
+      setCustomerMode("select");
+      applyCustomer(created);
+    } catch (err: unknown) {
+      setCustomerError(
+        getApiErrorMessage(err, "No se pudo guardar el cliente.", {
+          CUSTOMER_IDENTIFICATION_EXISTS:
+            "La identificación ya está registrada.",
+        }),
+      );
+    }
+  };
+
   const selectConsumerFinal = () => {
     setConsumerFinal(true);
     setCustomer(EMPTY_CUSTOMER);
+    setCustomerId(null);
+    setCustomerMode("select");
     setCustomerError(null);
     setValue("notes", "", { shouldDirty: true, shouldValidate: true });
   };
@@ -732,6 +798,10 @@ export default function EgresoNewPage() {
     try {
       const payload: CreateEgresoPayload = {
         egreso_type: data.egreso_type,
+        customer_id:
+          data.egreso_type === "sale" && !consumerFinal && customerId
+            ? customerId
+            : undefined,
         purchase_document_type: data.purchase_document_type,
         baja_reason: data.egreso_type === "baja" ? data.baja_reason : undefined,
         adjustment_reason:
@@ -1270,7 +1340,7 @@ export default function EgresoNewPage() {
           <DialogHeader>
             <DialogTitle>Datos del cliente</DialogTitle>
             <DialogDescription>
-              Ingresa los datos que se imprimirán en la Nota de Venta.
+              Selecciona un cliente del catálogo o registra uno nuevo.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4 sm:grid-cols-2">
@@ -1279,48 +1349,147 @@ export default function EgresoNewPage() {
                 <AlertDescription>{customerError}</AlertDescription>
               </Alert>
             )}
-            <FormField label="Nombre" required>
-              <Input
-                value={customer.name}
-                onChange={(event) =>
-                  setCustomer({ ...customer, name: event.target.value })
-                }
-              />
-            </FormField>
-            <FormField label="RUC" required>
-              <Input
-                value={customer.ruc}
-                onChange={(event) =>
-                  setCustomer({ ...customer, ruc: event.target.value })
-                }
-              />
-            </FormField>
-            <FormField label="Teléfono">
-              <Input
-                value={customer.phone}
-                onChange={(event) =>
-                  setCustomer({ ...customer, phone: event.target.value })
-                }
-              />
-            </FormField>
-            <FormField label="Dirección">
-              <Input
-                value={customer.address}
-                onChange={(event) =>
-                  setCustomer({ ...customer, address: event.target.value })
-                }
-              />
-            </FormField>
+
+            {customerMode === "select" ? (
+              <>
+                <FormField label="Cliente" required className="sm:col-span-2">
+                  <SearchableSelect
+                    value={customerId ? String(customerId) : null}
+                    onChange={(value) => setCustomerId(Number(value))}
+                    options={(customers ?? []).map((c) => ({
+                      value: String(c.id),
+                      label: `${c.identification_number} | ${c.name}`,
+                    }))}
+                    placeholder="Seleccionar cliente"
+                    emptyText="Sin clientes"
+                  />
+                </FormField>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:col-span-2"
+                  onClick={() => {
+                    setCustomerError(null);
+                    setCustomerMode("create");
+                  }}
+                >
+                  Nuevo cliente
+                </Button>
+              </>
+            ) : (
+              <>
+                <FormField
+                  label="Tipo de identificación"
+                  required
+                  className="sm:col-span-2"
+                >
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        "ruc",
+                        "cedula",
+                        "passport",
+                      ] as SupplierIdentificationType[]
+                    ).map((type) => (
+                      <Button
+                        key={type}
+                        type="button"
+                        variant={
+                          customer.identification_type === type
+                            ? "default"
+                            : "outline"
+                        }
+                        onClick={() =>
+                          setCustomer({
+                            ...customer,
+                            identification_type: type,
+                            identification_number: "",
+                          })
+                        }
+                      >
+                        {ID_TYPE_LABEL[type]}
+                      </Button>
+                    ))}
+                  </div>
+                </FormField>
+                <FormField
+                  label={ID_TYPE_LABEL[customer.identification_type]}
+                  required
+                >
+                  <Input
+                    value={customer.identification_number}
+                    maxLength={identificationMaxLength(
+                      customer.identification_type,
+                    )}
+                    onChange={(event) =>
+                      setCustomer({
+                        ...customer,
+                        identification_number: normalizeIdentificationInput(
+                          customer.identification_type,
+                          event.target.value,
+                        ),
+                      })
+                    }
+                  />
+                </FormField>
+                <FormField label="Nombre" required>
+                  <Input
+                    value={customer.name}
+                    onChange={(event) =>
+                      setCustomer({
+                        ...customer,
+                        name: event.target.value.toUpperCase(),
+                      })
+                    }
+                  />
+                </FormField>
+                <FormField label="Teléfono">
+                  <Input
+                    value={customer.phone}
+                    onChange={(event) =>
+                      setCustomer({
+                        ...customer,
+                        phone: event.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 15),
+                      })
+                    }
+                  />
+                </FormField>
+                <FormField label="Dirección">
+                  <Input
+                    value={customer.address}
+                    onChange={(event) =>
+                      setCustomer({
+                        ...customer,
+                        address: event.target.value.toUpperCase(),
+                      })
+                    }
+                  />
+                </FormField>
+              </>
+            )}
           </DialogBody>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setCustomerDialogOpen(false)}
+              onClick={() => {
+                if (customerMode === "create") {
+                  setCustomerMode("select");
+                  setCustomerError(null);
+                  return;
+                }
+                setCustomerDialogOpen(false);
+              }}
             >
-              Cancelar
+              {customerMode === "create" ? "Volver" : "Cancelar"}
             </Button>
-            <Button type="button" onClick={acceptCustomer}>
+            <Button
+              type="button"
+              onClick={acceptCustomer}
+              isLoading={createCustomer.isPending}
+            >
               Aceptar
             </Button>
           </DialogFooter>

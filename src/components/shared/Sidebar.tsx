@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ListChecks,
   Truck,
+  Contact,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,13 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/suppliers",
     label: "Proveedores",
     icon: Truck,
+    roles: ["admin", "operator", "supervisor"],
+    section: "catalogo",
+  },
+  {
+    to: "/customers",
+    label: "Clientes",
+    icon: Contact,
     roles: ["admin", "operator", "supervisor"],
     section: "catalogo",
   },

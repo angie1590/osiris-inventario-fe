@@ -322,6 +322,33 @@ export interface UpdateSupplierPayload {
   is_active?: boolean;
 }
 
+export interface InventoryCustomer {
+  id: number;
+  identification_type: SupplierIdentificationType;
+  identification_number: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  is_active: boolean;
+}
+
+export interface CreateCustomerPayload {
+  identification_type: SupplierIdentificationType;
+  identification_number: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+}
+
+export interface UpdateCustomerPayload {
+  identification_type?: SupplierIdentificationType;
+  identification_number?: string;
+  name?: string;
+  address?: string | null;
+  phone?: string | null;
+  is_active?: boolean;
+}
+
 export interface InventoryDocumentAttachment {
   id: number;
   original_name: string;
@@ -341,6 +368,7 @@ export interface InventoryDocument {
   baja_reason?: BajaReason | null;
   adjustment_reason?: AdjustmentReason | null;
   supplier_id?: number | null;
+  customer_id?: number | null;
   purchase_document_type?: PurchaseDocumentType | null;
   purchase_document_number?: string | null;
   seller_name?: string | null;
@@ -363,6 +391,7 @@ export interface InventoryDocument {
   authorized_at: string | null;
   created_at: string;
   supplier?: InventorySupplier | null;
+  customer?: InventoryCustomer | null;
   attachments?: InventoryDocumentAttachment[];
   lines: InventoryDocumentLine[];
 }
@@ -384,6 +413,7 @@ export interface CreateIngresoPayload {
 
 export interface CreateEgresoPayload {
   egreso_type?: EgresoType;
+  customer_id?: number;
   purchase_document_type?: PurchaseDocumentType;
   purchase_document_number?: string;
   seller_name?: string;
