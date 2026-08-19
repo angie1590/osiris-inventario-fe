@@ -277,7 +277,7 @@ export default function EgresoNewPage() {
   const [lines, setLines] = useState<DocumentLine[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [headerOpen, setHeaderOpen] = useState(true);
-  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(true);
   const autoCollapsedRef = useRef(false);
   const fitsScreen = useFitsScreen();
   const [consumerFinal, setConsumerFinal] = useState(true);
