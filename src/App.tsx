@@ -106,8 +106,12 @@ export default function App() {
                   <Route path="/catalogs" element={<CatalogsPage />} />
                 </Route>
 
-                {/* Ingresos, bajas y ajustes - admin + supervisor */}
-                <Route element={<RoleGuard roles={["admin", "supervisor"]} />}>
+                {/* Ingresos: vendedores solo pueden registrar compras */}
+                <Route
+                  element={
+                    <RoleGuard roles={["admin", "operator", "supervisor"]} />
+                  }
+                >
                   <Route
                     path="/inventory/ingresos"
                     element={<IngresosPage />}

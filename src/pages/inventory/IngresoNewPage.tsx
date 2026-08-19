@@ -53,6 +53,7 @@ import {
   PURCHASE_DOCUMENT_TYPE_LABELS,
 } from "@/features/inventory/documentTypes";
 import { useCompanyConfig } from "@/features/admin/hooks";
+import { useAuth } from "@/contexts/AuthContext";
 import { useFitsScreen } from "@/hooks/use-fits-screen";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -332,6 +333,7 @@ function getNowDateTimeLocalInput() {
 export default function IngresoNewPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const create = useCreateIngreso();
   const createSupplier = useCreateSupplier();
   const uploadAttachment = useUploadIngresoAttachment();
@@ -410,9 +412,12 @@ export default function IngresoNewPage() {
       });
     });
 
-  const enabledIngresoTypes = company?.enabled_ingreso_types?.length
-    ? company.enabled_ingreso_types
-    : ALL_INGRESO_TYPES;
+  const enabledIngresoTypes =
+    user?.role === "operator"
+      ? (["purchase"] as IngresoType[])
+      : company?.enabled_ingreso_types?.length
+        ? company.enabled_ingreso_types
+        : ALL_INGRESO_TYPES;
   const sortedIngresoTypes = useMemo(
     () =>
       sortWithOtherLast(
