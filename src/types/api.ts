@@ -377,6 +377,8 @@ export interface InventoryDocument {
   bank_name?: string | null;
   amount_received?: number | null;
   change_amount?: number | null;
+  outstanding_amount?: number | null;
+  credit_applied_amount?: number | null;
   purchase_document_date?: string | null;
   reference: string | null;
   notes: string | null;
@@ -523,6 +525,8 @@ export interface SaleExchangePayload {
   reference?: string;
   notes?: string;
   authorizer_pin?: string;
+  payment_method?: string;
+  bank_name?: string;
 }
 
 export interface SaleExchangeResponse {
@@ -532,6 +536,13 @@ export interface SaleExchangeResponse {
   return_total: number;
   new_total: number;
   difference_total: number;
+}
+
+export interface SaleExchangeReversalResponse {
+  original_document: InventoryDocument;
+  return_document: InventoryDocument;
+  new_document: InventoryDocument;
+  refunded_amount: number;
 }
 
 // Kardex
@@ -691,6 +702,7 @@ export interface DailyClosingDocument {
   created_at: string;
   number: string;
   total: number;
+  amount_collected: number | null;
   payment_method: string | null;
   bank_name: string | null;
 }

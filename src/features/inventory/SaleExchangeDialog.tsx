@@ -21,7 +21,16 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useProducts } from "@/features/catalog/hooks";
+import { useCompanyConfig } from "@/features/admin/hooks";
 import { useExchangeSale } from "@/features/inventory/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +63,7 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const exchange = useExchangeSale();
+  const { data: company } = useCompanyConfig();
   const [productSearch, setProductSearch] = useState("");
   const { data: products } = useProducts({
     name: productSearch || undefined,
@@ -75,8 +85,29 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
   const [notes, setNotes] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirmOutstanding, setConfirmOutstanding] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("EFECTIVO");
+  const [bankName, setBankName] = useState("");
 
   const needsPin = user?.role === "operator";
+  const activePaymentMethods = useMemo(
+    () =>
+      (
+        company?.payment_methods ?? [
+          { name: "EFECTIVO", active: true, default: true },
+          { name: "TRANSFERENCIA", active: true, requires_bank: true },
+        ]
+      ).filter((method) => method.active),
+    [company?.payment_methods],
+  );
+  const activeBanks = useMemo(
+    () => (company?.banks ?? []).filter((bank) => bank.active),
+    [company?.banks],
+  );
+  const paymentRequiresBank =
+    activePaymentMethods.find((method) => method.name === paymentMethod)
+      ?.requires_bank === true || paymentMethod === "TRANSFERENCIA";
 
   const soldByProduct = useMemo(() => {
     const acc = new Map<number, number>();
@@ -240,9 +271,9 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
 
   const differenceTotal = newTotal - returnTotal;
   const differenceLabel =
-    differenceTotal >= 0 ? "Valor por cobrar" : "Saldo a favor del cliente";
+    differenceTotal >= 0 ? "Valor por cobrar" : "Cambio no permitido";
 
-  const onSubmit = async () => {
+  const onSubmit = async (acceptOutstandingBalance = false) => {
     setError(null);
     const normalizedPin = pin.replace(/\D/g, "").slice(0, 4);
 
@@ -322,6 +353,20 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
       }
     }
 
+    if (differenceTotal < 0) {
+      setError("El total del nuevo egreso no puede ser menor a la devolución.");
+      return;
+    }
+
+    if (differenceTotal > 0 && !acceptOutstandingBalance) {
+      setConfirmOutstanding(true);
+      return;
+    }
+    if (differenceTotal > 0 && paymentRequiresBank && !bankName) {
+      setError("Banco es obligatorio para transferencias.");
+      return;
+    }
+
     try {
       const result = await exchange.mutateAsync({
         id: doc.id,
@@ -330,6 +375,8 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
           new_lines: parsedNew,
           notes,
           authorizer_pin: needsPin ? normalizedPin : undefined,
+          payment_method: differenceTotal > 0 ? paymentMethod : undefined,
+          bank_name: differenceTotal > 0 ? bankName || undefined : undefined,
         },
       });
 
@@ -806,6 +853,11 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
               <p className="text-right text-xs text-muted-foreground">
                 {differenceLabel}
               </p>
+              {differenceTotal < 0 && (
+                <p className="text-right text-xs font-medium text-destructive">
+                  El nuevo egreso debe cubrir la devolución.
+                </p>
+              )}
             </div>
           </div>
 
@@ -838,11 +890,57 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
           >
             Cancelar
           </Button>
-          <Button onClick={onSubmit} isLoading={exchange.isPending}>
+          <Button
+            onClick={() => void onSubmit()}
+            isLoading={exchange.isPending}
+            disabled={differenceTotal < 0}
+          >
             Confirmar cambio
           </Button>
         </DialogFooter>
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOutstanding}
+        onClose={() => setConfirmOutstanding(false)}
+        title="Saldo pendiente"
+        description={`El valor recibido es menor al total de la factura. Faltante: ${formatCurrency(differenceTotal)}.`}
+        confirmLabel="Continuar al pago"
+        onConfirm={() => setPaymentDialogOpen(true)}
+      />
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cobrar saldo del cambio</DialogTitle>
+            <DialogDescription>
+              Se cobrará {formatCurrency(differenceTotal)} después de aplicar la devolución.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <SelectTrigger><SelectValue placeholder="Forma de pago" /></SelectTrigger>
+              <SelectContent>
+                {activePaymentMethods.map((method) => (
+                  <SelectItem key={method.name} value={method.name}>{method.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {paymentRequiresBank && (
+              <Select value={bankName} onValueChange={setBankName}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
+                <SelectContent>
+                  {activeBanks.map((bank) => (
+                    <SelectItem key={bank.name} value={bank.name}>{bank.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={() => void onSubmit(true)} isLoading={exchange.isPending}>Confirmar pago</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

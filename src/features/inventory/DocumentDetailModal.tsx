@@ -12,6 +12,7 @@ import {
 import { DetailModal } from "@/components/shared/DetailModal";
 import { VoidDialog } from "./VoidDialog";
 import { SaleExchangeDialog } from "./SaleExchangeDialog";
+import { RevertSaleExchangeDialog } from "./RevertSaleExchangeDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { PURCHASE_DOCUMENT_TYPE_LABELS } from "@/features/inventory/documentTypes";
 import { useToast } from "@/hooks/use-toast";
@@ -279,11 +280,7 @@ export function DocumentDetailModal({
   const { toast } = useToast();
   const [voidOpen, setVoidOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
-  const canVoid =
-    doc.status === "approved" &&
-    (user?.role === "admin" ||
-      user?.role === "operator" ||
-      user?.role === "supervisor");
+  const [revertOpen, setRevertOpen] = useState(false);
   const totalItems = doc.lines.length;
   const totalUnits = doc.lines.reduce(
     (acc, l) => acc + Number(l.quantity || 0),
@@ -304,6 +301,14 @@ export function DocumentDetailModal({
   const hasExchangeGenerated =
     isCommercialEgreso &&
     (!!doc.exchange_return_document_id || !!doc.exchange_new_sale_document_id);
+  const isExchangeDocument = isSaleFromChange || hasExchangeGenerated ||
+    (doc.doc_type === "IN" && !!doc.exchange_original_document_id);
+  const canVoid =
+    doc.status === "approved" &&
+    !isExchangeDocument &&
+    (user?.role === "admin" ||
+      user?.role === "operator" ||
+      user?.role === "supervisor");
   const canExchange =
     doc.status === "approved" &&
     isCommercialEgreso &&
@@ -312,6 +317,8 @@ export function DocumentDetailModal({
     (user?.role === "admin" ||
       user?.role === "supervisor" ||
       user?.role === "operator");
+  const canRevertExchange =
+    doc.status === "approved" && (isSaleFromChange || hasExchangeGenerated);
   const canPrintSalesNote =
     doc.doc_type === "EG" &&
     doc.egreso_type === "sale" &&
@@ -599,22 +606,38 @@ export function DocumentDetailModal({
                           ...(doc.payment_method?.toUpperCase() ===
                           "TRANSFERENCIA"
                             ? [{ label: "Banco", value: doc.bank_name || "—" }]
-                            : [
+                            : []),
+                          ...(doc.credit_applied_amount != null
+                            ? [
                                 {
-                                  label: "Valor recibido",
-                                  value:
-                                    doc.amount_received == null
-                                      ? "—"
-                                      : formatCurrency(doc.amount_received),
+                                  label: "Crédito por devolución",
+                                  value: formatCurrency(doc.credit_applied_amount),
                                 },
+                              ]
+                            : []),
+                          {
+                            label: "Valor recibido",
+                            value:
+                              doc.amount_received == null
+                                ? "—"
+                                : formatCurrency(doc.amount_received),
+                          },
+                          {
+                            label: "Cambio",
+                            value:
+                              doc.change_amount == null
+                                ? "—"
+                                : formatCurrency(doc.change_amount),
+                          },
+                          ...(doc.outstanding_amount != null &&
+                          doc.outstanding_amount > 0
+                            ? [
                                 {
-                                  label: "Cambio",
-                                  value:
-                                    doc.change_amount == null
-                                      ? "—"
-                                      : formatCurrency(doc.change_amount),
+                                  label: "Saldo pendiente",
+                                  value: formatCurrency(doc.outstanding_amount),
                                 },
-                              ]),
+                              ]
+                            : []),
                         ]
                       : []),
                   ],
@@ -724,6 +747,11 @@ export function DocumentDetailModal({
                 Generar cambio
               </Button>
             )}
+            {canRevertExchange && (
+              <Button variant="destructive" onClick={() => setRevertOpen(true)}>
+                Revertir cambio
+              </Button>
+            )}
             {canVoid && (
               <Button variant="destructive" onClick={() => setVoidOpen(true)}>
                 Anular
@@ -747,6 +775,16 @@ export function DocumentDetailModal({
           doc={doc}
           onClose={() => setExchangeOpen(false)}
           onSuccess={onClose}
+        />
+      )}
+      {revertOpen && (
+        <RevertSaleExchangeDialog
+          doc={doc}
+          documentId={
+            isSaleFromChange ? undefined : doc.exchange_new_sale_document_id ?? undefined
+          }
+          onClose={() => setRevertOpen(false)}
+          onReverted={onClose}
         />
       )}
     </>

@@ -663,3 +663,21 @@ export function useExchangeSale() {
     },
   });
 }
+
+export function useRevertSaleExchange() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, authorizerPin }: { id: number; authorizerPin?: string }) => {
+      const res = await api.post(`/inventory/egresos/${id}/exchange/revert`, {
+        authorizer_pin: authorizerPin || null,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["kardex"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+  });
+}

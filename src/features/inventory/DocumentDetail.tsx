@@ -126,6 +126,10 @@ export function DocumentDetail({
 
   const isEgreso = doc.doc_type === "EG";
   const isCommercialEgreso = isEgreso && doc.egreso_type === "sale";
+  const isExchangeDocument =
+    !!doc.exchange_original_document_id ||
+    !!doc.exchange_return_document_id ||
+    !!doc.exchange_new_sale_document_id;
   const totalItems = doc.lines.length;
   const totalUnits = doc.lines.reduce(
     (acc, l) => acc + Number(l.quantity || 0),
@@ -184,6 +188,7 @@ export function DocumentDetail({
 
   const canVoid =
     doc.status === "approved" &&
+    !isExchangeDocument &&
     (user?.role === "admin" ||
       user?.role === "operator" ||
       user?.role === "supervisor");
@@ -586,25 +591,36 @@ export function DocumentDetail({
                 Banco:{" "}
                 <span className="font-semibold">{doc.bank_name || "—"}</span>
               </p>
-            ) : (
-              <>
-                <p>
-                  Valor recibido:{" "}
-                  <span className="font-semibold tabular-nums">
-                    {doc.amount_received == null
-                      ? "—"
-                      : formatCurrency(doc.amount_received)}
-                  </span>
-                </p>
-                <p>
-                  Cambio:{" "}
-                  <span className="font-semibold tabular-nums">
-                    {doc.change_amount == null
-                      ? "—"
-                      : formatCurrency(doc.change_amount)}
-                  </span>
-                </p>
-              </>
+            ) : null}
+            {doc.credit_applied_amount != null && (
+              <p>
+                Crédito por devolución: {" "}
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(doc.credit_applied_amount)}
+                </span>
+              </p>
+            )}
+            <p>
+              Valor recibido: {" "}
+              <span className="font-semibold tabular-nums">
+                {doc.amount_received == null
+                  ? "—"
+                  : formatCurrency(doc.amount_received)}
+              </span>
+            </p>
+            <p>
+              Cambio: {" "}
+              <span className="font-semibold tabular-nums">
+                {doc.change_amount == null ? "—" : formatCurrency(doc.change_amount)}
+              </span>
+            </p>
+            {doc.outstanding_amount != null && doc.outstanding_amount > 0 && (
+              <p>
+                Saldo pendiente: {" "}
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(doc.outstanding_amount)}
+                </span>
+              </p>
             )}
           </>
         ) : isEgreso ? (

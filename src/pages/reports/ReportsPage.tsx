@@ -3988,19 +3988,23 @@ function DailyClosingReport() {
       (row) => row.kind === "customer_return",
     );
     const salesTotal = sales.reduce((total, row) => total + row.total, 0);
+    const collectedTotal = sales.reduce(
+      (total, row) => total + (row.amount_collected ?? row.total),
+      0,
+    );
     const returnsTotal = returns.reduce((total, row) => total + row.total, 0);
     return {
       salesCount: sales.length,
       salesTotal,
       cashTotal: sales
         .filter((row) => row.payment_method?.toUpperCase() === "EFECTIVO")
-        .reduce((total, row) => total + row.total, 0),
+        .reduce((total, row) => total + (row.amount_collected ?? row.total), 0),
       transferTotal: sales
         .filter((row) => row.payment_method?.toUpperCase() === "TRANSFERENCIA")
-        .reduce((total, row) => total + row.total, 0),
+        .reduce((total, row) => total + (row.amount_collected ?? row.total), 0),
       returnsCount: returns.length,
       returnsTotal,
-      netTotal: salesTotal - returnsTotal,
+      netTotal: collectedTotal - returnsTotal,
     };
   }, [filteredDocuments]);
   const pieData = useMemo(() => {
@@ -4153,7 +4157,7 @@ function DailyClosingReport() {
                       <TableHead>Tipo</TableHead>
                       <TableHead>Documento</TableHead>
                       <TableHead>Pago / banco</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Cobrado</TableHead>
                       <TableHead />
                     </TableRow>
                   </TableHeader>
@@ -4201,7 +4205,7 @@ function DailyClosingReport() {
                             )}
                           </TableCell>
                           <TableCell className="text-right font-medium tabular-nums">
-                            {fmtCurrency(row.total)}
+                            {fmtCurrency(row.amount_collected ?? row.total)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button

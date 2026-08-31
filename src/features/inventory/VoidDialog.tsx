@@ -62,6 +62,8 @@ export function VoidDialog({ doc, onClose, onVoided }: Props) {
           VOID_PIN_INVALID: "PIN de autorización inválido.",
           VOID_ROLE_FORBIDDEN: "No tienes permiso para anular documentos.",
           DOCUMENT_NOT_APPROVED: "Solo se pueden anular documentos aprobados.",
+          EXCHANGE_DOCUMENT_VOID_FORBIDDEN:
+            "No se puede anular individualmente un documento que pertenece a un cambio.",
           CANNOT_VOID_STOCK_CONSUMED:
             "No se puede anular: el stock de este documento ya fue consumido por movimientos posteriores.",
         }),
