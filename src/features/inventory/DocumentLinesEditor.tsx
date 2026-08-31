@@ -110,6 +110,7 @@ export function getEquivalentDiscount(
 function ProductCombobox({
   lineIndex,
   value,
+  productLabel,
   onChange,
   onDeleteLine,
   onScan,
@@ -118,13 +119,14 @@ function ProductCombobox({
 }: {
   lineIndex: number;
   value: number | null;
+  productLabel?: string;
   onChange: (p: Product) => boolean | void;
   onDeleteLine: () => void;
   onScan?: () => void;
   prioritizeInStock?: boolean;
   integerMode?: boolean;
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(productLabel ?? "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [menuPos, setMenuPos] = useState<{
@@ -140,6 +142,12 @@ function ProductCombobox({
     status: "active",
     stock_desc: prioritizeInStock,
   });
+
+  // Rows are keyed by index, so on delete/reorder the input must re-sync with
+  // the line it now renders.
+  useEffect(() => {
+    setSearch(productLabel ?? "");
+  }, [productLabel, value]);
 
   const updateMenuPosition = () => {
     if (!inputRef.current) return;
@@ -619,6 +627,7 @@ export function DocumentLinesEditor({
                   <ProductCombobox
                     lineIndex={i}
                     value={line.product_id || null}
+                    productLabel={line.product_name}
                     prioritizeInStock={prioritizeInStock}
                     onDeleteLine={() => removeLine(i)}
                     integerMode={integerMode}

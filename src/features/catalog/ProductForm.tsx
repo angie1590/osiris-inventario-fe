@@ -938,10 +938,11 @@ export function ProductForm({
                 name="category_id"
                 render={({ field }) => (
                   <TreeSelector
-                    categories={(categories ?? []).filter((c) => !c.is_default)}
+                    categories={categories ?? []}
                     value={field.value as number | null}
                     onChange={field.onChange}
                     leafOnly
+                    blockDefaults
                   />
                 )}
               />

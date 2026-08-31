@@ -15,13 +15,27 @@ import type {
 
 // ─── Categories ─────────────────────────────────────────────────────────────
 
-export function useCategories(cursor?: number) {
+const CATEGORY_PAGE_SIZE = 200;
+
+// The API is cursor-paginated; fetch every page so newer categories are never
+// truncated out of the tree selectors.
+async function fetchAllCategories(): Promise<Category[]> {
+  const all: Category[] = [];
+  let cursor: number | undefined;
+  for (;;) {
+    const { data } = await api.get<Category[]>("/categories", {
+      params: { cursor, limit: CATEGORY_PAGE_SIZE },
+    });
+    all.push(...data);
+    if (data.length < CATEGORY_PAGE_SIZE) return all;
+    cursor = data[data.length - 1].id;
+  }
+}
+
+export function useCategories() {
   return useQuery({
-    queryKey: ["categories", cursor],
-    queryFn: () =>
-      api
-        .get<Category[]>("/categories", { params: { cursor, limit: 200 } })
-        .then((r) => r.data),
+    queryKey: ["categories"],
+    queryFn: fetchAllCategories,
   });
 }
 

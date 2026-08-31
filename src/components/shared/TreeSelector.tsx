@@ -23,6 +23,9 @@ interface TreeSelectorProps {
   /** When true, only leaf categories (no active children) can be selected;
    * parent categories only expand. Used when assigning products. */
   leafOnly?: boolean;
+  /** Render "Sin clasificar" buckets as non-selectable, but keep them in the
+   * tree so their subcategories stay reachable. */
+  blockDefaults?: boolean;
   /** Expand all nodes by default (useful when scoping to a single small branch). */
   defaultExpanded?: boolean;
   id?: string;
@@ -88,6 +91,7 @@ interface NodeProps {
   setFocusedId: (id: number | null) => void;
   flatVisible: React.MutableRefObject<number[]>;
   leafOnly: boolean;
+  blockDefaults: boolean;
   defaultExpanded: boolean;
 }
 
@@ -102,6 +106,7 @@ function TreeNode({
   setFocusedId,
   flatVisible,
   leafOnly,
+  blockDefaults,
   defaultExpanded,
 }: NodeProps) {
   const children = categories.filter(
@@ -109,8 +114,13 @@ function TreeNode({
   );
   const visible = matchesSearch(cat, categories, query);
   const childVisible = hasVisibleDescendant(cat, categories, query);
-  const isLeaf = children.length === 0;
-  const selectable = visible && (!leafOnly || isLeaf);
+  // Default buckets never count as real children: a category holding only a
+  // "Sin clasificar" child is still assignable.
+  const isLeaf = children.every((c) => blockDefaults && c.is_default);
+  const selectable =
+    visible && (!leafOnly || isLeaf) && !(blockDefaults && cat.is_default);
+  // Hide default buckets, unless they hold subcategories that must stay reachable.
+  const hidden = blockDefaults && cat.is_default && children.length === 0;
 
   const [expanded, setExpanded] = React.useState(
     !query ? defaultExpanded : true,
@@ -121,6 +131,7 @@ function TreeNode({
     else setExpanded(defaultExpanded);
   }, [query, defaultExpanded]);
 
+  if (hidden) return null;
   if (!visible && !childVisible) return null;
 
   if (selectable) {
@@ -187,6 +198,7 @@ function TreeNode({
             setFocusedId={setFocusedId}
             flatVisible={flatVisible}
             leafOnly={leafOnly}
+            blockDefaults={blockDefaults}
             defaultExpanded={defaultExpanded}
           />
         ))}
@@ -203,6 +215,7 @@ export function TreeSelector({
   rootLabel = "Sin padre (raíz)",
   disabled,
   leafOnly = false,
+  blockDefaults = false,
   defaultExpanded = false,
   id,
   "aria-invalid": ariaInvalid,
@@ -362,6 +375,7 @@ export function TreeSelector({
                   setFocusedId={setFocusedId}
                   flatVisible={flatVisible}
                   leafOnly={leafOnly}
+                  blockDefaults={blockDefaults}
                   defaultExpanded={defaultExpanded}
                 />
               ))

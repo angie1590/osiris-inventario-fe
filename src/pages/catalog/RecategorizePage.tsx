@@ -39,11 +39,9 @@ export default function RecategorizePage() {
     return Array.from(byDefault.entries()).map(([defaultId, products]) => {
       const def = cats.find((c) => c.id === defaultId);
       const parentId = def?.parent_id ?? null;
-      // Targets: leaf categories within the parent branch, excluding default buckets.
-      const targets =
-        parentId != null
-          ? subtreeOf(cats, parentId).filter((c) => !c.is_default)
-          : [];
+      // Targets: the whole parent branch; default buckets stay visible but are
+      // not selectable so their subcategories remain reachable.
+      const targets = parentId != null ? subtreeOf(cats, parentId) : [];
       return {
         defaultId,
         parentId,
@@ -159,6 +157,7 @@ export default function RecategorizePage() {
                         }
                         placeholder="Elegir subcategoría…"
                         leafOnly
+                        blockDefaults
                         defaultExpanded
                       />
                     </div>
