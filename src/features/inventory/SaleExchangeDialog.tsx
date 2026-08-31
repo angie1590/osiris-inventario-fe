@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import {
   Select,
   SelectContent,
@@ -85,7 +84,6 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
   const [notes, setNotes] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [confirmOutstanding, setConfirmOutstanding] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("EFECTIVO");
   const [bankName, setBankName] = useState("");
@@ -108,6 +106,20 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
   const paymentRequiresBank =
     activePaymentMethods.find((method) => method.name === paymentMethod)
       ?.requires_bank === true || paymentMethod === "TRANSFERENCIA";
+
+  useEffect(() => {
+    if (activePaymentMethods.some((method) => method.name === paymentMethod)) return;
+    setPaymentMethod(
+      activePaymentMethods.find((method) => method.default)?.name ??
+        activePaymentMethods[0]?.name ??
+        "EFECTIVO",
+    );
+  }, [activePaymentMethods, paymentMethod]);
+
+  useEffect(() => {
+    if (!paymentRequiresBank || bankName) return;
+    setBankName(activeBanks[0]?.name ?? "");
+  }, [activeBanks, bankName, paymentRequiresBank]);
 
   const soldByProduct = useMemo(() => {
     const acc = new Map<number, number>();
@@ -359,7 +371,7 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
     }
 
     if (differenceTotal > 0 && !acceptOutstandingBalance) {
-      setConfirmOutstanding(true);
+      setPaymentDialogOpen(true);
       return;
     }
     if (differenceTotal > 0 && paymentRequiresBank && !bankName) {
@@ -899,14 +911,6 @@ export function SaleExchangeDialog({ doc, onClose, onSuccess }: Props) {
           </Button>
         </DialogFooter>
       </DialogContent>
-      <ConfirmDialog
-        open={confirmOutstanding}
-        onClose={() => setConfirmOutstanding(false)}
-        title="Saldo pendiente"
-        description={`El valor recibido es menor al total de la factura. Faltante: ${formatCurrency(differenceTotal)}.`}
-        confirmLabel="Continuar al pago"
-        onConfirm={() => setPaymentDialogOpen(true)}
-      />
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
